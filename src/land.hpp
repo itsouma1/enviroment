@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 namespace climate {
 
 // ---------------------------------------------------------------------------
@@ -148,5 +150,131 @@ double soil_production(double reference_rate, double regolith_thickness, double 
 // P_0 = k_rp q exp[-E/R (1/T - 1/T0)].
 double soil_production_reference(double coefficient, double runoff, double activation_energy,
                                  double temperature_k, double reference_temperature = 288.15);
+
+// Green-Ampt infiltration and perirhizal hydraulics -------------------------
+
+// f = Ks (1 + S (theta_f - theta_i) / F).
+double green_ampt_infiltration(double saturated_conductivity, double suction_head,
+                               double final_moisture, double initial_moisture,
+                               double cumulative_infiltration);
+
+// df/dF = -Ks S (theta_f - theta_i) / F^2.
+double green_ampt_infiltration_sensitivity(double saturated_conductivity, double suction_head,
+                                           double final_moisture, double initial_moisture,
+                                           double cumulative_infiltration);
+
+// t_p = S Ks (theta_f - theta_i) / (P (P - Ks)).
+double green_ampt_ponding_time(double saturated_conductivity, double suction_head,
+                               double final_moisture, double initial_moisture, double rainfall);
+
+// B = 2(p^2 - 1) / (1 - (0.53 p)^2 + 2 p^2 [ln p + ln 0.53]).
+double perirhizal_geometry(double radius_ratio);
+
+// Mean conductivity between two matric potentials.
+double perirhizal_effective_conductivity(double cumulative_at_bulk, double cumulative_at_root,
+                                         double bulk_potential, double root_potential);
+
+// K_prhiz = 2 pi l_root B k_eff.
+double perirhizal_conductance(double root_length_density, double geometry_factor,
+                              double effective_conductivity);
+
+// K_srs = K_rs K_prhiz / (SUF K_rs + K_prhiz).
+double root_system_conductance(double root_system_conductance, double perirhizal_conductance,
+                               double standard_uptake_fraction);
+
+// dK_srs/dK_prhiz.
+double root_system_conductance_sensitivity(double root_system_conductance,
+                                           double perirhizal_conductance,
+                                           double standard_uptake_fraction);
+
+// Multilayer canopy ---------------------------------------------------------
+
+// F = (C_i - C_{i+1}) / r.
+double canopy_layer_flux(double concentration_i, double concentration_next, double resistance);
+
+// A_n,i = -(LAI/SF) dC / (r_b + 1/(SF/tau_cut + g_s)).
+double canopy_layer_assimilation(double leaf_area_index, double sidedness_factor,
+                                 double ambient_co2, double intercellular_co2,
+                                 double boundary_resistance, double cuticular_resistance,
+                                 double stomatal_conductance);
+
+// dA_n/dg_s.
+double canopy_layer_assimilation_sensitivity(double leaf_area_index, double sidedness_factor,
+                                             double ambient_co2, double intercellular_co2,
+                                             double boundary_resistance,
+                                             double cuticular_resistance,
+                                             double stomatal_conductance);
+
+// Critical zone (notes 144-160 KB) -----------------------------------------
+
+// K = kd (1 - exp(-kw q)) exp[-Ea/R (1/T - 1/T0)].
+double mineral_dissolution_constant(double dissolution_coefficient, double runoff,
+                                    double saturation_parameter, double activation_energy,
+                                    double temperature_k, double reference_temperature = 288.15);
+
+// F = chi int K tau^sigma x_p dz, trapezoidal over the column.
+double silicate_weathering_flux(double calcium_magnesium_fraction,
+                                const std::vector<double>& dissolution,
+                                const std::vector<double>& particle_age,
+                                const std::vector<double>& mineral_fraction, double dz,
+                                double age_exponent);
+
+// pCO2_max = 1 + 0.302484 q^0.8.
+double soil_pco2_maximum(double runoff);
+
+// pCO2 = atm + max / (1 + exp(1.315 - 0.116 (T - 273.15))).
+double soil_pco2(double atmospheric_pco2, double maximum_soil_pco2, double temperature_k);
+
+// F_carw = k_carb x_L q [Ca2+]_eq.
+double carbonate_weathering_flux(double rate_constant, double lithology_fraction,
+                                 double runoff, double equilibrium_calcium);
+
+// E = ke q^0.5 S.
+double stream_power_erosion(double erodibility, double runoff, double slope);
+
+// F_focw = 0.5 sum_l x_L chi_foc E.
+double petrogenic_carbon_flux(double lithology_fraction, double bedrock_fraction,
+                              double erosion);
+
+// F_sulw = sum_l x_L chi_S E.
+double sulfide_weathering_flux(double lithology_fraction, double sulfur_fraction,
+                               double erosion);
+
+// U = Vmax DOC/(K_DOC + DOC) O2/(K_O2 + O2) B.
+double microbial_uptake(double maximum_rate, double dissolved_organic_carbon,
+                        double doc_half_saturation, double oxygen, double oxygen_half_saturation,
+                        double active_biomass);
+
+// Vmax(T) = Vref exp[-Ea/R (1/T - 1/Tref)].
+double microbial_rate_temperature(double reference_rate, double activation_energy,
+                                  double temperature_k, double reference_temperature = 288.15);
+
+// MAOC_max = Ceq + (C0 - Ceq) exp(-k t).
+double maoc_saturation(double equilibrium_carbon, double initial_carbon, double turnover,
+                       double time);
+
+// 1 - (0.17 + 0.68 sand) - (0.003 + 0.032 clay).
+double soil_microbial_stabilization(double sand_fraction, double clay_fraction);
+
+// F_arc = (1 - chi_sub,c) F_sub.
+double arc_volcanic_flux(double subducted_flux, double subducted_fraction);
+
+// F_degas = f_UM chi_degas C_mantle.
+double mantle_degassing_flux(double melt_fraction, double degassing_efficiency,
+                             double mantle_carbon);
+
+// P_org = C_org / CPR.
+double organic_phosphorus(double organic_carbon, double carbon_phosphorus_ratio);
+
+// P_in = P_in,org C_roots/(C_roots + K_n).
+double plant_phosphorus_uptake(double organic_phosphorus_input, double root_carbon,
+                               double half_saturation);
+
+// EPIC partition fractions.
+double epic_stable_phosphorus_fraction(double saturation);
+double epic_labile_phosphorus_loss(double saturation);
+
+// s_W = sqrt(D_eff t).
+double weathering_front_thickness(double effective_diffusivity, double time);
 
 }  // namespace climate

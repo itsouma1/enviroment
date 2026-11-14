@@ -276,6 +276,28 @@ fixation, canopy air-space exchange, the multilayer scalar tendency, the
 exponential soil-production function and its runoff/temperature-dependent
 reference rate.
 
+**Five supplied closures.** SPLASH Green-Ampt infiltration
+`f = Ks(1 + S(theta_f - theta_i)/F)` with its `d f/dF` sensitivity and the
+ponding time `S Ks dtheta / (P(P-Ks))`. Perirhizal hydraulics with the geometry
+factor `B(p)`, the effective conductivity between bulk and root potentials, the
+conductance `2 pi l_root B k_eff`, and the root-system series conductance with
+its sensitivity to `K_prhiz`. The Hybrid-JSBACH4 network is a generic
+feed-forward evaluator returning the three outputs and an exact Jacobian by
+forward-mode propagation (the published weights are site-specific and were not
+released, so callers supply them). Hybrid 4D-Var-EnKF analysis and gain with the
+`d/dgamma` sensitivity, and a deterministic EAKF using Cholesky square roots of
+the prior and posterior covariances. Multilayer canopy flux, layer assimilation
+with the parallel cuticular pathway, and its stomatal sensitivity.
+
+**Critical zone (notes 144-160 KB).** Mineral dissolution constant, silicate
+weathering flux by column integration, carbonate weathering with the
+runoff-dependent soil pCO2, stream-power erosion, petrogenic and sulfide fluxes,
+Michaelis-Menten microbial uptake and its Arrhenius rate, MAOC saturation and
+the CENTURY stabilization factor, arc and mantle degassing, organic P and plant
+uptake, the EPIC partition fractions, and the diffusive weathering-front
+thickness. The mineral advection-reaction equation is solved in `pde` with an
+upwind scheme for both mineral fraction and particle age under a CFL limit.
+
 **PDE solvers (notes 112-128 KB, `src/pde.*`).** The continuum models are
 solved numerically in plain C++17, with no PDE library:
 

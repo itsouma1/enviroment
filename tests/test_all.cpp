@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "analysis.hpp"
+#include "assim.hpp"
 #include "atmos.hpp"
 #include "catalog.hpp"
 #include "common.hpp"
@@ -1128,7 +1129,99 @@ void test_cryo() {
                1e-15);
 }
 
+void test_new_gaps() {
+    CHECK_NEAR(green_ampt_infiltration(10.0, 100.0, 0.3, 0.1, 50.0), 14.0, 1e-9);
+    CHECK_NEAR(green_ampt_infiltration_sensitivity(10.0, 100.0, 0.3, 0.1, 50.0), -0.08,
+               1e-12);
+    CHECK_NEAR(green_ampt_ponding_time(10.0, 100.0, 0.3, 0.1, 20.0), 1.0, 1e-12);
+
+    const double geometry = perirhizal_geometry(2.0);
+    CHECK_NEAR(geometry, 17.51562645708963, 1e-9);
+    CHECK_NEAR(perirhizal_effective_conductivity(2.0, 1.0, 0.0, -1.0), 1.0, 1e-12);
+    CHECK_NEAR(perirhizal_conductance(1.0, geometry, 0.01), 1.100539268012316, 1e-9);
+    CHECK_NEAR(root_system_conductance(2.0, 1.0, 0.5), 1.0, 1e-12);
+    CHECK_NEAR(root_system_conductance_sensitivity(2.0, 1.0, 0.5), 0.5, 1e-12);
+
+    CHECK_NEAR(canopy_layer_flux(400.0, 380.0, 100.0), 0.2, 1e-12);
+    CHECK_NEAR(canopy_layer_assimilation(2.0, 1.0, 400.0, 200.0, 100.0, 10000.0, 0.01),
+               -2.0099502487562186, 1e-9);
+    CHECK_NEAR(canopy_layer_assimilation_sensitivity(2.0, 1.0, 400.0, 200.0, 100.0, 10000.0,
+                                                     0.01),
+               1.0099750006187963e-6, 1e-15);
+
+    CHECK_NEAR(mineral_dissolution_constant(1e-6, 2.0, 0.5, 50000.0, 280.0),
+               3.4433720030310447e-7, 1e-15);
+    CHECK_NEAR(soil_pco2_maximum(2.0), 1.5266552331761296, 1e-12);
+    CHECK_NEAR(soil_pco2(400.0, 1.5266552331761296, 288.15), 400.92313648907077, 1e-9);
+    CHECK_NEAR(carbonate_weathering_flux(1e-6, 0.4, 2.0, 1e-3), 8e-10, 1e-18);
+    CHECK_NEAR(stream_power_erosion(1e-4, 4.0, 0.1), 2e-5, 1e-12);
+    CHECK_NEAR(petrogenic_carbon_flux(0.5, 0.02, 2e-5), 1e-7, 1e-15);
+    CHECK_NEAR(sulfide_weathering_flux(0.5, 0.01, 2e-5), 1e-7, 1e-15);
+    CHECK_NEAR(microbial_uptake(1.0, 10.0, 5.0, 5.0, 2.0, 2.0), 0.9523809523809523, 1e-12);
+    CHECK_NEAR(maoc_saturation(100.0, 10.0, 1.0, 1.0), 66.89085029457019, 1e-9);
+    CHECK_NEAR(soil_microbial_stabilization(0.5, 0.2), 0.4806, 1e-12);
+    CHECK_NEAR(arc_volcanic_flux(100.0, 0.4), 60.0, 1e-12);
+    CHECK_NEAR(mantle_degassing_flux(0.1, 0.5, 100.0), 5.0, 1e-12);
+    CHECK_NEAR(organic_phosphorus(1000.0, 50.0), 20.0, 1e-12);
+    CHECK_NEAR(plant_phosphorus_uptake(20.0, 10.0, 5.0), 13.333333333333334, 1e-9);
+    CHECK_NEAR(epic_stable_phosphorus_fraction(0.5), 0.0955, 1e-12);
+    CHECK_NEAR(epic_labile_phosphorus_loss(0.5), 0.3775, 1e-12);
+    CHECK_NEAR(weathering_front_thickness(1e-9, 1e10), 3.1622776601683795, 1e-9);
+
+    const std::vector<double> enkf = {2.0, 1.0};
+    const std::vector<double> enviar = {4.0, 3.0};
+    const std::vector<double> hybrid = hybrid_analysis(enkf, enviar, 0.25);
+    CHECK_NEAR(hybrid[0], 3.5, 1e-12);
+    CHECK_NEAR(hybrid[1], 2.5, 1e-12);
+    const std::vector<double> hybrid_sensitivity = hybrid_analysis_sensitivity(enkf, enviar);
+    CHECK_NEAR(hybrid_sensitivity[0], -2.0, 1e-12);
+
+    const std::vector<std::vector<double>> members = {{0.0}, {2.0}};
+    const std::vector<std::vector<double>> h = {{1.0}};
+    const std::vector<std::vector<double>> r = {{1.0}};
+    const EnsembleAnalysis eakf =
+        ensemble_adjustment_filter(members, {1.0}, h, r);
+    CHECK_NEAR(eakf.mean[0], 1.0, 1e-9);
+    CHECK_NEAR(eakf.covariance[0][0], 2.0 / 3.0, 1e-9);
+    CHECK_NEAR(eakf.members[0][0], 0.42264973081037416, 1e-9);
+    CHECK_NEAR(eakf.members[1][0], 1.5773502691896257, 1e-9);
+
+    FeedForwardNetwork linear;
+    linear.weights = {{{1.0, 2.0}, {3.0, 4.0}}};
+    linear.biases = {{0.0, 0.0}};
+    linear.activation = {0};
+    const std::vector<double> output = network_forward(linear, {1.0, 1.0});
+    CHECK_NEAR(output[0], 3.0, 1e-12);
+    CHECK_NEAR(output[1], 7.0, 1e-12);
+    const std::vector<std::vector<double>> jac = network_jacobian(linear, {1.0, 1.0});
+    CHECK_NEAR(jac[0][0], 1.0, 1e-12);
+    CHECK_NEAR(jac[1][1], 4.0, 1e-12);
+
+    FeedForwardNetwork relu;
+    relu.weights = {{{1.0}}};
+    relu.biases = {{-1.0}};
+    relu.activation = {1};
+    CHECK_NEAR(network_forward(relu, {0.5})[0], 0.0, 1e-12);
+    CHECK_NEAR(network_jacobian(relu, {0.5})[0][0], 0.0, 1e-12);
+    CHECK_NEAR(network_jacobian(relu, {2.0})[0][0], 1.0, 1e-12);
+
+    WeatheringParameters weathering;
+    weathering.cells = 11;
+    weathering.thickness = 10.0;
+    weathering.production_rate = 0.01;
+    weathering.time_step = 10.0;
+    weathering.steps = 10;
+    const WeatheringResult inert = solve_weathering_column(weathering);
+    CHECK_NEAR(inert.mineral_fraction[0], 1.0, 1e-12);
+    CHECK_NEAR(inert.mineral_fraction[10], 1.0, 1e-12);
+    CHECK(inert.particle_age[5] > 0.0);
+    weathering.dissolution.assign(weathering.cells, 1e-3);
+    const WeatheringResult weathered = solve_weathering_column(weathering);
+    CHECK(weathered.mineral_fraction[5] < 1.0);
+}
+
 int main() {
+    test_new_gaps();
     test_cryo();
     test_pde();
     test_linalg();

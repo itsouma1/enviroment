@@ -94,6 +94,31 @@ std::vector<double> evolve_firn_column(std::vector<double> density, double layer
                                        double activation_energy = 60000.0,
                                        double ice_density = 917.0);
 
+// ---------------------------------------------------------------------------
+// Weathering column: advection-reaction for primary minerals and particle age
+// ---------------------------------------------------------------------------
+// d x_p/dt + v dz x_p = -K tau^sigma x_p,  d tau/dt + v dz tau = 1,
+// with v = P0 exp(-h/hp*) directed upward and z = 0 at the bedrock interface.
+struct WeatheringParameters {
+    std::size_t cells = 101;
+    double thickness = 10.0;
+    double production_rate = 1e-4;  // m/s (or m/yr, consistent with dt)
+    double decay_depth = 2.0;
+    double time_step = 100.0;
+    std::size_t steps = 100;
+    std::vector<double> dissolution;  // K at each node
+    double age_exponent = -0.5;
+};
+
+struct WeatheringResult {
+    std::vector<double> mineral_fraction;
+    std::vector<double> particle_age;
+    double elapsed = 0.0;
+    std::size_t substeps = 0;
+};
+
+WeatheringResult solve_weathering_column(const WeatheringParameters& parameters);
+
 }  // namespace climate
 
 #endif

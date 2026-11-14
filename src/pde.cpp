@@ -292,4 +292,56 @@ std::vector<double> evolve_firn_column(std::vector<double> density, double layer
     return density;
 }
 
+WeatheringResult solve_weathering_column(const WeatheringParameters& parameters) {
+    require(parameters.cells >= 3, "weathering: at least three cells");
+    require(parameters.thickness > 0.0, "weathering: thickness must be positive");
+    const std::size_t n = parameters.cells;
+    const double dz = parameters.thickness / static_cast<double>(n - 1);
+    const double velocity = parameters.production_rate;
+    require(velocity >= 0.0, "weathering: production rate must be >= 0");
+    if (!parameters.dissolution.empty()) {
+        require(parameters.dissolution.size() == n, "weathering: dissolution size mismatch");
+    }
+
+    std::vector<double> mineral(n, 1.0);
+    std::vector<double> age(n, 0.0);
+    // The advective CFL limit; fall back to one substep if v = 0.
+    const double cfl_dt = velocity > 0.0 ? 0.5 * dz / velocity : parameters.time_step;
+    const std::size_t substeps = static_cast<std::size_t>(
+        std::ceil(parameters.time_step / std::max(cfl_dt, 1e-30)));
+    const double dt = parameters.time_step / static_cast<double>(substeps);
+
+    std::vector<double> next_mineral(n, 0.0);
+    std::vector<double> next_age(n, 0.0);
+    for (std::size_t step = 0; step < parameters.steps; ++step) {
+        for (std::size_t sub = 0; sub < substeps; ++sub) {
+            next_mineral = mineral;
+            next_age = age;
+            for (std::size_t i = 1; i < n; ++i) {
+                const double advection = velocity * (mineral[i] - mineral[i - 1]) / dz;
+                const double k = parameters.dissolution.empty() ? 0.0 : parameters.dissolution[i];
+                const double age_value = std::max(age[i], 0.0);
+                const double reactivity =
+                    age_value > 0.0 ? std::pow(age_value, parameters.age_exponent) : 0.0;
+                const double reaction = k * reactivity * mineral[i];
+                next_mineral[i] = mineral[i] - dt * advection - dt * reaction;
+                const double age_advection = velocity * (age[i] - age[i - 1]) / dz;
+                next_age[i] = std::max(0.0, age[i] + dt * (1.0 - age_advection));
+                if (next_mineral[i] < 0.0) next_mineral[i] = 0.0;
+            }
+            next_mineral[0] = 1.0;
+            next_age[0] = 0.0;
+            mineral.swap(next_mineral);
+            age.swap(next_age);
+        }
+    }
+
+    WeatheringResult result;
+    result.mineral_fraction = std::move(mineral);
+    result.particle_age = std::move(age);
+    result.elapsed = parameters.time_step * static_cast<double>(parameters.steps);
+    result.substeps = substeps;
+    return result;
+}
+
 }  // namespace climate
