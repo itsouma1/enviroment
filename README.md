@@ -255,10 +255,28 @@ by `probabilistic_age_increment`. The land-surface formulas in the same window
 Farquhar, Ball-Berry-Leuning, Medlyn, Leuning, LPJ NPP and maintenance
 respiration) were already implemented in `land`.
 
-Not reducible to closed form without further data: the full-Stokes/first-order
-PDE solves, SHAKTI's unspecified creep-closure term, the phase-field fracture
-PDE, and the grounding-line migration formula, which is dimensionally
-inconsistent as written and is therefore omitted rather than guessed.
+**PDE solvers (notes 112-128 KB, `src/pde.*`).** The continuum models are
+solved numerically in plain C++17, with no PDE library:
+
+- `solve_blatter_pattyn` discretises the first-order membrane/shear balance
+  `4 d/dx(mu du/dx) + d/dz(mu du/dz) = rho g ds/dx` on an x-z slice, computes
+  Glen viscosity from the strain-rate invariant, applies a stress-free surface,
+  no-slip bed and zero-gradient outflow, and iterates with SOR sweeps. For an
+  isothermal constant-slope slab it reproduces the SIA profile
+  `u = 2A/(n+1) (rho g s')^n H^(n+1)` to within 6% at 61 x 31.
+- `solve_stefan_1d` uses an enthalpy formulation with an explicit diffusive
+  update and sub-stepping for stability; it tracks the liquid fraction and the
+  thaw front, and matches the erfc similarity solution for pure conduction.
+- `solve_phase_field_1d` integrates the Allen-Cahn-type damage evolution
+  `dphi/dt = -M[-2(1-phi)W+ + Gc/ell(phi - ell^2 lap phi)]` with clamping.
+- `evolve_firn_column` integrates the Arthern densification law over a column
+  using the depth-integrated overburden pressure.
+
+Not reducible to closed form without further data: the full-Stokes equations
+(only the first-order Blatter-Pattyn reduction is solved), SHAKTI's unspecified
+creep-closure term, and the grounding-line migration formula, which is
+dimensionally inconsistent as written and is therefore omitted rather than
+guessed.
 
 Two formulas in the notes are dimensionally inconsistent and are implemented
 in their standard forms: the mixed-layer depth

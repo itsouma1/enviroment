@@ -29,6 +29,7 @@
 #include "linalg.hpp"
 #include "netcdf.hpp"
 #include "ocean.hpp"
+#include "pde.hpp"
 #include "physics.hpp"
 #include "loess.hpp"
 #include "report.hpp"
@@ -945,6 +946,78 @@ void test_closures() {
 
 }  // namespace
 
+void test_pde() {
+    BlatterPattynParameters ice;
+    ice.nx = 61;
+    ice.nz = 31;
+    ice.length = 50000.0;
+    ice.thickness = 1000.0;
+    ice.surface_slope = 0.01;
+    ice.rate_factor = 1e-16;
+    const BlatterPattynResult flow = solve_blatter_pattyn(ice);
+    const double driving = 917.0 * 9.81 * 0.01;
+    const double analytic_surface =
+        2.0 * 1e-16 / 4.0 * std::pow(driving, 3.0) * std::pow(1000.0, 4.0);
+    const std::size_t mid = (ice.nx / 2) * ice.nz + (ice.nz - 1);
+    CHECK_NEAR(flow.velocity[mid], analytic_surface, analytic_surface * 0.12);
+    CHECK(flow.iterations <= ice.max_iterations);
+
+    StefanParameters conduction;
+    conduction.cells = 101;
+    conduction.length = 10.0;
+    conduction.initial_temperature = 260.0;
+    conduction.surface_temperature = 280.0;
+    conduction.basal_temperature = 260.0;
+    conduction.freezing_temperature = 200.0;
+    conduction.time_step = 3600.0;
+    conduction.steps = 28;
+    const StefanResult linear = solve_stefan_1d(conduction);
+    const double alpha = conduction.thermal_conductivity /
+                         (conduction.density * conduction.specific_heat);
+    const double time = conduction.time_step * static_cast<double>(conduction.steps);
+    const double similarity = std::erfc(0.5 / (2.0 * std::sqrt(alpha * time)));
+    CHECK_NEAR(linear.temperature[5], 260.0 + 20.0 * similarity, 1.0);
+    CHECK_NEAR(linear.liquid_fraction[5], 1.0, 1e-9);
+
+    StefanParameters freezing;
+    freezing.initial_temperature = 268.0;
+    freezing.surface_temperature = 278.0;
+    freezing.basal_temperature = 268.0;
+    freezing.steps = 48;
+    const StefanResult thaw = solve_stefan_1d(freezing);
+    CHECK(thaw.liquid_fraction[1] > 0.0);
+    CHECK(thaw.liquid_fraction[1] < 1.0);
+    CHECK(thaw.temperature[0] <= freezing.surface_temperature + 1e-9);
+
+    PhaseFieldParameters fracture;
+    fracture.cells = 101;
+    fracture.length = 1.0;
+    fracture.initial_phase.assign(fracture.cells, 1.0);
+    fracture.tensile_energy = 0.0;
+    fracture.fracture_toughness = 0.0;
+    fracture.steps = 100;
+    const std::vector<double> intact = solve_phase_field_1d(fracture);
+    CHECK_NEAR(intact[50], 1.0, 1e-12);
+
+    PhaseFieldParameters driven = fracture;
+    driven.initial_phase.assign(driven.cells, 0.5);
+    driven.tensile_energy = 1e5;
+    driven.fracture_toughness = 0.0;
+    driven.mobility = 1.0;
+    driven.time_step = 1e-4;
+    driven.steps = 1;
+    const std::vector<double> healed = solve_phase_field_1d(driven);
+    CHECK_NEAR(healed[50], 1.0, 1e-12);
+
+    std::vector<double> density(20, 350.0);
+    for (std::size_t i = 0; i < density.size(); ++i) density[i] += 5.0 * static_cast<double>(i);
+    const std::vector<double> firn = evolve_firn_column(density, 1.0, 1e7, 10, 1e-3, 250.0);
+    for (std::size_t i = 0; i < firn.size(); ++i) {
+        CHECK(firn[i] >= density[i]);
+        CHECK(firn[i] <= 917.0);
+    }
+}
+
 void test_cryo() {
     CHECK_NEAR(glen_rate_factor(1e-16, 60000.0, 270.0), 2.469044184578022e-28, 1e-40);
     CHECK_NEAR(glen_strain_rate(1e-16, 1e5, 3.0), 0.1, 1e-12);
@@ -1017,6 +1090,7 @@ void test_cryo() {
 
 int main() {
     test_cryo();
+    test_pde();
     test_linalg();
     test_stats();
     test_csv_and_json();
