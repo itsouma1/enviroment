@@ -58,6 +58,14 @@ std::vector<double> network_forward(const FeedForwardNetwork& network,
 std::vector<std::vector<double>> network_jacobian(const FeedForwardNetwork& network,
                                                   const std::vector<double>& input);
 
+// Ridge regression: beta = (X^T X + lambda I)^-1 X^T y.
+std::vector<double> ridge_regression(const std::vector<std::vector<double>>& design,
+                                     const std::vector<double>& response, double lambda);
+
+// Prediction w^T x + b.
+double linear_prediction(const std::vector<double>& coefficients,
+                         const std::vector<double>& predictors, double intercept = 0.0);
+
 }  // namespace climate
 
 #endif

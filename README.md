@@ -276,6 +276,22 @@ fixation, canopy air-space exchange, the multilayer scalar tendency, the
 exponential soil-production function and its runoff/temperature-dependent
 reference rate.
 
+**Ozone/water-vapour feedback and attribution (notes 192-208 KB).** The
+Chapman+2 linear damping rates `kappa_O` and `kappa_O3`, the odd-oxygen
+tendency, the effective `kappa_Ox`, the SWV feedback `lambda = R/Delta T_s`,
+the tropical adjustment `R_atmos - R_stra`, the Jacobian temperature adjustment
+`Delta T = -J^-1 Delta H` (Gaussian elimination), the lagged methane-water
+trend `2 alpha dCH4/dt`, the cold-trap sensitivity `0.45 ppmv/K`, kernel SARF
+summation, and ridge regression `(X^T X + lambda I)^-1 X^T y` with a linear
+predictor for the mloz/MLR emulators.
+
+**Land-use change (notes 208-224 KB).** Fraction-weighted albedo mixing, the
+annual mean albedo change, kernel and clear-sky `-0.7 Delta alpha SWDW` forcing,
+the global conversion sum, `r_c = r_xi/(0.5 LAI)`, canopy Penman-Monteith, the
+eight-term surface-temperature decomposition, bookkeeping and stock-difference
+carbon accounting, IEF-20, gain-loss stock changes, the four pool tendencies
+and the net land-use flux.
+
 **Aerosol optics and forcing (notes 160-192 KB).** A full Mie solver for
 homogeneous spheres: logarithmic-derivative downward recurrence, Miller's
 downward Riccati-Bessel recursion and the stable chi recursion, returning

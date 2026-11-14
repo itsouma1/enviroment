@@ -279,4 +279,34 @@ std::vector<std::vector<double>> network_jacobian(const FeedForwardNetwork& netw
     return jacobian;
 }
 
+std::vector<double> ridge_regression(const std::vector<std::vector<double>>& design,
+                                     const std::vector<double>& response, double lambda) {
+    require(!design.empty(), "ridge_regression: empty design");
+    require(design.size() == response.size(), "ridge_regression: row mismatch");
+    if (lambda < 0.0) throw std::runtime_error("ridge_regression: negative lambda");
+    const std::size_t parameters = design[0].size();
+    Matrix xt_x(parameters, std::vector<double>(parameters, 0.0));
+    std::vector<double> xt_y(parameters, 0.0);
+    for (std::size_t row = 0; row < design.size(); ++row) {
+        require(design[row].size() == parameters, "ridge_regression: ragged design");
+        for (std::size_t i = 0; i < parameters; ++i) {
+            xt_y[i] += design[row][i] * response[row];
+            for (std::size_t j = 0; j < parameters; ++j)
+                xt_x[i][j] += design[row][i] * design[row][j];
+        }
+    }
+    for (std::size_t i = 0; i < parameters; ++i) xt_x[i][i] += lambda;
+    return multiply(inverse(xt_x), xt_y);
+}
+
+double linear_prediction(const std::vector<double>& coefficients,
+                         const std::vector<double>& predictors, double intercept) {
+    require(coefficients.size() == predictors.size(),
+            "linear_prediction: size mismatch");
+    double value = intercept;
+    for (std::size_t i = 0; i < coefficients.size(); ++i)
+        value += coefficients[i] * predictors[i];
+    return value;
+}
+
 }  // namespace climate

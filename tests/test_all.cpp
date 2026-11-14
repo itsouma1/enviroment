@@ -23,6 +23,7 @@
 #include "earth.hpp"
 #include "fft.hpp"
 #include "land.hpp"
+#include "landuse.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1308,7 +1309,58 @@ void test_resolved_gaps() {
                0.00028683924701039445, 1e-15);
 }
 
+void test_advanced_ozone_landuse() {
+    CHECK_NEAR(oxygen_damping_rate(0.1, 1e6, 2e6, 3e9, 4e8, 1e7, 1e-12, 1e-12, 1e-12, 1e-12,
+                                   1e-12),
+               0.10682300000000002, 1e-15);
+    CHECK_NEAR(ozone_damping_rate(0.1, 1e6, 2e6, 3e6, 1e-12, 2e-12, 3e-12), 0.100014, 1e-15);
+    CHECK_NEAR(odd_oxygen_chemical_tendency(0.1, 2.0, 0.2, 3.0), -0.8, 1e-12);
+    CHECK_NEAR(effective_ox_damping(0.2, 0.2, 0.1, 0.1, 1.0), 0.11, 1e-12);
+    CHECK_NEAR(water_vapour_feedback(1.0, 0.5), 2.0, 1e-12);
+    CHECK_NEAR(tropical_adjustment(5.0, 2.0), 3.0, 1e-12);
+    const std::vector<double> delta_t =
+        temperature_adjustment({{2.0, 0.0}, {0.0, 4.0}}, {2.0, 4.0});
+    CHECK_NEAR(delta_t[0], -1.0, 1e-12);
+    CHECK_NEAR(delta_t[1], -1.0, 1e-12);
+    CHECK_NEAR(methane_water_trend(0.5, 0.1), 0.1, 1e-12);
+    CHECK_NEAR(cold_trap_entry_change(2.0), 0.9, 1e-12);
+    CHECK_NEAR(ozone_kernel_forcing({1.0, 2.0}, {3.0, 4.0}), 11.0, 1e-12);
+    CHECK_NEAR(stratospheric_adjusted_forcing(1.0, 2.0), 3.0, 1e-12);
+
+    CHECK_NEAR(mixed_albedo({{0.5, 1.0, 1.0, 0.2}, {0.5, 1.0, 1.0, 0.6}}), 0.4, 1e-12);
+    CHECK_NEAR(annual_albedo_change({0.3, 0.5}, {0.2, 0.4}), 0.1, 1e-12);
+    CHECK_NEAR(albedo_radiative_forcing(10.0, 0.1), 1.0, 1e-12);
+    CHECK_NEAR(clear_sky_albedo_forcing(0.1, 1000.0), -70.0, 1e-12);
+    CHECK_NEAR(global_conversion_forcing({{0.1}}, {{0.5}}, {{1e6}}, {{10.0}}, 5.1e8),
+               0.000980392156862745, 1e-15);
+    CHECK_NEAR(canopy_resistance(100.0, 4.0), 50.0, 1e-12);
+    CHECK_NEAR(canopy_penman_monteith(1.0, 100.0, 1.2, 1005.0, 1.0, 50.0, 0.066, 50.0),
+               109.64664310954063, 1e-9);
+    CHECK_NEAR(surface_temperature_decomposition(200.0, 0.0, 0.2, 0.0, 0.95, 290.0, 0.0, 2.5e6,
+                                                 0.0, 1.2, 0.01, 300.0, 0.0, 50.0, 0.0),
+               0.0, 1e-12);
+    CHECK_NEAR(bookkeeping_carbon_flux(1.0, 100.0, 200.0, 0.5, 0.2, 0.1), 100.0, 1e-12);
+    CHECK_NEAR(stock_difference(120.0, 100.0, 5.0), 4.0, 1e-12);
+    CHECK_NEAR(immediate_emission_factor(10.0), 0.5, 1e-12);
+    CHECK_NEAR(gain_loss_stock_change(5.0, 2.0, 0.5, 10.0, 8.0, 2.0), 8.0, 1e-12);
+
+    double vegetation = 0.0, litter = 0.0, soil = 0.0, product = 0.0;
+    land_use_pool_tendencies(vegetation, litter, soil, product, 10.0, 2.0, 3.0, 1.0, 1.0, 2.0,
+                             0.5, 0.5);
+    CHECK_NEAR(vegetation, 4.0, 1e-12);
+    CHECK_NEAR(litter, 0.0, 1e-12);
+    CHECK_NEAR(soil, 1.5, 1e-12);
+    CHECK_NEAR(product, 0.5, 1e-12);
+    CHECK_NEAR(net_land_use_flux(10.0, 5.0, 20.0, 2.0, 8.0, 4.0, 18.0), 7.0, 1e-12);
+
+    const std::vector<double> ridge = ridge_regression({{1.0, 0.0}, {0.0, 1.0}}, {2.0, 3.0}, 1.0);
+    CHECK_NEAR(ridge[0], 1.0, 1e-12);
+    CHECK_NEAR(ridge[1], 1.5, 1e-12);
+    CHECK_NEAR(linear_prediction(ridge, {2.0, 4.0}, 0.5), 8.5, 1e-12);
+}
+
 int main() {
+    test_advanced_ozone_landuse();
     test_resolved_gaps();
     test_aerosol_ozone();
     test_new_gaps();
