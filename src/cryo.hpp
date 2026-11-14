@@ -154,6 +154,60 @@ double tipping_critical_thickness(double exponent, double offset);
 double scalar_kalman_update(double background, double observation,
                             double background_variance, double observation_variance);
 
+// Advanced cryosphere (notes 112-128 KB) ----------------------------------
+
+// eta_tilde = (1 - D) eta, D in [0, 1].
+double damaged_viscosity(double intact_viscosity, double damage);
+
+// Glen law with the (1 - D)^-n strain enhancement.
+double damaged_glen_strain(double rate_factor, double damage, double effective_stress,
+                           double n = 3.0);
+
+// Biot poroelastic Cauchy stress: (1 - D) sigma_bar - D P_h.
+double biot_effective_stress(double intact_stress, double damage, double pore_pressure);
+
+// Maxwell elasto-brittle stress (1 - D) C : eps, isotropic stiffness.
+double maxwell_elasto_brittle_stress(double damage, double stiffness, double elastic_strain);
+
+// Lagrangian floe acceleration: (sum F + tau_air + tau_water) / m.
+HorizontalStress floe_acceleration(const HorizontalStress& contact_force,
+                                   const HorizontalStress& air_stress,
+                                   const HorizontalStress& water_stress, double mass);
+
+// Rothlisberger channel: dS/dt = (rho_w/rho_i) M - A_tilde S N^n.
+double roethlisberger_channel_rate(double melt_input, double channel_area,
+                                   double effective_pressure, double n,
+                                   double closure_coefficient, double water_density,
+                                   double ice_density);
+
+// Channel melt from rho_w M L + rho_w c_w S dT/dt + rho_w c_w Q dT/ds = -Q dphi/ds.
+double channel_energy_melt(double discharge, double head_gradient, double channel_area,
+                           double temperature_change, double temperature_gradient,
+                           double water_density, double water_heat_capacity,
+                           double latent_heat);
+
+// Phase-field free-energy density (tensile + compressive + fracture terms).
+double phase_field_energy_density(double phi, double gradient_squared,
+                                  double tensile_energy, double compressive_energy,
+                                  double fracture_toughness, double length_scale);
+
+// dphi/dt = -M delta F / delta phi, with delta F/delta phi = -2(1-phi) W+ 
+// + (Gc/ell)(phi - ell^2 laplacian(phi)).
+double phase_field_evolution(double phi, double laplacian, double tensile_energy,
+                             double fracture_toughness, double length_scale,
+                             double mobility);
+
+// d(rho Q U)/dxi = rho m_dot.
+double plume_flux_derivative(double density, double melt_rate);
+
+// d(rho Q U^2)/dxi = delta_rho g h sin(theta) - tau.
+double plume_momentum_derivative(double density_difference, double gravity, double thickness,
+                                 double sin_slope, double drag_stress);
+
+// Probabilistic age increment D(z) / (A(z) tau(z)) dz.
+double probabilistic_age_increment(double correction, double accumulation, double thinning,
+                                   double dz);
+
 }  // namespace climate
 
 #endif

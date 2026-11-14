@@ -242,6 +242,19 @@ potential, geothermal/frictional bed melt, calving flux, the phase-field notch
 depth, Arthern firn densification with the 550 kg/m^3 rate switch, overburden
 pressure, the Herron-Langway gradient, the Nye vertical-velocity profile, the
 tipping-point equilibrium and fold thickness, and the scalar Kalman update.
+**Advanced cryosphere (notes 112-128 KB).** Damage mechanics is covered by
+`damaged_viscosity`, `damaged_glen_strain` with the `(1-D)^-n` enhancement,
+`biot_effective_stress`, and `maxwell_elasto_brittle_stress`; the Lagrangian
+granular branch by `floe_acceleration`; channelised drainage by
+`roethlisberger_channel_rate` and `channel_energy_melt`; phase-field fracture
+by `phase_field_energy_density` and `phase_field_evolution` (using the
+variational derivative with a supplied Laplacian); plume dynamics by
+`plume_flux_derivative` and `plume_momentum_derivative`; probabilistic dating
+by `probabilistic_age_increment`. The land-surface formulas in the same window
+(net radiation, Monin-Obukhov resistance, Penman-Monteith, soil resistance,
+Farquhar, Ball-Berry-Leuning, Medlyn, Leuning, LPJ NPP and maintenance
+respiration) were already implemented in `land`.
+
 Not reducible to closed form without further data: the full-Stokes/first-order
 PDE solves, SHAKTI's unspecified creep-closure term, the phase-field fracture
 PDE, and the grounding-line migration formula, which is dimensionally

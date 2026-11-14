@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <stdexcept>
+#include <string>
 
 namespace climate {
 namespace {
@@ -279,6 +280,116 @@ double scalar_kalman_update(double background, double observation,
     require_positive(total, "scalar_kalman_update: variances");
     const double gain = background_variance / total;
     return background + gain * (observation - background);
+}
+
+double damaged_viscosity(double intact_viscosity, double damage) {
+    require_positive(intact_viscosity, "damaged_viscosity: viscosity");
+    if (damage < 0.0 || damage >= 1.0)
+        throw std::runtime_error("damaged_viscosity: damage must lie in [0, 1)");
+    return (1.0 - damage) * intact_viscosity;
+}
+
+double damaged_glen_strain(double rate_factor, double damage, double effective_stress,
+                           double n) {
+    require_positive(rate_factor, "damaged_glen_strain: rate factor");
+    if (damage < 0.0 || damage >= 1.0)
+        throw std::runtime_error("damaged_glen_strain: damage must lie in [0, 1)");
+    if (effective_stress < 0.0)
+        throw std::runtime_error("damaged_glen_strain: stress must be >= 0");
+    return rate_factor / std::pow(1.0 - damage, n) * std::pow(effective_stress, n);
+}
+
+double biot_effective_stress(double intact_stress, double damage, double pore_pressure) {
+    if (damage < 0.0 || damage > 1.0)
+        throw std::runtime_error("biot_effective_stress: damage outside [0, 1]");
+    return (1.0 - damage) * intact_stress - damage * pore_pressure;
+}
+
+double maxwell_elasto_brittle_stress(double damage, double stiffness, double elastic_strain) {
+    if (damage < 0.0 || damage > 1.0)
+        throw std::runtime_error("maxwell_elasto_brittle_stress: damage outside [0, 1]");
+    return (1.0 - damage) * stiffness * elastic_strain;
+}
+
+HorizontalStress floe_acceleration(const HorizontalStress& contact_force,
+                                   const HorizontalStress& air_stress,
+                                   const HorizontalStress& water_stress, double mass) {
+    require_positive(mass, "floe_acceleration: mass");
+    HorizontalStress acceleration;
+    acceleration.x = (contact_force.x + air_stress.x + water_stress.x) / mass;
+    acceleration.y = (contact_force.y + air_stress.y + water_stress.y) / mass;
+    return acceleration;
+}
+
+double roethlisberger_channel_rate(double melt_input, double channel_area,
+                                   double effective_pressure, double n,
+                                   double closure_coefficient, double water_density,
+                                   double ice_density) {
+    require_positive(ice_density, "roethlisberger_channel_rate: ice density");
+    if (channel_area < 0.0)
+        throw std::runtime_error("roethlisberger_channel_rate: area must be >= 0");
+    if (effective_pressure < 0.0)
+        throw std::runtime_error("roethlisberger_channel_rate: pressure must be >= 0");
+    return water_density / ice_density * melt_input -
+           closure_coefficient * channel_area * std::pow(effective_pressure, n);
+}
+
+double channel_energy_melt(double discharge, double head_gradient, double channel_area,
+                           double temperature_change, double temperature_gradient,
+                           double water_density, double water_heat_capacity,
+                           double latent_heat) {
+    require_positive(water_density, "channel_energy_melt: density");
+    require_positive(latent_heat, "channel_energy_melt: latent heat");
+    if (channel_area < 0.0)
+        throw std::runtime_error("channel_energy_melt: area must be >= 0");
+    const double energy = -discharge * head_gradient -
+                          water_density * water_heat_capacity * channel_area *
+                              temperature_change -
+                          water_density * water_heat_capacity * discharge *
+                              temperature_gradient;
+    return energy / (water_density * latent_heat);
+}
+
+double phase_field_energy_density(double phi, double gradient_squared,
+                                  double tensile_energy, double compressive_energy,
+                                  double fracture_toughness, double length_scale) {
+    require_positive(length_scale, "phase_field_energy_density: length scale");
+    if (phi < 0.0 || phi > 1.0)
+        throw std::runtime_error("phase_field_energy_density: phi outside [0, 1]");
+    return (1.0 - phi) * (1.0 - phi) * tensile_energy + compressive_energy +
+           fracture_toughness / (2.0 * length_scale) *
+               (phi * phi + length_scale * length_scale * gradient_squared);
+}
+
+double phase_field_evolution(double phi, double laplacian, double tensile_energy,
+                             double fracture_toughness, double length_scale,
+                             double mobility) {
+    require_positive(length_scale, "phase_field_evolution: length scale");
+    if (phi < 0.0 || phi > 1.0)
+        throw std::runtime_error("phase_field_evolution: phi outside [0, 1]");
+    const double variational =
+        -2.0 * (1.0 - phi) * tensile_energy +
+        fracture_toughness / length_scale *
+            (phi - length_scale * length_scale * laplacian);
+    return -mobility * variational;
+}
+
+double plume_flux_derivative(double density, double melt_rate) {
+    return density * melt_rate;
+}
+
+double plume_momentum_derivative(double density_difference, double gravity, double thickness,
+                                 double sin_slope, double drag_stress) {
+    if (thickness < 0.0)
+        throw std::runtime_error("plume_momentum_derivative: thickness must be >= 0");
+    return density_difference * gravity * thickness * sin_slope - drag_stress;
+}
+
+double probabilistic_age_increment(double correction, double accumulation, double thinning,
+                                   double dz) {
+    require_positive(accumulation, "probabilistic_age_increment: accumulation");
+    require_positive(thinning, "probabilistic_age_increment: thinning");
+    return correction / (accumulation * thinning) * dz;
 }
 
 }  // namespace climate

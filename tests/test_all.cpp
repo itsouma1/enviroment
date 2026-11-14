@@ -996,6 +996,23 @@ void test_cryo() {
     CHECK_NEAR(tipping_equilibrium(1.0, 2.0, 1.0, 1.0, 1.0), -1.0, 1e-12);
     CHECK_NEAR(tipping_critical_thickness(2.0, -1.0), 1.0, 1e-12);
     CHECK_NEAR(scalar_kalman_update(0.0, 10.0, 1.0, 1.0), 5.0, 1e-12);
+
+    CHECK_NEAR(damaged_viscosity(1e9, 0.2), 8e8, 1e-3);
+    CHECK_NEAR(damaged_glen_strain(1e-16, 0.5, 1e5, 3.0), 0.8, 1e-12);
+    CHECK_NEAR(biot_effective_stress(1e5, 0.5, 4e4), 30000.0, 1e-9);
+    CHECK_NEAR(maxwell_elasto_brittle_stress(0.2, 1e9, 1e-3), 8e5, 1e-6);
+    const HorizontalStress floe = floe_acceleration({3.0, 4.0}, {1.0, 1.0}, {1.0, 1.0}, 10.0);
+    CHECK_NEAR(floe.x, 0.5, 1e-12);
+    CHECK_NEAR(floe.y, 0.6, 1e-12);
+    CHECK_NEAR(roethlisberger_channel_rate(1e-4, 2.0, 1e5, 3.0, 1e-20, 1000.0, 917.0),
+               8.905125409e-5, 1e-15);
+    CHECK_NEAR(channel_energy_melt(1.0, -100.0, 1.0, 0.0, 0.0, 1000.0, 4218.0, 3.34e5),
+               2.994011976e-7, 1e-15);
+    CHECK_NEAR(phase_field_energy_density(0.5, 0.0, 100.0, 10.0, 1000.0, 1.0), 160.0, 1e-9);
+    CHECK_NEAR(phase_field_evolution(0.5, 0.0, 100.0, 1000.0, 1.0, 1.0), -400.0, 1e-9);
+    CHECK_NEAR(plume_flux_derivative(1027.0, 1e-6), 1.027e-3, 1e-15);
+    CHECK_NEAR(plume_momentum_derivative(2.0, 9.81, 10.0, 0.1, 1.0), 18.62, 1e-9);
+    CHECK_NEAR(probabilistic_age_increment(1.2, 0.1, 0.5, 10.0), 240.0, 1e-9);
 }
 
 int main() {
