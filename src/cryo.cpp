@@ -552,4 +552,38 @@ std::vector<double> icechrono_gradient(const std::vector<std::vector<double>>& c
     return gradient;
 }
 
+double schoof_grounding_line_flux(double rate_factor, double ice_density, double water_density,
+                                  double gravity, double glen_exponent, double sliding_exponent,
+                                  double grounding_line_thickness, double buttressing) {
+    require_positive(rate_factor, "schoof_grounding_line_flux: rate factor");
+    require_positive(ice_density, "schoof_grounding_line_flux: ice density");
+    require_positive(water_density, "schoof_grounding_line_flux: water density");
+    require_positive(gravity, "schoof_grounding_line_flux: gravity");
+    require_positive(glen_exponent, "schoof_grounding_line_flux: Glen exponent");
+    require_positive(sliding_exponent, "schoof_grounding_line_flux: sliding exponent");
+    require_positive(grounding_line_thickness, "schoof_grounding_line_flux: thickness");
+    if (buttressing <= 0.0 || buttressing > 1.0)
+        throw std::runtime_error("schoof_grounding_line_flux: buttressing outside (0, 1]");
+    const double n = glen_exponent;
+    const double ell = sliding_exponent;
+    const double bracket = rate_factor * std::pow(ice_density * gravity, n + 1.0) *
+                           std::pow(1.0 - ice_density / water_density, n) /
+                           (std::pow(4.0, n) * ell);
+    return std::pow(bracket, ell / (ell + 1.0)) *
+           std::pow(grounding_line_thickness, (ell * n + 3.0 * ell + 1.0) / (ell + 1.0)) *
+           std::pow(buttressing, ell * n / (ell + 1.0));
+}
+
+double schoof_flux_thickness_sensitivity(double flux, double thickness, double glen_exponent,
+                                        double sliding_exponent) {
+    require_positive(thickness, "schoof_flux_thickness_sensitivity: thickness");
+    return (sliding_exponent * glen_exponent + 3.0 * sliding_exponent + 1.0) /
+           (sliding_exponent + 1.0) * flux / thickness;
+}
+
+double grounding_line_migration(double flux, double thickness) {
+    require_positive(thickness, "grounding_line_migration: thickness");
+    return flux / thickness;
+}
+
 }  // namespace climate

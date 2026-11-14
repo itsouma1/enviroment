@@ -244,6 +244,16 @@ double kpp_bulk_richardson(double reference_buoyancy, double buoyancy_at_depth, 
     return (reference_buoyancy - buoyancy_at_depth) * depth / denominator;
 }
 
+double kpp_shape_function(double sigma, double a1, double a2, double a3) {
+    if (sigma < 0.0 || sigma > 1.0)
+        throw std::runtime_error("kpp_shape_function: sigma outside [0, 1]");
+    return a1 * sigma + a2 * sigma * sigma + a3 * sigma * sigma * sigma;
+}
+
+double kpp_velocity_scale(double w_lambda, double sigma, double a1, double a2, double a3) {
+    return w_lambda * kpp_shape_function(sigma, a1, a2, a3);
+}
+
 double kpp_bulk_richardson_sensitivity(double reference_buoyancy, double buoyancy_at_depth,
                                        double depth, double reference_velocity,
                                        double velocity_at_depth,

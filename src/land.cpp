@@ -523,4 +523,79 @@ double weathering_front_thickness(double effective_diffusivity, double time) {
     return std::sqrt(effective_diffusivity * time);
 }
 
+double soil_pco2_maximum_sensitivity(double runoff) {
+    if (!(runoff > 0.0))
+        throw std::runtime_error("soil_pco2_maximum_sensitivity: runoff must be positive");
+    return 0.8 * 0.302484 * std::pow(runoff, -0.2);
+}
+
+double stream_power_erosion_runoff_sensitivity(double erodibility, double runoff,
+                                               double slope) {
+    if (!(runoff > 0.0))
+        throw std::runtime_error("stream_power_erosion_runoff_sensitivity: runoff");
+    return 0.5 * erodibility * std::pow(runoff, -0.5) * slope;
+}
+
+double stream_power_erosion_slope_sensitivity(double erodibility, double runoff) {
+    if (runoff < 0.0)
+        throw std::runtime_error("stream_power_erosion_slope_sensitivity: runoff");
+    return erodibility * std::sqrt(runoff);
+}
+
+double soil_production_reference_sensitivity(double coefficient, double activation_energy,
+                                             double temperature_k,
+                                             double reference_temperature) {
+    if (!(temperature_k > 0.0))
+        throw std::runtime_error("soil_production_reference_sensitivity: temperature");
+    return coefficient *
+           std::exp(-activation_energy / GAS_CONSTANT *
+                    (1.0 / temperature_k - 1.0 / reference_temperature));
+}
+
+double van_genuchten_effective_saturation(double matric_potential, double alpha,
+                                          double pore_size_index) {
+    if (!(alpha > 0.0) || !(pore_size_index > 1.0))
+        throw std::runtime_error("van_genuchten_effective_saturation: invalid parameters");
+    const double m = 1.0 - 1.0 / pore_size_index;
+    return std::pow(1.0 + std::pow(alpha * std::fabs(matric_potential), pore_size_index), -m);
+}
+
+double van_genuchten_conductivity(double matric_potential, double saturated_conductivity,
+                                  double alpha, double pore_size_index, double tortuosity) {
+    if (!(saturated_conductivity > 0.0))
+        throw std::runtime_error("van_genuchten_conductivity: Ks must be positive");
+    const double m = 1.0 - 1.0 / pore_size_index;
+    const double saturation =
+        van_genuchten_effective_saturation(matric_potential, alpha, pore_size_index);
+    const double term = 1.0 - std::pow(1.0 - std::pow(saturation, 1.0 / m), m);
+    return saturated_conductivity * std::pow(saturation, tortuosity) * term * term;
+}
+
+double van_genuchten_matric_flux_potential(double matric_potential,
+                                           double saturated_conductivity, double alpha,
+                                           double pore_size_index) {
+    if (!(alpha > 0.0) || !(pore_size_index > 1.0))
+        throw std::runtime_error("van_genuchten_matric_flux_potential: invalid parameters");
+    const double m = 1.0 - 1.0 / pore_size_index;
+    const double exponent = -m * (1.0 - 1.0 / pore_size_index);
+    const double head = alpha * std::fabs(matric_potential);
+    return saturated_conductivity / alpha / (1.0 - m) *
+           (1.0 - std::pow(1.0 + std::pow(head, pore_size_index), exponent));
+}
+
+double perirhizal_conductance_van_genuchten(double root_length_density, double geometry_factor,
+                                            double bulk_potential, double root_potential,
+                                            double saturated_conductivity, double alpha,
+                                            double pore_size_index) {
+    const double difference = bulk_potential - root_potential;
+    if (!(std::fabs(difference) > 0.0))
+        throw std::runtime_error("perirhizal_conductance_van_genuchten: equal potentials");
+    const double bulk = van_genuchten_matric_flux_potential(
+        bulk_potential, saturated_conductivity, alpha, pore_size_index);
+    const double root = van_genuchten_matric_flux_potential(
+        root_potential, saturated_conductivity, alpha, pore_size_index);
+    return perirhizal_conductance(root_length_density, geometry_factor,
+                                  (bulk - root) / difference);
+}
+
 }  // namespace climate

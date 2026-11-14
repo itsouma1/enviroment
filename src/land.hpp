@@ -277,4 +277,40 @@ double epic_labile_phosphorus_loss(double saturation);
 // s_W = sqrt(D_eff t).
 double weathering_front_thickness(double effective_diffusivity, double time);
 
+// Sensitivities of the empirical laws --------------------------------------
+
+// d(pCO2_max)/dq = 0.8 * 0.302484 q^-0.2 (atm per runoff unit).
+double soil_pco2_maximum_sensitivity(double runoff);
+
+// dE/dq = 0.5 ke q^-0.5 S and dE/dS = ke q^0.5.
+double stream_power_erosion_runoff_sensitivity(double erodibility, double runoff,
+                                               double slope);
+double stream_power_erosion_slope_sensitivity(double erodibility, double runoff);
+
+// dP_0/dq = k_rp exp[-E/R (1/T - 1/T0)].
+double soil_production_reference_sensitivity(double coefficient, double activation_energy,
+                                             double temperature_k,
+                                             double reference_temperature = 288.15);
+
+// van Genuchten-Mualem closure ---------------------------------------------
+
+// Se = [1 + (alpha |h|)^n]^-m with m = 1 - 1/n.
+double van_genuchten_effective_saturation(double matric_potential, double alpha,
+                                          double pore_size_index);
+
+// K = Ks Se^l [1 - (1 - Se^(1/m))^m]^2.
+double van_genuchten_conductivity(double matric_potential, double saturated_conductivity,
+                                  double alpha, double pore_size_index, double tortuosity = 0.5);
+
+// Closed-form matric flux potential (cumulative from h to saturation).
+double van_genuchten_matric_flux_potential(double matric_potential,
+                                           double saturated_conductivity, double alpha,
+                                           double pore_size_index);
+
+// K_prhiz = 2 pi l_root B (Phi(bs) - Phi(sr)) / (bs - sr).
+double perirhizal_conductance_van_genuchten(double root_length_density, double geometry_factor,
+                                            double bulk_potential, double root_potential,
+                                            double saturated_conductivity, double alpha,
+                                            double pore_size_index);
+
 }  // namespace climate

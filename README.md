@@ -341,11 +341,21 @@ solved numerically in plain C++17, with no PDE library:
 - `evolve_firn_column` integrates the Arthern densification law over a column
   using the depth-integrated overburden pressure.
 
+**Corrected grounding line, KPP and closures.** The mangled grounding-line
+expression is replaced by the Schoof (2007) flux
+`Q_G = [A (rho_i g)^(n+1)(1-rho_i/rho_w)^n/(4^n ell)]^(ell/(ell+1)) H_G^((ell n+3 ell+1)/(ell+1)) chi^(ell n/(ell+1))`,
+with migration `Q_G/H_G` and `dQ_G/dH_G`; at n = ell = 3 this reproduces the
+published `H_G^19/4` scaling. KPP now has the cubic shape function
+`G_lambda = a1 sigma + a2 sigma^2 + a3 sigma^3` and `V_t = w_lambda G_lambda`;
+the `w_lambda` coefficients themselves remain external (Large et al. appendix B).
+The empirical laws have explicit sensitivities: `d(pCO2max)/dq`, both stream-power
+partials, and `dP_0/dq`. Perirhizal hydraulics now uses the van Genuchten-Mualem
+conductivity, its effective saturation and the closed-form matric flux potential,
+so the conductance is evaluated without quadrature.
+
 Not reducible to closed form without further data: the full-Stokes equations
-(only the first-order Blatter-Pattyn reduction is solved), SHAKTI's unspecified
-creep-closure term, and the grounding-line migration formula, which is
-dimensionally inconsistent as written and is therefore omitted rather than
-guessed.
+(only the first-order Blatter-Pattyn reduction is solved) and SHAKTI's
+unspecified creep-closure term.
 
 Two formulas in the notes are dimensionally inconsistent and are implemented
 in their standard forms: the mixed-layer depth

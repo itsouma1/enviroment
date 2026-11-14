@@ -210,6 +210,20 @@ double plume_momentum_derivative(double density_difference, double gravity, doub
 double probabilistic_age_increment(double correction, double accumulation, double thinning,
                                    double dz);
 
+// Schoof (2007) grounding-line flux ---------------------------------------
+// Q_G = [A (rho_i g)^(n+1) (1 - rho_i/rho_w)^n / (4^n ell)]^(ell/(ell+1))
+//       H_G^((ell n + 3 ell + 1)/(ell + 1)) chi^(ell n/(ell + 1)).
+double schoof_grounding_line_flux(double rate_factor, double ice_density, double water_density,
+                                  double gravity, double glen_exponent, double sliding_exponent,
+                                  double grounding_line_thickness, double buttressing);
+
+// dQ_G/dH_G = ((ell n + 3 ell + 1)/(ell + 1)) Q_G / H_G.
+double schoof_flux_thickness_sensitivity(double flux, double thickness, double glen_exponent,
+                                        double sliding_exponent);
+
+// Migration from mass conservation: dx_g/dt = Q_G / H_G.
+double grounding_line_migration(double flux, double thickness);
+
 // Hayhurst multiaxial invariant --------------------------------------------
 
 // sigma_H = alpha sigma_I + beta sigma_vM + (1 - alpha - beta) tr(sigma).

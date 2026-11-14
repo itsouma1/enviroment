@@ -134,6 +134,12 @@ double kpp_bulk_richardson_sensitivity(double reference_buoyancy, double buoyanc
                                        double velocity_at_depth,
                                        double turbulent_velocity_scale);
 
+// G_lambda(sigma) = a1 sigma + a2 sigma^2 + a3 sigma^3, with a0 = 0.
+double kpp_shape_function(double sigma, double a1, double a2, double a3);
+
+// V_t(d) = w_lambda(sigma) G_lambda(sigma).
+double kpp_velocity_scale(double w_lambda, double sigma, double a1, double a2, double a3);
+
 // ---------------------------------------------------------------------------
 // Stochastic non-hydrostatic pressure
 // ---------------------------------------------------------------------------

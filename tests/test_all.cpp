@@ -1281,7 +1281,35 @@ void test_aerosol_ozone() {
                200.0 * 18.0 / 29.0, 1e-9);
 }
 
+void test_resolved_gaps() {
+    const double flux = schoof_grounding_line_flux(1e-16, 917.0, 1027.0, 9.81, 3.0, 3.0, 1000.0,
+                                                   1.0);
+    CHECK_NEAR(flux, 16471727584.013472, 1e-3);
+    CHECK_NEAR(grounding_line_migration(flux, 1000.0), 16471727.584013471, 1e-6);
+    CHECK_NEAR(schoof_flux_thickness_sensitivity(flux, 1000.0, 3.0, 3.0), 78240706.02406399,
+               1e-5);
+
+    CHECK_NEAR(kpp_shape_function(0.5, 1.0, 2.0, 3.0), 1.375, 1e-12);
+    CHECK_NEAR(kpp_velocity_scale(2.0, 0.5, 1.0, 2.0, 3.0), 2.75, 1e-12);
+
+    CHECK_NEAR(soil_pco2_maximum_sensitivity(2.0), 0.21066209327045182, 1e-12);
+    CHECK_NEAR(stream_power_erosion_runoff_sensitivity(1e-4, 4.0, 0.1), 2.5e-6, 1e-15);
+    CHECK_NEAR(stream_power_erosion_slope_sensitivity(1e-4, 4.0), 2e-4, 1e-15);
+    CHECK_NEAR(soil_production_reference_sensitivity(1e-6, 50000.0, 280.0), 5.447334301881088e-7,
+               1e-18);
+
+    CHECK_NEAR(van_genuchten_effective_saturation(0.0, 1.4, 2.0), 1.0, 1e-12);
+    CHECK_NEAR(van_genuchten_effective_saturation(1.0, 1.4, 2.0), 0.5812381937190964, 1e-12);
+    CHECK_NEAR(van_genuchten_conductivity(1.0, 1e-5, 1.4, 2.0), 2.645128133968696e-7, 1e-18);
+    CHECK_NEAR(van_genuchten_matric_flux_potential(1.0, 1e-5, 1.4, 2.0), 3.3944315543502036e-6,
+               1e-18);
+    CHECK_NEAR(perirhizal_conductance_van_genuchten(1.0, 17.51562645708963, 2.0, 1.0, 1e-5, 1.4,
+                                                    2.0),
+               0.00028683924701039445, 1e-15);
+}
+
 int main() {
+    test_resolved_gaps();
     test_aerosol_ozone();
     test_new_gaps();
     test_cryo();
