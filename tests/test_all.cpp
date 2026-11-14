@@ -36,6 +36,7 @@
 #include "coherence.hpp"
 #include "change.hpp"
 #include "uncertainty.hpp"
+#include "metrology.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1629,7 +1630,44 @@ void test_magnitude_hierarchy() {
     CHECK_NEAR(normalised_mean_bias({1.0, 3.0}, {1.0, 1.0}), 1.0, 1e-12);
 }
 
+void test_metrology() {
+    const Matrix covariance = estimator_covariance({{1.0, 0.0}}, {{4.0, 1.0}, {1.0, 9.0}});
+    CHECK_NEAR(covariance[0][0], 4.0, 1e-12);
+
+    const Matrix structured =
+        structured_measurement_covariance({{1.0}}, {{4.0}}, {{1.0}}, {{2.0}});
+    CHECK_NEAR(structured[0][0], 7.0, 1e-12);
+
+    const Matrix gls = gls_estimator({{1.0}, {2.0}}, {{1.0, 0.0}, {0.0, 1.0}});
+    CHECK_NEAR(gls[0][0], 0.2, 1e-12);
+    CHECK_NEAR(gls[0][1], 0.4, 1e-12);
+    const Matrix ols = ols_estimator({{1.0}, {2.0}});
+    CHECK_NEAR(ols[0][0], 0.2, 1e-12);
+
+    const Matrix monte_carlo = monte_carlo_covariance({{1.0, 2.0}, {3.0, 4.0}});
+    CHECK_NEAR(monte_carlo[0][0], 2.0, 1e-12);
+    CHECK_NEAR(monte_carlo[0][1], 2.0, 1e-12);
+
+    CHECK_NEAR(ndvi(0.2, 0.5), 0.42857142857142855, 1e-12);
+    const std::vector<double> partials = ndvi_partials(0.5, 0.2);
+    CHECK_NEAR(partials[0], 0.8163265306122449, 1e-12);
+    CHECK_NEAR(partials[1], -2.0408163265306123, 1e-12);
+    CHECK_NEAR(ndvi_uncertainty(0.5, 0.2, 0.01, 0.01, 0.0), 0.0219802, 1e-6);
+
+    const std::vector<double> prediction = simple_kriging({2.0}, {{1.0}}, {{0.5}}, 0.0);
+    CHECK_NEAR(prediction[0], 1.0, 1e-12);
+    const Matrix kriging = kriging_error_covariance({{1.0}}, {{0.5}});
+    CHECK_NEAR(kriging[0][0], 0.25, 1e-12);
+
+    CHECK_NEAR(station_homogenisation_uncertainty(0.5, 4), 0.25, 1e-12);
+    CHECK_NEAR(sampling_uncertainty(1.0, 30), 0.18257418583505536, 1e-12);
+    CHECK_NEAR(bootstrap_mean_standard_error({5.0, 5.0, 5.0}, 20, 1), 0.0, 1e-12);
+    CHECK_NEAR(simultaneous_nadir_bias({1.0, 3.0}, {0.0, 2.0}), 1.0, 1e-12);
+    CHECK_NEAR(diurnal_harmonic(0.0, 10.0, 2.0, 0.0, 0.0, 0.0), 12.0, 1e-12);
+}
+
 int main() {
+    test_metrology();
     test_magnitude_hierarchy();
     test_spatial_advanced();
     test_regimes_and_causal();

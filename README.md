@@ -293,6 +293,15 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Metrological uncertainty and intercalibration (notes 352-384 KB).**
+`metrology.hpp` implements the covariance-aware LPU in matrix and scalar
+forms, the estimator covariance `G Q_y G^T`, the structured decomposition
+`A_bar Q_xE A_bar^T + Q_Y + Q_E`, GLS and OLS estimators, Monte Carlo sample
+covariance, NDVI partials and correlated uncertainty, simple kriging and its
+error covariance `C_cross^T (C_obs+E)^-1 C_cross`, the
+`0.5/sqrt(N)` homogenisation and `sigma/sqrt(n)` sampling budgets, bootstrap
+mean error, the SNO bias, and the diurnal harmonic reconstruction.
+
 **Advanced magnitude and validation (notes 320-352 KB).** `change.hpp` adds
 the piecewise-linear value and rate shift, the non-stationary effective
 return level `mu + sigma/xi ([ -ln(1-p) ]^-xi - 1)`, the return-period
