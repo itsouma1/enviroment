@@ -108,6 +108,7 @@ struct WeatheringParameters {
     std::size_t steps = 100;
     std::vector<double> dissolution;  // K at each node
     double age_exponent = -0.5;
+    double reference_age = 1.0;  // normalises tau so age^sigma is dimensionless
 };
 
 struct WeatheringResult {

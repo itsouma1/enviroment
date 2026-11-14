@@ -1100,6 +1100,17 @@ void test_cryo() {
     CHECK_NEAR(contact.normal, 785.3981633974482, 1e-9);
     CHECK_NEAR(contact.shear_stiffness, 3020762.166913262, 1e-3);
     CHECK_NEAR(contact.tangential, 30.207621669132624, 1e-9);
+    const ContactForce damped =
+        hertz_mindlin_contact(1e9, 0.3, 0.1, 0.5, 0.01, 0.02, 1.0, 1.0, 1e-4, 0.01, 1e-5,
+                              0.0, 0.5);
+    CHECK_NEAR(damped.normal, 789.3614708222966, 1e-3);
+
+    const std::vector<double> unit_dissolution = {1e-6, 1e-6, 1e-6};
+    const std::vector<double> unit_age = {2.0, 2.0, 2.0};
+    const std::vector<double> unit_mineral = {1.0, 1.0, 1.0};
+    CHECK_NEAR(silicate_weathering_flux(0.5, unit_dissolution, unit_age, unit_mineral, 1.0,
+                                       -0.5, 1.0),
+               1.0606601717798212e-6, 1e-15);
 
     CHECK_NEAR(firn_strain_softening(0.01, 0.0, -0.02, 0.0, 0.0, 0.0, 0.02),
                1.118033988749895, 1e-9);

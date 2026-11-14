@@ -217,7 +217,7 @@ double silicate_weathering_flux(double calcium_magnesium_fraction,
                                 const std::vector<double>& dissolution,
                                 const std::vector<double>& particle_age,
                                 const std::vector<double>& mineral_fraction, double dz,
-                                double age_exponent);
+                                double age_exponent, double reference_age = 1.0);
 
 // pCO2_max = 1 + 0.302484 q^0.8.
 double soil_pco2_maximum(double runoff);

@@ -406,7 +406,7 @@ double silicate_weathering_flux(double calcium_magnesium_fraction,
                                 const std::vector<double>& dissolution,
                                 const std::vector<double>& particle_age,
                                 const std::vector<double>& mineral_fraction, double dz,
-                                double age_exponent) {
+                                double age_exponent, double reference_age) {
     if (dissolution.size() != particle_age.size() ||
         dissolution.size() != mineral_fraction.size())
         throw std::runtime_error("silicate_weathering_flux: size mismatch");
@@ -415,7 +415,9 @@ double silicate_weathering_flux(double calcium_magnesium_fraction,
     for (std::size_t i = 0; i < dissolution.size(); ++i) {
         if (particle_age[i] < 0.0)
             throw std::runtime_error("silicate_weathering_flux: negative age");
-        integral += dissolution[i] * std::pow(particle_age[i], age_exponent) *
+        if (!(reference_age > 0.0))
+            throw std::runtime_error("silicate_weathering_flux: reference age must be positive");
+        integral += dissolution[i] * std::pow(particle_age[i] / reference_age, age_exponent) *
                     mineral_fraction[i];
     }
     return calcium_magnesium_fraction * integral * dz;

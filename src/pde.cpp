@@ -321,8 +321,10 @@ WeatheringResult solve_weathering_column(const WeatheringParameters& parameters)
                 const double advection = velocity * (mineral[i] - mineral[i - 1]) / dz;
                 const double k = parameters.dissolution.empty() ? 0.0 : parameters.dissolution[i];
                 const double age_value = std::max(age[i], 0.0);
+                const double normalised_age =
+                    parameters.reference_age > 0.0 ? age_value / parameters.reference_age : age_value;
                 const double reactivity =
-                    age_value > 0.0 ? std::pow(age_value, parameters.age_exponent) : 0.0;
+                    normalised_age > 0.0 ? std::pow(normalised_age, parameters.age_exponent) : 0.0;
                 const double reaction = k * reactivity * mineral[i];
                 next_mineral[i] = mineral[i] - dt * advection - dt * reaction;
                 const double age_advection = velocity * (age[i] - age[i - 1]) / dz;

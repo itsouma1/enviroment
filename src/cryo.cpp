@@ -441,9 +441,10 @@ ContactForce hertz_mindlin_contact(double youngs_modulus, double poisson_ratio,
     const double equivalent_mass = mass_i * mass_j / (mass_i + mass_j);
     const double normal_stiffness =
         packing_parameter * area / centroid_distance * youngs_modulus;
-    const double normal_damping = 2.0 * packing_parameter * area * damping_ratio /
-                                  centroid_distance * contact_radius *
-                                  std::sqrt(equivalent_mass * normal_stiffness);
+    // C_n = 2 xi sqrt(m_eq K_n); the geometric factor belongs to K_n, not to
+    // the damping coefficient (otherwise C_n would carry units of area).
+    const double normal_damping =
+        2.0 * damping_ratio * std::sqrt(equivalent_mass * normal_stiffness);
     const double shear_stiffness = normal_stiffness / (2.0 * (1.0 + poisson_ratio));
     const double shear_damping = 2.0 * damping_ratio * std::sqrt(equivalent_mass * shear_stiffness);
 

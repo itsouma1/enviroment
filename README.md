@@ -276,6 +276,14 @@ fixation, canopy air-space exchange, the multilayer scalar tendency, the
 exponential soil-production function and its runoff/temperature-dependent
 reference rate.
 
+**Dimensional corrections.** Two implemented laws were dimensionally wrong as
+supplied and are now fixed rather than copied literally. The Hertz-Mindlin
+damping coefficient was given as `2 alpha A xi r_c sqrt(m K_n)/d`, which carries
+units of area; it is now the standard `C_n = 2 xi sqrt(m_eq K_n)`, with the
+geometric factor retained only in `K_n`. The age-dependent dissolution term
+`K tau^sigma` had units of `time^(sigma-1)`; particle age is now normalised by
+a reference age, `K (tau/tau_ref)^sigma`, so the factor is dimensionless.
+
 **Five supplied closures.** SPLASH Green-Ampt infiltration
 `f = Ks(1 + S(theta_f - theta_i)/F)` with its `d f/dF` sensitivity and the
 ponding time `S Ks dtheta / (P(P-Ks))`. Perirhizal hydraulics with the geometry
