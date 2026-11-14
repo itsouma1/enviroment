@@ -293,6 +293,19 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Advanced magnitude and validation (notes 320-352 KB).** `change.hpp` adds
+the piecewise-linear value and rate shift, the non-stationary effective
+return level `mu + sigma/xi ([ -ln(1-p) ]^-xi - 1)`, the return-period
+derivative `Delta tau/(1-F)^2 dF/dt`, the AR(2) stability sum, the
+amplitude/circulation/covariance OHT terms, Fisher information `1/sigma^2`
+and information speed, clipped standardisation, local contrast, Max-CUSUM,
+higher criticism, the Gaussian covariance log-likelihood ratio (Cholesky
+log-determinants), the 1-D optimal-transport cost, and the functional slope
+function with its integrated squared norm. `uncertainty.hpp` implements
+independent and correlated uncertainty propagation, correlated mean
+variance, the retrieval/sampling two-component budget, reduced chi-square,
+RMSE, bias and normalised mean bias.
+
 **Spatial detection (notes 288-320 KB).** `spatial.hpp` now adds LISA regime
 classification, the Gaussian kernel, GWR local coefficients
 `(X^T W X)^-1 X^T W y`, Matern 3/2 covariance, probit changepoint category

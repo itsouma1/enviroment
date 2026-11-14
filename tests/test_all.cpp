@@ -34,6 +34,8 @@
 #include "causal.hpp"
 #include "magnitude.hpp"
 #include "coherence.hpp"
+#include "change.hpp"
+#include "uncertainty.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1585,7 +1587,50 @@ void test_spatial_advanced() {
     CHECK_NEAR(wavelet_coherence(field, field, 8, 1, 3, 1), 1.0, 1e-12);
 }
 
+void test_magnitude_hierarchy() {
+    CHECK_NEAR(piecewise_linear_value(0.0, 1.0, 2.0, 3.0, 2.0), 5.0, 1e-12);
+    CHECK_NEAR(piecewise_rate_before(1.0), 1.0, 1e-12);
+    CHECK_NEAR(piecewise_rate_after(1.0, 2.0), 3.0, 1e-12);
+    CHECK_NEAR(effective_return_level(0.5, 0.0, 1.0, 0.0), 0.36651292058166435, 1e-12);
+    CHECK_NEAR(return_period_derivative(1.0, 0.5, 0.1), 0.4, 1e-12);
+
+    CHECK_NEAR(ar2_step(1.0, 2.0, 0.5, 0.3, 0.0), 1.1, 1e-12);
+    CHECK_NEAR(ar2_stability(0.5, 0.3), 0.8, 1e-12);
+    CHECK_NEAR(oht_amplitude_term(2.0, 3.0), 6.0, 1e-12);
+    CHECK_NEAR(oht_circulation_term(4.0, 5.0), 20.0, 1e-12);
+    CHECK_NEAR(oht_covariance_term(2.0, 5.0), 10.0, 1e-12);
+
+    CHECK_NEAR(fisher_information_gaussian_mean(4.0), 0.25, 1e-12);
+    CHECK_NEAR(information_speed(0.25, 2.0), 1.0, 1e-12);
+    CHECK_NEAR(clipped_standardised_value(5.0, 0.0, 1.0, 2.0), 2.0, 1e-12);
+    CHECK_NEAR(clipped_standardised_value(-5.0, 0.0, 1.0, 2.0), -2.0, 1e-12);
+    CHECK_NEAR(local_contrast(0.0, 2.0, 1.0, 1.0, 0.0, 4.0), 2.8284271247461903, 1e-12);
+    CHECK_NEAR(max_cusum_statistic({-1.0, 3.0, -2.0}), 3.0, 1e-12);
+    CHECK(higher_criticism({0.001, 0.5}) > 20.0);
+
+    CHECK_NEAR(gaussian_covariance_log_likelihood_ratio(10, 10, {{1.0}}, {{1.0}}, {{1.0}}), 0.0,
+               1e-12);
+    CHECK_NEAR(optimal_transport_cost_1d({0.0, 2.0}, {1.0, 3.0}), 1.0, 1e-12);
+
+    const std::vector<double> slope =
+        functional_slope({{0.0, 0.0}, {1.0, 2.0}, {2.0, 4.0}}, {0.0, 1.0, 2.0});
+    CHECK_NEAR(slope[0], 1.0, 1e-12);
+    CHECK_NEAR(slope[1], 2.0, 1e-12);
+    CHECK_NEAR(functional_slope_norm(slope, 1.0), 5.0, 1e-12);
+
+    CHECK_NEAR(combined_standard_uncertainty({2.0, 3.0}, {1.0, 1.0}), std::sqrt(13.0), 1e-12);
+    CHECK_NEAR(correlated_standard_uncertainty({1.0, 1.0}, {1.0, 1.0}, {{1.0, 0.0}, {0.0, 1.0}}),
+               std::sqrt(2.0), 1e-12);
+    CHECK_NEAR(correlated_mean_variance({1.0, 1.0}, {{1.0, 0.0}, {0.0, 1.0}}), 0.5, 1e-12);
+    CHECK_NEAR(two_component_error(3.0, 4.0), 5.0, 1e-12);
+    CHECK_NEAR(reduced_chi_square({1.0, 3.0}, {0.0, 0.0}, {1.0, 1.0}), 10.0, 1e-12);
+    CHECK_NEAR(root_mean_square_error({1.0, 3.0}, {0.0, 0.0}), std::sqrt(5.0), 1e-12);
+    CHECK_NEAR(mean_bias({1.0, 3.0}, {1.0, 1.0}), 1.0, 1e-12);
+    CHECK_NEAR(normalised_mean_bias({1.0, 3.0}, {1.0, 1.0}), 1.0, 1e-12);
+}
+
 int main() {
+    test_magnitude_hierarchy();
     test_spatial_advanced();
     test_regimes_and_causal();
     test_copula_hmm();
