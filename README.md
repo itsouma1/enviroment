@@ -91,6 +91,14 @@ Requirements: a C++17 compiler (g++ or clang++) and `make`.
 ./climate land farquhar --vcmax 100 --ci 30 --gamma-star 4 --kc 40 --oi 21 --ko 21000 --j 150
 ./climate spatial getis --values "1,2,3" --weights "1,1,1;1,1,1;1,1,1" --index 1
 
+./climate atmos cape --file data/parcel_profile.csv
+./climate atmos photolysis --file data/photolysis_bands.csv
+./climate atmos falloff --temperature 300 --density 1e19
+./climate ocean mixed-layer --file data/n2_profile.csv
+./climate ocean osborn --gamma 0.2 --epsilon 1e-8 --n2 1e-4
+./climate ocean waves --wind 10 --omega 1
+./climate ocean hibler --p-star 2e4 --thickness 2 --concentration 0.9 --c 20
+
 ./climate retrieve index --file data/reflectance_pairs.csv --red red --nir nir \
         --index evi --blue blue
 
@@ -189,6 +197,27 @@ xylem cavitation conductance, the soil water balance and soil thermal inertia.
 q-statistic, the Walker field-significance threshold, Benjamini-Hochberg
 q-values and rejections, and the Kulldorff Poisson scan log-likelihood ratio.
 
+**Atmospheric chemistry and aerosols.** CAPE and CIN by trapezoidal integration of
+`g (Tv_p - Tv_e)/Tv_e`; photolysis `J = int phi sigma F dlambda`; the
+low-pressure-limit falloff constant with the `0.6^Z` broadening factor;
+aqueous sulfate oxidation; the free-molecular coagulation kernel and
+coagulation sink; the ion balance steady state (and its
+`sqrt(q/alpha)` limit); and the ACI susceptibility decomposition
+`ERFaci = (dCF/dlnAI * SW + CF * dSW/dlnAI) dlnAI`.
+
+**Ocean physics.** Buoyancy frequency, the `N^2`-weighted mixed-layer depth,
+Ekman velocity and barotropic compensation, PV and GM eddy diffusivities, the
+internal-wave dispersion `omega^2 = f^2 + N^2 k^2/m^2`, gradient Richardson
+number, Osborn diffusivity, shear dissipation, the NORi piecewise viscosity,
+Martin export, air-sea CO2 flux, DIC, bulk latent/sensible heat fluxes, iron
+co-limitation and ligand speciation, mCDR potential, the Pierson-Moskowitz
+spectrum, Doppler-shifted frequency and Hibler ice pressure.
+
+Two formulas in the notes are dimensionally inconsistent and are implemented
+in their standard forms: the mixed-layer depth
+`int 2 N^2 dz / int N^2 dz` (dimensionless) is replaced by the `N^2` centroid,
+and the internal-wave dispersion's extra `g^2/(rho^2 N^2)` factor is dropped.
+
 **Separating trend from seasonality.** STL (`y = T + S + R`) with cycle-subseries
 LOESS smoothing, a low-pass moving-average filter, and bisquare robustness
 iterations; monthly climatology and standardised anomalies; Mann-Kendall with
@@ -274,8 +303,9 @@ areas, JSON/CSV round-trips, intent parsing, the NetCDF-3 reader and exporter,
 and Mie efficiencies cross-checked against an independent implementation to
 1e-6. The advanced modules are checked the same way: RK4 convergence to the
 two-layer equilibrium, Planck forward/inverse round-trip, two-stream energy
-closure, Penman-Monteith closure, and closed-form values for the spatial
-statistics. `data/nasa/sample_sst3.nc` is parsed and exported by the C++ reader;
+closure, Penman-Monteith closure, closed-form values for the spatial
+statistics, CAPE/CIN on a parcel profile, the photolysis integral, the falloff
+constant and the oceanic mixing and spectral formulas. `data/nasa/sample_sst3.nc` is parsed and exported by the C++ reader;
 `sample_sst4.nc` and `sample_seaice_polar4.nc` are converted by the wrapper
 (area-weighted SST, 15% extent on a curvilinear grid). A live CMR search with
 the bundled registry returns real NSIDC granules. Downloading requires Earthdata

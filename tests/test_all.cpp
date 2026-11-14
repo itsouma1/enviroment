@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "analysis.hpp"
+#include "atmos.hpp"
 #include "catalog.hpp"
 #include "common.hpp"
 #include "csv.hpp"
@@ -26,6 +27,7 @@
 #include "json.hpp"
 #include "linalg.hpp"
 #include "netcdf.hpp"
+#include "ocean.hpp"
 #include "physics.hpp"
 #include "loess.hpp"
 #include "report.hpp"
@@ -809,6 +811,71 @@ void test_earth_land_spatial() {
     CHECK_NEAR(poisson_scan_log_likelihood(10, 5.0, 100, 50.0), 69.314718, 1e-5);
 }
 
+void test_atmos_ocean() {
+    // CAPE/CIN from a parcel profile: +2 K up to 1 km, neutral at 2 km, cold above.
+    const std::vector<ParcelLevel> profile = {{0.0, 302.0, 300.0},
+                                              {1000.0, 302.0, 300.0},
+                                              {2000.0, 300.0, 300.0},
+                                              {3000.0, 298.0, 300.0}};
+    const CapeResult cape = cape_cin(profile);
+    CHECK_NEAR(cape.cape_j_per_kg, 98.0665, 1e-3);
+    CHECK(cape.found_lfc);
+    CHECK(cape.found_lnb);
+    CHECK_NEAR(cape.lfc_m, 0.0, 1e-12);
+    CHECK_NEAR(cape.lnb_m, 2000.0, 1e-12);
+    CHECK_NEAR(cape.cin_j_per_kg, 0.0, 1e-12);
+
+    // Photolysis integral: constant phi sigma F over 0.3-0.4 um.
+    CHECK_NEAR(photolysis_rate({0.3e-6, 0.4e-6}, {1.0, 1.0}, {1e-20, 1e-20}, {1e15, 1e15}),
+               1e-12, 1e-24);
+    CHECK_NEAR(falloff_rate_constant(300.0, 0.0), 0.0, 1e-30);
+    CHECK_NEAR(falloff_rate_constant(300.0, 1e19), 6.7693178899e-13, 1e-23);
+    CHECK_NEAR(aqueous_sulfate_oxidation_rate(1.0, 2.0, 4.0, 2.0, 3.0, 5.0, 0.5), 18.0, 1e-12);
+
+    // Aerosol coagulation and ion balance.
+    CHECK_NEAR(free_molecular_coagulation(1e-7, 1e-7, 298.0, 1000.0), 8.887925e-15, 1e-18);
+    CHECK_NEAR(coagulation_sink({1.0, 2.0}, {3.0, 4.0}), 11.0, 1e-12);
+    CHECK_NEAR(cloud_radiative_susceptibility(0.5, 2.0), 1.0, 1e-12);
+    CHECK_NEAR(aci_radiative_forcing(0.5, 100.0, 0.01, 2.0, 2.0), 4.0, 1e-12);
+    CHECK_NEAR(ion_equilibrium_number(1.0, 1.0, 0.0, 0.0), 1.0, 1e-12);
+    CHECK_NEAR(ion_equilibrium_number(1.0, 1.0, 2.0, 1.0), 0.4142135624, 1e-9);
+    CHECK_NEAR(recombination_limited_ions(1.0, 1.0), 1.0, 1e-12);
+
+    // Ocean stratification, mixed layer, eddies and mixing.
+    CHECK_NEAR(buoyancy_frequency_squared(9.80665, 1025.0, -1e-3), 9.56746e-6, 1e-10);
+    CHECK_NEAR(mixed_layer_depth({0.0, 100.0}, {1e-4, 1e-4}), 50.0, 1e-9);
+    CHECK_NEAR(ekman_velocity(0.1, 1e-4, 50.0), 20.0, 1e-12);
+    CHECK_NEAR(barotropic_compensation(20.0, 50.0, 1000.0), -1.0, 1e-12);
+    CHECK_NEAR(eddy_diffusivity_pv(1.0, 1e-11, 2e-11), 1e11, 1.0);
+    CHECK_NEAR(eddy_diffusivity_gm(1e-7, 1e-3), 1e-4, 1e-15);
+    CHECK_NEAR(internal_wave_frequency_squared(3.64605795e-5, 1e-4, 1e-3, 1e-2), 1.00133e-6,
+               1e-12);
+    CHECK_NEAR(gradient_richardson(9.80665, 1025.0, -1e-3, 1e-2, 0.0), 0.0956746341, 1e-9);
+    CHECK_NEAR(osborn_diffusivity(0.2, 1e-8, 1e-4), 2e-5, 1e-15);
+    CHECK_NEAR(dissipation_from_shear(1e-6, 1e-4), 7.5e-10, 1e-20);
+    CHECK_NEAR(nori_viscosity(-0.1, 1e-3, 1e-1, 1e-5, 0.25, 0.05),
+               0.0964387, 1e-6);
+    CHECK_NEAR(nori_viscosity(0.1, 1e-3, 1e-1, 1e-5, 0.25, 0.05), 0.000604, 1e-9);
+    CHECK_NEAR(nori_viscosity(0.3, 1e-3, 1e-1, 1e-5, 0.25, 0.05), 1e-5, 1e-12);
+
+    // Carbon, heat fluxes and biogeochemistry.
+    CHECK_NEAR(martin_export_flux(10.0, 1000.0, -0.858), 1.38675583, 1e-6);
+    CHECK_NEAR(air_sea_co2_flux(5e-5, 0.03, 400.0, 300.0), 1.5e-4, 1e-15);
+    CHECK_NEAR(dissolved_inorganic_carbon(2000.0, 100.0, 10.0), 2110.0, 1e-12);
+    CHECK_NEAR(latent_heat_flux_bulk(1.2, 2.5e6, 1.2e-3, 10.0, 0.01, 0.0), 360.0, 1e-9);
+    CHECK_NEAR(sensible_heat_flux_bulk(1.2, 1005.0, 1.2e-3, 10.0, 2.0, 0.0), 28.944, 1e-9);
+    CHECK_NEAR(net_air_sea_heat_flux(100.0, -50.0, -20.0, -10.0), 20.0, 1e-12);
+    CHECK_NEAR(iron_limitation(10.0, 1.0, 1.0, 1.0, 100.0, 100.0, 0.1, 0.5), 1.0 / 6.0, 1e-12);
+    CHECK(free_iron_ligand_speciation(1e-9, 1e-10, 1e10) > 0.0);
+    CHECK(free_iron_ligand_speciation(1e-9, 1e-10, 1e10) < 1e-10);
+    CHECK_NEAR(mcdr_potential_ratio(2000.0, 2300.0, 0.5, 1.0), -0.4347826087, 1e-9);
+
+    // Waves and sea-ice rheology.
+    CHECK_NEAR(pierson_moskowitz_spectrum(1.0, 10.0), 0.3929092, 1e-6);
+    CHECK_NEAR(doppler_shifted_frequency(1.0, 2.0, 3.0), 7.0, 1e-12);
+    CHECK_NEAR(hibler_ice_pressure(2e4, 2.0, 0.9, 20.0), 5413.4113, 1e-3);
+}
+
 }  // namespace
 
 int main() {
@@ -827,6 +894,7 @@ int main() {
     test_netcdf();
     test_physics();
     test_earth_land_spatial();
+    test_atmos_ocean();
     test_fetch();
 
     if (failures == 0) {

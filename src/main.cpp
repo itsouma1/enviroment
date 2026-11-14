@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "analysis.hpp"
+#include "atmos.hpp"
 #include "catalog.hpp"
 #include "common.hpp"
 #include "csv.hpp"
@@ -23,6 +24,7 @@
 #include "intent.hpp"
 #include "json.hpp"
 #include "netcdf.hpp"
+#include "ocean.hpp"
 #include "physics.hpp"
 #include "report.hpp"
 #include "retrieval.hpp"
@@ -325,6 +327,35 @@ void print_usage() {
         << "  spatial fdr --p-values \"...\" [--alpha A]\n"
         << "  spatial scan --inside N --expected-inside MU --total N --expected-total M\n"
         << "      Local spatial statistics and field-significance corrections.\n\n"
+        << "  atmos cape --file PROFILE.csv   (columns height, parcel, environment)\n"
+        << "  atmos photolysis --file BANDS.csv (wavelength_um, yield, sigma, flux)\n"
+        << "  atmos falloff --temperature K --density M [--k-low K] [--k-high K]\n"
+        << "  atmos aqueous --k0 K0 --k1 K1 --k2 K2 --so2 C --hso3 C --so3 C --oxidant C\n"
+        << "  atmos coagulation --r1 UM --r2 UM [--temperature K] [--density RHO]\n"
+        << "  atmos ion --ionization Q --alpha A [--attachment B] [--aerosol Z]\n"
+        << "      CAPE/CIN, photolysis, falloff kinetics, aerosols and ion balance.\n\n"
+        << "  ocean stratification --density RHO --drho-dz D\n"
+        << "  ocean mixed-layer --file PROFILE.csv   (columns depth, n2)\n"
+        << "  ocean ekman --tau T --latitude LAT --depth H [--bottom-depth Z]\n"
+        << "  ocean eddy-pv --pv-flux VQ --beta B --slope-gradient S\n"
+        << "  ocean eddy-gm --buoyancy-flux VB --velocity-gradient U\n"
+        << "  ocean internal-wave --latitude LAT --n2 N2 --k K --m M [--density RHO]\n"
+        << "  ocean richardson --density RHO --drho-dz D --shear-u DU --shear-v DV\n"
+        << "  ocean osborn --gamma G --epsilon E --n2 N2\n"
+        << "  ocean shear-dissipation --nu V --shear-variance S\n"
+        << "  ocean nori --ri RI [--shear-viscosity V] [--convective-viscosity V]\n"
+        << "          [--neutral-viscosity V] [--critical-ri R] [--transition-width W]\n"
+        << "  ocean martin --flux-100 F --depth Z --exponent B\n"
+        << "  ocean co2-flux --gas-transfer K --solubility K0 --pco2-sea P --pco2-atm P\n"
+        << "  ocean dic --co2 C --hco3 C --co3 C\n"
+        << "  ocean heat-flux --shortwave S --longwave L --latent LE --sensible H\n"
+        << "  ocean iron-limitation --n N --kn KN --p P --kp KP --par PAR --kpar KPAR\n"
+        << "          --fe FE --kfe KFE\n"
+        << "  ocean iron-speciation --ligand L --iron FE --keq K\n"
+        << "  ocean mcdr --dic D --alk A --gamma-alk GA --gamma-dic GD\n"
+        << "  ocean waves --wind U19.5 --omega W\n"
+        << "  ocean hibler --p-star P --thickness H --concentration A --c C\n"
+        << "      Ocean mixing, biogeochemistry, wave spectra and sea-ice rheology.\n\n"
         << "  retrieve index --file DATA.csv --red COL --nir COL [--blue COL]\n"
         << "          [--index ndvi|evi|savi] [--soil L] [--out FILE]\n"
         << "      NDVI, EVI or SAVI from reflectance pairs.\n\n"
@@ -1929,6 +1960,362 @@ int command_spatial(const std::string& sub, const Arguments& args) {
     return 1;
 }
 
+int command_atmos(const std::string& sub, const Arguments& args) {
+    if (sub == "cape") {
+        const std::string path = args.get("file");
+        if (path.empty()) {
+            std::cerr << "error: --file PROFILE.csv is required\n";
+            return 1;
+        }
+        const Table table = read_csv(path);
+        const int height = table.column("height");
+        const int parcel = table.column("parcel");
+        const int environment = table.column("environment");
+        if (height < 0 || parcel < 0 || environment < 0) {
+            std::cerr << "error: profile needs height, parcel and environment columns\n";
+            return 1;
+        }
+        std::vector<ParcelLevel> levels;
+        for (std::size_t i = 0; i < table.rows.size(); ++i) {
+            ParcelLevel level;
+            if (!parse_number(table.cell(i, height), level.height_m)) continue;
+            if (!parse_number(table.cell(i, parcel), level.parcel_virtual_temperature_k)) continue;
+            if (!parse_number(table.cell(i, environment),
+                              level.environment_virtual_temperature_k))
+                continue;
+            levels.push_back(level);
+        }
+        const CapeResult result = cape_cin(levels);
+        std::cout << "CAPE = " << result.cape_j_per_kg << " J/kg\n";
+        std::cout << "CIN  = " << result.cin_j_per_kg << " J/kg\n";
+        std::cout << "LFC  = " << (result.found_lfc ? result.lfc_m : std::nan("")) << " m\n";
+        std::cout << "LNB  = " << (result.found_lnb ? result.lnb_m : std::nan("")) << " m\n";
+        return 0;
+    }
+
+    if (sub == "photolysis") {
+        const std::string path = args.get("file");
+        if (path.empty()) {
+            std::cerr << "error: --file BANDS.csv is required\n";
+            return 1;
+        }
+        const Table table = read_csv(path);
+        const int wavelength = table.column("wavelength_um");
+        const int quantum = table.column("yield");
+        const int sigma = table.column("sigma");
+        const int flux = table.column("flux");
+        if (wavelength < 0 || quantum < 0 || sigma < 0 || flux < 0) {
+            std::cerr << "error: bands need wavelength_um, yield, sigma and flux columns\n";
+            return 1;
+        }
+        std::vector<double> wavelengths, yields, cross, actinic;
+        for (std::size_t i = 0; i < table.rows.size(); ++i) {
+            double w = 0.0, y = 0.0, s = 0.0, f = 0.0;
+            if (!parse_number(table.cell(i, wavelength), w)) continue;
+            if (!parse_number(table.cell(i, quantum), y)) continue;
+            if (!parse_number(table.cell(i, sigma), s)) continue;
+            if (!parse_number(table.cell(i, flux), f)) continue;
+            wavelengths.push_back(w * 1e-6);
+            yields.push_back(y);
+            cross.push_back(s);
+            actinic.push_back(f);
+        }
+        std::cout << "J = " << photolysis_rate(wavelengths, yields, cross, actinic) << " 1/s\n";
+        return 0;
+    }
+
+    if (sub == "falloff") {
+        const double temperature = args.number("temperature", std::nan(""));
+        const double density = args.number("density", std::nan(""));
+        if (!std::isfinite(temperature) || !std::isfinite(density)) {
+            std::cerr << "error: --temperature and --density are required\n";
+            return 1;
+        }
+        std::cout << "falloff rate constant = "
+                  << falloff_rate_constant(temperature, density, args.number("k-low", 3.3e-31),
+                                           args.number("k-high", 1.6e-12),
+                                           args.number("exp-low", -4.3),
+                                           args.number("exp-high", 0.0))
+                  << " cm3/molecule/s\n";
+        return 0;
+    }
+
+    if (sub == "aqueous") {
+        std::cout << "aqueous sulfate oxidation rate = "
+                  << aqueous_sulfate_oxidation_rate(
+                         args.number("k0", 0.0), args.number("k1", 0.0),
+                         args.number("k2", 0.0), args.number("so2", 0.0),
+                         args.number("hso3", 0.0), args.number("so3", 0.0),
+                         args.number("oxidant", 0.0))
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "coagulation") {
+        const double r1 = args.number("r1", std::nan(""));
+        const double r2 = args.number("r2", std::nan(""));
+        if (!std::isfinite(r1) || !std::isfinite(r2)) {
+            std::cerr << "error: --r1 and --r2 (micrometres) are required\n";
+            return 1;
+        }
+        std::cout << "free-molecular coagulation coefficient = "
+                  << free_molecular_coagulation(r1 * 1e-6, r2 * 1e-6,
+                                                args.number("temperature", 298.15),
+                                                args.number("density", 1000.0))
+                  << " m3/s\n";
+        return 0;
+    }
+
+    if (sub == "ion") {
+        const double ionization = args.number("ionization", std::nan(""));
+        const double alpha = args.number("alpha", std::nan(""));
+        if (!std::isfinite(ionization) || !std::isfinite(alpha)) {
+            std::cerr << "error: --ionization and --alpha are required\n";
+            return 1;
+        }
+        std::cout << "steady-state ion number = "
+                  << ion_equilibrium_number(ionization, alpha, args.number("attachment", 0.0),
+                                            args.number("aerosol", 0.0))
+                  << " m^-3\n";
+        std::cout << "recombination-limited limit = "
+                  << recombination_limited_ions(ionization, alpha) << " m^-3\n";
+        return 0;
+    }
+
+    std::cerr << "error: unknown atmos diagnostic '" << sub
+              << "'; expected cape, photolysis, falloff, aqueous, coagulation or ion\n";
+    return 1;
+}
+
+int command_ocean(const std::string& sub, const Arguments& args) {
+    if (sub == "stratification") {
+        const double density = args.number("density", std::nan(""));
+        const double gradient = args.number("drho-dz", std::nan(""));
+        if (!std::isfinite(density) || !std::isfinite(gradient)) {
+            std::cerr << "error: --density and --drho-dz are required\n";
+            return 1;
+        }
+        std::cout << "N^2 = " << buoyancy_frequency_squared(9.80665, density, gradient)
+                  << " 1/s2\n";
+        return 0;
+    }
+
+    if (sub == "mixed-layer") {
+        const std::string path = args.get("file");
+        if (path.empty()) {
+            std::cerr << "error: --file PROFILE.csv is required\n";
+            return 1;
+        }
+        const Table table = read_csv(path);
+        const int depth = table.column("depth");
+        const int n2 = table.column("n2");
+        if (depth < 0 || n2 < 0) {
+            std::cerr << "error: profile needs depth and n2 columns\n";
+            return 1;
+        }
+        std::vector<double> depths, values;
+        for (std::size_t i = 0; i < table.rows.size(); ++i) {
+            double z = 0.0, value = 0.0;
+            if (!parse_number(table.cell(i, depth), z)) continue;
+            if (!parse_number(table.cell(i, n2), value)) continue;
+            depths.push_back(z);
+            values.push_back(value);
+        }
+        std::cout << "mixed-layer depth diagnostic = " << mixed_layer_depth(depths, values)
+                  << " m\n";
+        return 0;
+    }
+
+    if (sub == "ekman") {
+        const double tau = args.number("tau", std::nan(""));
+        const double latitude = args.number("latitude", std::nan(""));
+        const double depth = args.number("depth", std::nan(""));
+        if (!std::isfinite(tau) || !std::isfinite(latitude) || !std::isfinite(depth)) {
+            std::cerr << "error: --tau, --latitude and --depth are required\n";
+            return 1;
+        }
+        const double f = 2.0 * 7.2921159e-5 * std::sin(deg_to_rad(latitude));
+        if (f == 0.0) {
+            std::cerr << "error: Ekman transport is undefined at the equator\n";
+            return 1;
+        }
+        const double velocity = ekman_velocity(tau, f, depth);
+        std::cout << "Ekman velocity v_e = " << velocity << " m/s\n";
+        if (args.has("bottom-depth")) {
+            std::cout << "barotropic compensation = "
+                      << barotropic_compensation(velocity, depth, args.number("bottom-depth", 1.0))
+                      << " m/s\n";
+        }
+        return 0;
+    }
+
+    if (sub == "eddy-pv") {
+        std::cout << "K_R = "
+                  << eddy_diffusivity_pv(args.number("pv-flux", 0.0), args.number("beta", 0.0),
+                                         args.number("slope-gradient", 0.0))
+                  << " m2/s\n";
+        return 0;
+    }
+
+    if (sub == "eddy-gm") {
+        std::cout << "K_GM = "
+                  << eddy_diffusivity_gm(args.number("buoyancy-flux", 0.0),
+                                         args.number("velocity-gradient", 0.0))
+                  << " m2/s\n";
+        return 0;
+    }
+
+    if (sub == "internal-wave") {
+        const double latitude = args.number("latitude", 0.0);
+        const double n2 = args.number("n2", std::nan(""));
+        const double k = args.number("k", std::nan(""));
+        const double m = args.number("m", std::nan(""));
+        if (!std::isfinite(n2) || !std::isfinite(k) || !std::isfinite(m)) {
+            std::cerr << "error: --n2, --k and --m are required\n";
+            return 1;
+        }
+        const double f = 2.0 * 7.2921159e-5 * std::sin(deg_to_rad(latitude));
+        std::cout << "omega^2 = " << internal_wave_frequency_squared(f, n2, k, m) << " 1/s2\n";
+        return 0;
+    }
+
+    if (sub == "richardson") {
+        std::cout << "gradient Richardson number = "
+                  << gradient_richardson(9.80665, args.number("density", 1025.0),
+                                         args.number("drho-dz", 0.0),
+                                         args.number("shear-u", 0.0),
+                                         args.number("shear-v", 0.0))
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "osborn") {
+        std::cout << "Osborn diffusivity kappa = "
+                  << osborn_diffusivity(args.number("gamma", 0.2), args.number("epsilon", 0.0),
+                                        args.number("n2", 0.0))
+                  << " m2/s\n";
+        return 0;
+    }
+
+    if (sub == "shear-dissipation") {
+        std::cout << "epsilon = "
+                  << dissipation_from_shear(args.number("nu", 1e-6),
+                                            args.number("shear-variance", 0.0))
+                  << " W/kg\n";
+        return 0;
+    }
+
+    if (sub == "nori") {
+        const double ri = args.number("ri", std::nan(""));
+        if (!std::isfinite(ri)) {
+            std::cerr << "error: --ri is required\n";
+            return 1;
+        }
+        std::cout << "NORi viscosity = "
+                  << nori_viscosity(ri, args.number("shear-viscosity", 1e-3),
+                                    args.number("convective-viscosity", 1e-1),
+                                    args.number("neutral-viscosity", 1e-5),
+                                    args.number("critical-ri", 0.25),
+                                    args.number("transition-width", 0.05))
+                  << " m2/s\n";
+        return 0;
+    }
+
+    if (sub == "martin") {
+        std::cout << "Martin export flux = "
+                  << martin_export_flux(args.number("flux-100", 0.0), args.number("depth", 100.0),
+                                        args.number("exponent", -0.858))
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "co2-flux") {
+        std::cout << "air-sea CO2 flux = "
+                  << air_sea_co2_flux(args.number("gas-transfer", 0.0),
+                                      args.number("solubility", 0.0),
+                                      args.number("pco2-sea", 0.0),
+                                      args.number("pco2-atm", 0.0))
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "dic") {
+        std::cout << "DIC = "
+                  << dissolved_inorganic_carbon(args.number("co2", 0.0),
+                                                args.number("hco3", 0.0),
+                                                args.number("co3", 0.0))
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "heat-flux") {
+        std::cout << "net air-sea heat flux = "
+                  << net_air_sea_heat_flux(args.number("shortwave", 0.0),
+                                           args.number("longwave", 0.0),
+                                           args.number("latent", 0.0),
+                                           args.number("sensible", 0.0))
+                  << " W/m2\n";
+        return 0;
+    }
+
+    if (sub == "iron-limitation") {
+        std::cout << "iron/nutrient limitation = "
+                  << iron_limitation(args.number("n", 0.0), args.number("kn", 1.0),
+                                     args.number("p", 0.0), args.number("kp", 0.1),
+                                     args.number("par", 0.0), args.number("kpar", 1.0),
+                                     args.number("fe", 0.0), args.number("kfe", 1.0))
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "iron-speciation") {
+        std::cout << "free inorganic iron Fe' = "
+                  << free_iron_ligand_speciation(args.number("ligand", 0.0),
+                                                 args.number("iron", 0.0),
+                                                 args.number("keq", 1.0))
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "mcdr") {
+        std::cout << "mCDR potential ratio = "
+                  << mcdr_potential_ratio(args.number("dic", 0.0), args.number("alk", 0.0),
+                                          args.number("gamma-alk", 0.0),
+                                          args.number("gamma-dic", 1.0))
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "waves") {
+        const double wind = args.number("wind", std::nan(""));
+        const double omega = args.number("omega", std::nan(""));
+        if (!std::isfinite(wind) || !std::isfinite(omega)) {
+            std::cerr << "error: --wind and --omega are required\n";
+            return 1;
+        }
+        std::cout << "Pierson-Moskowitz S(omega) = " << pierson_moskowitz_spectrum(omega, wind)
+                  << " m2 s\n";
+        return 0;
+    }
+
+    if (sub == "hibler") {
+        std::cout << "Hibler ice pressure = "
+                  << hibler_ice_pressure(args.number("p-star", 0.0),
+                                         args.number("thickness", 0.0),
+                                         args.number("concentration", 1.0),
+                                         args.number("c", 20.0))
+                  << " N/m\n";
+        return 0;
+    }
+
+    std::cerr << "error: unknown ocean diagnostic '" << sub
+              << "'; expected stratification, mixed-layer, ekman, eddy-pv, eddy-gm, "
+                 "internal-wave, richardson, osborn, shear-dissipation, nori, martin, "
+                 "co2-flux, dic, heat-flux, iron-limitation, iron-speciation, mcdr, waves "
+                 "or hibler\n";
+    return 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1973,7 +2360,8 @@ int main(int argc, char** argv) {
             return command_data(sub, args);
         }
         if (command == "retrieve" || command == "calibrate" || command == "physics" ||
-            command == "earth" || command == "land" || command == "spatial") {
+            command == "earth" || command == "land" || command == "spatial" ||
+            command == "atmos" || command == "ocean") {
             if (argc < 3) {
                 std::cerr << "error: " << command << " needs a subcommand; run climate help\n";
                 return 1;
@@ -1985,6 +2373,8 @@ int main(int argc, char** argv) {
             if (command == "earth") return command_earth(sub, args);
             if (command == "land") return command_land(sub, args);
             if (command == "spatial") return command_spatial(sub, args);
+            if (command == "atmos") return command_atmos(sub, args);
+            if (command == "ocean") return command_ocean(sub, args);
             return command_physics(sub, args);
         }
 
