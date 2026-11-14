@@ -26,6 +26,8 @@
 #include "landuse.hpp"
 #include "detect.hpp"
 #include "climateidx.hpp"
+#include "attrib.hpp"
+#include "ml.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1407,7 +1409,41 @@ void test_change_detection() {
     CHECK_NEAR(state.rate, 1.0 / 3.0, 1e-12);
 }
 
+void test_attribution_and_ml() {
+    CHECK_NEAR(prp_feedback(2.0, 1.0, 3.0, 1.0), 0.5, 1e-12);
+    CHECK_NEAR(prp_feedback_two_sided(2.0, 1.0, 3.0, 2.0, 1.0, 1.0), 1.0, 1e-12);
+    CHECK_NEAR(fSST_erf({2.0, 4.0}, {1.0, 1.0}), 2.0, 1e-12);
+    CHECK_NEAR(erf_decomposition(1.0, {0.5, 0.5}), 2.0, 1e-12);
+    CHECK_NEAR(cloud_adjustment_factor(0.5, 0.3, 0.1, 0.2, 0.5, 0.2, 0.3, 1.0), 0.195,
+               1e-12);
+    CHECK_NEAR(surface_temperature_eight_term(200.0, 0.0, 0.2, 0.0, 0.95, 290.0, 0.0, 2.5e6,
+                                              0.0, 1.2, 0.01, 300.0, 0.0, 50.0, 0.0, 0.0, 0.0),
+               0.0, 1e-12);
+    CHECK_NEAR(surface_temperature_eight_term(200.0, 0.0, 0.2, 0.0, 0.95, 290.0, 0.0, 2.5e6,
+                                              0.0, 1.2, 0.01, 300.0, 0.0, 50.0, 0.0, -5.0, 0.0),
+               5.0 / (1.2 * 0.01 / 50.0 + 4.0 * 0.95 * 5.670374419e-8 * 300.0 * 300.0 * 300.0),
+               1e-12);
+    CHECK_NEAR(stratospheric_swv_feedback_target().median, 0.25, 1e-15);
+    CHECK_NEAR(full_column_swv_feedback_target().spread, 0.007, 1e-15);
+
+    const Matrix predictors = {{0.0}, {1.0}, {2.0}, {3.0}};
+    const std::vector<double> response = {0.0, 1.0, 2.0, 3.0};
+    RegressionTree tree;
+    tree.fit(predictors, response, 8, 1, 1, 7);
+    CHECK_NEAR(tree.predict({1.0}), 1.0, 1e-12);
+    CHECK_NEAR(tree.importance[0], 1.0, 1e-12);
+
+    RandomForest forest;
+    forest.fit(predictors, response, 25, 8, 2, 1, 11);
+    CHECK_NEAR(forest.predict({1.5}), 1.5, 0.6);
+    CHECK_NEAR(forest.deweathered_prediction({2.0}), 2.0, 0.6);
+
+    CHECK_NEAR(causal_forest_split_criterion(2.0, 2.0, 1.0, 3.0), 1.0, 1e-12);
+    CHECK_NEAR(cate_estimate({3.0, 5.0}, {1.0, 2.0}), 2.5, 1e-12);
+}
+
 int main() {
+    test_attribution_and_ml();
     test_change_detection();
     test_advanced_ozone_landuse();
     test_resolved_gaps();

@@ -285,6 +285,22 @@ trend `2 alpha dCH4/dt`, the cold-trap sensitivity `0.45 ppmv/K`, kernel SARF
 summation, and ridge regression `(X^T X + lambda I)^-1 X^T y` with a linear
 predictor for the mloz/MLR emulators.
 
+**Radiative attribution protocols (`attrib.hpp`).** One-sided and two-sided
+PRP feedback `(R_pert - R_ctrl)/(Ts_pert - Ts_ctrl)`, the fSST ERF as the
+perturbed-minus-control mean imbalance, `ERF = IRF + sum(adjustments)`, the
+published cloud-adjustment bracket divided by an explicitly supplied
+reference-state term, the eight-term surface-temperature linearisation
+(six-term core plus ground heat and residual), and the CMIP6 SWV validation
+targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
+
+**Learners (`ml.hpp`).** A CART regression tree with variance-reduction
+splits and impurity importance, a bootstrap random forest with feature
+subsampling, the deweathered prediction from a fixed meteorological state,
+the honest causal-forest split criterion, and the CATE estimand. These are
+the algorithms behind the deweathered-ML and causal-forest diagnostics;
+their trained coefficients and splits are data-derived and are not
+hard-coded.
+
 **Change detection and extremes (notes 224-240 KB).** GEV and generalized
 Pareto CDFs and return levels (parameters may be functions of a covariate),
 the Ornstein-Uhlenbeck variance `sigma^2/(2 lambda)` and AR1
