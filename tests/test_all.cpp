@@ -1086,6 +1086,46 @@ void test_cryo() {
     CHECK_NEAR(plume_flux_derivative(1027.0, 1e-6), 1.027e-3, 1e-15);
     CHECK_NEAR(plume_momentum_derivative(2.0, 9.81, 10.0, 0.1, 1.0), 18.62, 1e-9);
     CHECK_NEAR(probabilistic_age_increment(1.2, 0.1, 0.5, 10.0), 240.0, 1e-9);
+
+    CHECK_NEAR(hayhurst_stress(0.21, 0.63, 1e5, 8e4, -3e4), 66600.0, 1e-9);
+    CHECK_NEAR(hayhurst_damage_rate(66600.0, 50000.0, 2.0), 1.774224, 1e-9);
+    CHECK_NEAR(hayhurst_damage_rate_derivative(66600.0, 50000.0, 2.0), 5.328e-5, 1e-12);
+    CHECK_NEAR(hayhurst_damage_rate(40000.0, 50000.0, 2.0), 0.0, 1e-12);
+
+    const ContactForce contact =
+        hertz_mindlin_contact(1e9, 0.3, 0.1, 0.5, 0.01, 0.02, 1.0, 1.0, 1e-4, 0.0, 1e-5, 0.0,
+                              0.5);
+    CHECK_NEAR(contact.normal_stiffness, 7853981.633974481, 1e-3);
+    CHECK_NEAR(contact.normal, 785.3981633974482, 1e-9);
+    CHECK_NEAR(contact.shear_stiffness, 3020762.166913262, 1e-3);
+    CHECK_NEAR(contact.tangential, 30.207621669132624, 1e-9);
+
+    CHECK_NEAR(firn_strain_softening(0.01, 0.0, -0.02, 0.0, 0.0, 0.0, 0.02),
+               1.118033988749895, 1e-9);
+
+    const std::vector<std::vector<double>> covariance = {{4.0, 1.0}, {1.0, 9.0}};
+    const std::vector<double> residual = {2.0, 3.0};
+    CHECK_NEAR(icechrono_cost(covariance, residual), 1.714285714285714, 1e-9);
+    const std::vector<std::vector<double>> jacobian = {{1.0, 0.0}, {0.0, 1.0}};
+    const std::vector<double> gradient = icechrono_gradient(covariance, residual, jacobian);
+    CHECK_NEAR(gradient[0], 0.857142857142857, 1e-9);
+    CHECK_NEAR(gradient[1], 0.571428571428571, 1e-9);
+
+    CHECK_NEAR(leaf_turnover(0.02, 1.0), 7.805604701973806e-6, 1e-15);
+    CHECK_NEAR(root_uptake(0.3, 10.0, 0.2, 5.0), 4.0, 1e-12);
+    CHECK_NEAR(transpiration_moisture(0.3, 0.4, 2.0, 0.8, 5.0), 2.25, 1e-12);
+    CHECK_NEAR(optimal_stomatal_objective(10.0, 2.0, 10.0), 8.0, 1e-12);
+    CHECK_NEAR(hydraulic_profit(10.0, 20.0, 0.1, 0.5, 2.0), 6.0, 1e-12);
+    CHECK_NEAR(growth_temperature_acclimation(20.0, 0.5, 10.0), 25.0, 1e-12);
+    CHECK_NEAR(mesophyll_limitation(10.0, 12.0, 2.0), 20.0, 1e-9);
+    CHECK_NEAR(nutrient_colimitation(0.6, 0.4), 0.4, 1e-12);
+    CHECK_NEAR(nutrient_demand(100.0, 20.0, 2.0), 3.0, 1e-12);
+    CHECK_NEAR(nitrogen_fixation(1e-3, 0.5, 10.0, 3600.0), 18.0, 1e-9);
+    CHECK_NEAR(canopy_air_exchange(1.2, 0.01, 0.005, 100.0), -6e-5, 1e-12);
+    CHECK_NEAR(multilayer_scalar_tendency(10.0, 4.0, 2.0, 2.0), -1.0, 1e-12);
+    CHECK_NEAR(soil_production(1e-3, 1.0, 1.0), 0.00036787944117144236, 1e-15);
+    CHECK_NEAR(soil_production_reference(1e-6, 0.5, 50000.0, 280.0), 2.723667150940544e-7,
+               1e-15);
 }
 
 int main() {

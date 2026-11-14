@@ -392,4 +392,163 @@ double probabilistic_age_increment(double correction, double accumulation, doubl
     return correction / (accumulation * thinning) * dz;
 }
 
+double hayhurst_stress(double alpha, double beta, double max_principal,
+                       double von_mises, double trace) {
+    if (alpha < 0.0 || beta < 0.0 || alpha + beta > 1.0)
+        throw std::runtime_error("hayhurst_stress: weights outside the simplex");
+    return alpha * max_principal + beta * von_mises + (1.0 - alpha - beta) * trace;
+}
+
+double hayhurst_principal_sensitivity(double alpha) {
+    if (alpha < 0.0 || alpha > 1.0)
+        throw std::runtime_error("hayhurst_principal_sensitivity: alpha outside [0, 1]");
+    return alpha;
+}
+
+double hayhurst_von_mises_sensitivity(double beta) {
+    if (beta < 0.0 || beta > 1.0)
+        throw std::runtime_error("hayhurst_von_mises_sensitivity: beta outside [0, 1]");
+    return beta;
+}
+
+double hayhurst_damage_rate(double hayhurst, double threshold, double exponent) {
+    require_positive(threshold, "hayhurst_damage_rate: threshold");
+    require_positive(exponent, "hayhurst_damage_rate: exponent");
+    if (hayhurst <= threshold) return 0.0;
+    return std::pow(hayhurst / threshold, exponent);
+}
+
+double hayhurst_damage_rate_derivative(double hayhurst, double threshold, double exponent) {
+    require_positive(threshold, "hayhurst_damage_rate_derivative: threshold");
+    require_positive(exponent, "hayhurst_damage_rate_derivative: exponent");
+    if (hayhurst <= threshold) return 0.0;
+    return exponent / threshold * std::pow(hayhurst / threshold, exponent - 1.0);
+}
+
+ContactForce hertz_mindlin_contact(double youngs_modulus, double poisson_ratio,
+                                   double damping_ratio, double packing_parameter,
+                                   double contact_radius, double centroid_distance,
+                                   double mass_i, double mass_j, double normal_displacement,
+                                   double normal_velocity, double tangential_displacement,
+                                   double tangential_velocity, double friction) {
+    require_positive(youngs_modulus, "hertz_mindlin_contact: Young's modulus");
+    require_positive(centroid_distance, "hertz_mindlin_contact: centroid distance");
+    require_positive(contact_radius, "hertz_mindlin_contact: contact radius");
+    require_positive(mass_i + mass_j, "hertz_mindlin_contact: masses");
+    if (poisson_ratio <= -1.0 || poisson_ratio >= 0.5)
+        throw std::runtime_error("hertz_mindlin_contact: Poisson ratio outside (-1, 0.5)");
+    const double area = 3.14159265358979323846 * contact_radius * contact_radius;
+    const double equivalent_mass = mass_i * mass_j / (mass_i + mass_j);
+    const double normal_stiffness =
+        packing_parameter * area / centroid_distance * youngs_modulus;
+    const double normal_damping = 2.0 * packing_parameter * area * damping_ratio /
+                                  centroid_distance * contact_radius *
+                                  std::sqrt(equivalent_mass * normal_stiffness);
+    const double shear_stiffness = normal_stiffness / (2.0 * (1.0 + poisson_ratio));
+    const double shear_damping = 2.0 * damping_ratio * std::sqrt(equivalent_mass * shear_stiffness);
+
+    ContactForce force;
+    force.normal = normal_stiffness * normal_displacement + normal_damping * normal_velocity;
+    double tangential = shear_stiffness * tangential_displacement + shear_damping * tangential_velocity;
+    const double limit = friction * std::fabs(force.normal);
+    if (std::fabs(tangential) > limit) tangential = std::copysign(limit, tangential);
+    force.tangential = tangential;
+    force.normal_stiffness = normal_stiffness;
+    force.shear_stiffness = shear_stiffness;
+    return force;
+}
+
+double firn_strain_softening(double e_xx, double e_yy, double e_zz, double e_xy, double e_xz,
+                             double e_yz, double classical_vertical_strain) {
+    if (!(std::fabs(classical_vertical_strain) > 0.0))
+        throw std::runtime_error("firn_strain_softening: classical strain must be non-zero");
+    const double norm = std::sqrt(e_xx * e_xx + e_yy * e_yy + e_zz * e_zz + 2.0 * e_xy * e_xy +
+                                  2.0 * e_xz * e_xz + 2.0 * e_yz * e_yz);
+    return norm / std::fabs(classical_vertical_strain);
+}
+
+double softened_firn_rate(double classical_rate, double softening) {
+    if (softening < 0.0)
+        throw std::runtime_error("softened_firn_rate: softening must be >= 0");
+    return classical_rate * softening;
+}
+
+namespace {
+std::vector<std::vector<double>> cholesky_lower(const std::vector<std::vector<double>>& matrix) {
+    const std::size_t n = matrix.size();
+    std::vector<std::vector<double>> lower(n, std::vector<double>(n, 0.0));
+    for (std::size_t i = 0; i < n; ++i) {
+        if (matrix[i].size() != n)
+            throw std::runtime_error("icechrono: covariance must be square");
+        for (std::size_t j = 0; j <= i; ++j) {
+            double sum = matrix[i][j];
+            for (std::size_t k = 0; k < j; ++k) sum -= lower[i][k] * lower[j][k];
+            if (i == j) {
+                if (!(sum > 0.0))
+                    throw std::runtime_error("icechrono: covariance is not positive definite");
+                lower[i][j] = std::sqrt(sum);
+            } else {
+                lower[i][j] = sum / lower[j][j];
+            }
+        }
+    }
+    return lower;
+}
+
+std::vector<double> forward_substitute(const std::vector<std::vector<double>>& lower,
+                                       const std::vector<double>& rhs) {
+    const std::size_t n = lower.size();
+    std::vector<double> solution(n, 0.0);
+    for (std::size_t i = 0; i < n; ++i) {
+        double sum = rhs[i];
+        for (std::size_t k = 0; k < i; ++k) sum -= lower[i][k] * solution[k];
+        solution[i] = sum / lower[i][i];
+    }
+    return solution;
+}
+
+std::vector<double> back_substitute(const std::vector<std::vector<double>>& lower,
+                                    const std::vector<double>& rhs) {
+    const std::size_t n = lower.size();
+    std::vector<double> solution(n, 0.0);
+    for (std::size_t offset = 0; offset < n; ++offset) {
+        const std::size_t i = n - 1 - offset;
+        double sum = rhs[i];
+        for (std::size_t k = i + 1; k < n; ++k) sum -= lower[k][i] * solution[k];
+        solution[i] = sum / lower[i][i];
+    }
+    return solution;
+}
+}  // namespace
+
+double icechrono_cost(const std::vector<std::vector<double>>& covariance,
+                      const std::vector<double>& residuals) {
+    if (covariance.size() != residuals.size())
+        throw std::runtime_error("icechrono_cost: size mismatch");
+    const auto lower = cholesky_lower(covariance);
+    const auto whitened = forward_substitute(lower, residuals);
+    double cost = 0.0;
+    for (double value : whitened) cost += value * value;
+    return cost;
+}
+
+std::vector<double> icechrono_gradient(const std::vector<std::vector<double>>& covariance,
+                                       const std::vector<double>& residuals,
+                                       const std::vector<std::vector<double>>& jacobian) {
+    if (jacobian.size() != residuals.size())
+        throw std::runtime_error("icechrono_gradient: Jacobian row mismatch");
+    const auto lower = cholesky_lower(covariance);
+    const auto whitened = forward_substitute(lower, residuals);
+    const auto weighted = back_substitute(lower, whitened);  // P^-1 r
+    const std::size_t parameters = jacobian.empty() ? 0 : jacobian[0].size();
+    std::vector<double> gradient(parameters, 0.0);
+    for (std::size_t i = 0; i < jacobian.size(); ++i) {
+        if (jacobian[i].size() != parameters)
+            throw std::runtime_error("icechrono_gradient: ragged Jacobian");
+        for (std::size_t j = 0; j < parameters; ++j)
+            gradient[j] += 2.0 * jacobian[i][j] * weighted[i];
+    }
+    return gradient;
+}
+
 }  // namespace climate

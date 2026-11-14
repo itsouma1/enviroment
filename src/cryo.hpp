@@ -1,6 +1,8 @@
 #ifndef CLIMATE_CRYO_HPP
 #define CLIMATE_CRYO_HPP
 
+#include <vector>
+
 namespace climate {
 
 // Horizontal vector used by the sea-ice momentum balance.
@@ -207,6 +209,57 @@ double plume_momentum_derivative(double density_difference, double gravity, doub
 // Probabilistic age increment D(z) / (A(z) tau(z)) dz.
 double probabilistic_age_increment(double correction, double accumulation, double thinning,
                                    double dz);
+
+// Hayhurst multiaxial invariant --------------------------------------------
+
+// sigma_H = alpha sigma_I + beta sigma_vM + (1 - alpha - beta) tr(sigma).
+double hayhurst_stress(double alpha, double beta, double max_principal,
+                       double von_mises, double trace);
+
+// d sigma_H / d sigma_I and d sigma_H / d sigma_vM.
+double hayhurst_principal_sensitivity(double alpha);
+double hayhurst_von_mises_sensitivity(double beta);
+
+// dot D = (sigma_H / sigma_th)^r above the threshold, zero otherwise.
+double hayhurst_damage_rate(double hayhurst, double threshold, double exponent);
+
+// d(dot D)/d sigma_H.
+double hayhurst_damage_rate_derivative(double hayhurst, double threshold, double exponent);
+
+// Hertz-Mindlin contact -----------------------------------------------------
+
+struct ContactForce {
+    double normal = 0.0;
+    double tangential = 0.0;
+    double normal_stiffness = 0.0;
+    double shear_stiffness = 0.0;
+};
+
+ContactForce hertz_mindlin_contact(double youngs_modulus, double poisson_ratio,
+                                   double damping_ratio, double packing_parameter,
+                                   double contact_radius, double centroid_distance,
+                                   double mass_i, double mass_j, double normal_displacement,
+                                   double normal_velocity, double tangential_displacement,
+                                   double tangential_velocity, double friction);
+
+// Firn strain softening -----------------------------------------------------
+
+// S = |eps| / |eps_zz,c| with the full strain-rate tensor norm.
+double firn_strain_softening(double e_xx, double e_yy, double e_zz, double e_xy, double e_xz,
+                             double e_yz, double classical_vertical_strain);
+
+double softened_firn_rate(double classical_rate, double softening);
+
+// IceChrono quadratic cost --------------------------------------------------
+
+// J = r^T P^-1 r, evaluated through a Cholesky factorisation of P.
+double icechrono_cost(const std::vector<std::vector<double>>& covariance,
+                      const std::vector<double>& residuals);
+
+// Gradient 2 G^T P^-1 r for a residual Jacobian G (rows = residuals).
+std::vector<double> icechrono_gradient(const std::vector<std::vector<double>>& covariance,
+                                       const std::vector<double>& residuals,
+                                       const std::vector<std::vector<double>>& jacobian);
 
 }  // namespace climate
 

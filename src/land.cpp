@@ -195,4 +195,98 @@ double vcmax_temperature(double vcmax_25, double temperature_c, double activatio
                     (reference * GAS_CONSTANT * temperature_k));
 }
 
+double leaf_turnover(double specific_leaf_area, double leaf_biomass) {
+    if (specific_leaf_area <= 0.0)
+        throw std::runtime_error("leaf_turnover: specific leaf area must be positive");
+    if (leaf_biomass < 0.0) throw std::runtime_error("leaf_turnover: biomass must be >= 0");
+    const double longevity = 29664.0 * std::pow(specific_leaf_area * 10.0, -0.909);
+    return leaf_biomass / longevity;
+}
+
+double root_uptake(double top_fraction, double surface_potential, double root_fraction,
+                   double root_potential) {
+    if (top_fraction < 0.0 || root_fraction < 0.0)
+        throw std::runtime_error("root_uptake: fractions must be >= 0");
+    return top_fraction * surface_potential + root_fraction * root_potential;
+}
+
+double transpiration_moisture(double moisture, double saturation, double exponent,
+                              double canopy_fraction, double potential) {
+    if (!(saturation > 0.0)) throw std::runtime_error("transpiration_moisture: saturation");
+    if (moisture < 0.0) throw std::runtime_error("transpiration_moisture: moisture >= 0");
+    if (canopy_fraction < 0.0) throw std::runtime_error("transpiration_moisture: canopy >= 0");
+    return std::pow(moisture / saturation, exponent) * canopy_fraction * potential;
+}
+
+double optimal_stomatal_objective(double assimilation, double transpiration,
+                                  double critical_transpiration) {
+    if (!(critical_transpiration > 0.0))
+        throw std::runtime_error("optimal_stomatal_objective: critical transpiration");
+    return assimilation * (1.0 - transpiration / critical_transpiration);
+}
+
+double hydraulic_profit(double assimilation, double jmax, double carbon_cost,
+                        double hydraulic_cost, double water_potential_drop) {
+    return assimilation - carbon_cost * jmax -
+           hydraulic_cost * water_potential_drop * water_potential_drop;
+}
+
+double growth_temperature_acclimation(double intercept, double slope,
+                                      double growth_temperature_c) {
+    return intercept + slope * growth_temperature_c;
+}
+
+double mesophyll_limitation(double assimilation_ambient, double assimilation_intercellular,
+                            double mesophyll_conductance) {
+    const double denominator = assimilation_intercellular - mesophyll_conductance;
+    if (!(std::fabs(denominator) > 0.0))
+        throw std::runtime_error("mesophyll_limitation: zero denominator");
+    return (1.0 - (assimilation_ambient - mesophyll_conductance) / denominator) * 100.0;
+}
+
+double nutrient_colimitation(double nitrogen_limitation, double phosphorus_limitation) {
+    return std::min(nitrogen_limitation, phosphorus_limitation);
+}
+
+double nutrient_demand(double net_carbon, double stoichiometric_ratio, double retranslocation) {
+    if (!(stoichiometric_ratio > 0.0))
+        throw std::runtime_error("nutrient_demand: stoichiometric ratio must be positive");
+    return std::max(net_carbon / stoichiometric_ratio - retranslocation, 0.0);
+}
+
+double nitrogen_fixation(double rate, double density, double mass, double dt) {
+    if (density < 0.0 || mass < 0.0 || dt < 0.0)
+        throw std::runtime_error("nitrogen_fixation: negative input");
+    return rate * density * mass * dt;
+}
+
+double canopy_air_exchange(double air_density, double canopy_specific_humidity,
+                           double air_specific_humidity, double resistance) {
+    if (!(resistance > 0.0)) throw std::runtime_error("canopy_air_exchange: resistance");
+    return -air_density * (canopy_specific_humidity - air_specific_humidity) / resistance;
+}
+
+double multilayer_scalar_tendency(double flux_up, double flux_down, double source,
+                                  double layer_thickness) {
+    if (!(layer_thickness > 0.0))
+        throw std::runtime_error("multilayer_scalar_tendency: thickness");
+    return (-(flux_up - flux_down) + source * layer_thickness) / layer_thickness;
+}
+
+double soil_production(double reference_rate, double regolith_thickness, double decay_depth) {
+    if (!(decay_depth > 0.0)) throw std::runtime_error("soil_production: decay depth");
+    if (regolith_thickness < 0.0)
+        throw std::runtime_error("soil_production: thickness must be >= 0");
+    return reference_rate * std::exp(-regolith_thickness / decay_depth);
+}
+
+double soil_production_reference(double coefficient, double runoff, double activation_energy,
+                                 double temperature_k, double reference_temperature) {
+    if (!(temperature_k > 0.0))
+        throw std::runtime_error("soil_production_reference: temperature must be positive");
+    return coefficient * runoff *
+           std::exp(-activation_energy / GAS_CONSTANT *
+                    (1.0 / temperature_k - 1.0 / reference_temperature));
+}
+
 }  // namespace climate

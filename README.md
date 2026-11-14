@@ -255,6 +255,27 @@ by `probabilistic_age_increment`. The land-surface formulas in the same window
 Farquhar, Ball-Berry-Leuning, Medlyn, Leuning, LPJ NPP and maintenance
 respiration) were already implemented in `land`.
 
+**Supplied formula gaps.** The Hayhurst invariant is implemented as
+`alpha sigma_I + beta sigma_vM + (1-alpha-beta) tr(sigma)` with its invariant
+sensitivities and the threshold damage rate `(sigma_H/sigma_th)^r` plus its
+derivative. DEM contacts now use the Hertz-Mindlin law: normal stiffness and
+viscous damping from contact area, equivalent mass and packing parameter,
+Mindlin shear stiffness `K_n/(2(1+nu))`, and the Coulomb cap `mu|F_n|`.
+Firn strain softening is the full strain-rate tensor norm divided by the
+classical vertical strain, applied as a scale factor to the densification
+rate. IceChrono's quadratic cost is evaluated by Cholesky whitening of the
+correlation matrix, and its gradient returns `2 G^T P^-1 r` via forward and
+back substitution.
+
+**Land and biosphere (notes 128-144 KB).** Added leaf turnover with the
+specific-leaf-area longevity law, layered root uptake, the moisture-limited
+transpiration power law, the hydraulic-penalty stomatal objective, the
+trait-based profit function, growth-temperature acclimation, mesophyll
+limitation, CNP colimitation, stoichiometric nutrient demand, daily nitrogen
+fixation, canopy air-space exchange, the multilayer scalar tendency, the
+exponential soil-production function and its runoff/temperature-dependent
+reference rate.
+
 **PDE solvers (notes 112-128 KB, `src/pde.*`).** The continuum models are
 solved numerically in plain C++17, with no PDE library:
 
