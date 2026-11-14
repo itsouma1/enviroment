@@ -293,6 +293,20 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**2026 time-varying inference (notes 256-288 KB).** `regime.hpp` implements
+the symmetric alpha-stable increment, the feedback manifold `h(T) = lambda(T)
++ kappa(T)/T` and `dT/dt = F - lambda T - kappa`, logistic and exponential
+smooth transitions with the multiple-LSTR mixture, stochastic-volatility
+observation/state steps and the `K = -ln(phi)/dt`, `gamma0 = theta/(1-phi)`
+estimates, GJR-GARCH, Beta-weighted GARCH-MIDAS, the asymmetric-Laplace
+quantile density, seasonal-trend averaging with its covariance standard
+error, and BEAST harmonic/step components. `detect.hpp` adds the GEV
+log-likelihood, Marchenko-Pastur signal counting, eigenvalue reconstruction
+and total least squares; `causal.hpp` provides the panel SEM interaction
+design and two-way demeaning. The printed LSTR2 transition `1 + exp(...)`
+is outside [0,1], so the bounded `1 - exp(-gamma (x - tau)^2)` is used, and
+Beta weights use `k/(K+1)` so endpoint exponents stay finite.
+
 **Causal forests, copulas and HMMs.** `ml.hpp` also provides the honest
 CT-H criterion `(1/N_tr) sum tau^2 - (1/N_tr + 1/N_est) sum S^2`.
 `copula.hpp` implements the five non-stationary parameterisations (Gumbel,

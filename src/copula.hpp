@@ -10,6 +10,9 @@ enum class CopulaFamily { Gumbel, Joe, Clayton, HuelserReiss, Galambos };
 double copula_parameter(CopulaFamily family, double gamma0, double gamma1, double gamma2,
                         double covariate);
 
+// Joe copula C(u, v) with dependence parameter gamma.
+double joe_copula(double u, double v, double gamma);
+
 // d gamma / d nu.
 double copula_parameter_derivative(CopulaFamily family, double gamma0, double gamma1,
                                    double gamma2, double covariate);

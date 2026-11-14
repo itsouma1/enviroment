@@ -30,6 +30,8 @@
 #include "ml.hpp"
 #include "copula.hpp"
 #include "hmm.hpp"
+#include "regime.hpp"
+#include "causal.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1495,7 +1497,50 @@ void test_copula_hmm() {
     CHECK_NEAR(derivative[2], 3.0, 1e-12);
 }
 
+void test_regimes_and_causal() {
+    CHECK_NEAR(joe_copula(0.5, 0.5, 2.0), 0.3385621722338523, 1e-12);
+    CHECK(std::isfinite(symmetric_stable_sample(1.5, 0.7, 1.0)));
+    CHECK_NEAR(climate_feedback_manifold(2.0, 1.0, 2.0), 2.5, 1e-12);
+    CHECK_NEAR(temperature_tendency(1.0, 2.0, 1.0, 2.0), -4.0, 1e-12);
+    CHECK_NEAR(logistic_transition(0.0, 1.0, 0.0), 0.5, 1e-12);
+    CHECK_NEAR(exponential_transition(0.0, 1.0, 0.0), 0.0, 1e-12);
+    CHECK_NEAR(multiple_lstr(1.0, 2.0, 3.0, 0.5, 0.2), 2.6, 1e-12);
+
+    CHECK_NEAR(stochastic_volatility_observation(0.0, 2.0), 2.0, 1e-12);
+    CHECK_NEAR(stochastic_volatility_step(0.0, 0.0, 0.9, 0.1, 1.0), 0.1, 1e-12);
+    CHECK_NEAR(stochastic_volatility_mean_reversion(0.9, 1.0), 0.10536051565782628, 1e-12);
+    CHECK_NEAR(stochastic_volatility_intercept(0.01, 0.9), 0.1, 1e-12);
+
+    CHECK_NEAR(gjr_garch_variance(0.01, 0.05, 0.1, 0.8, 0.04, -0.2), 0.048, 1e-12);
+    CHECK_NEAR(beta_weight(1, 2, 1.0, 1.0), 1.0, 1e-12);
+    CHECK_NEAR(long_run_log_variance(1.0, 2.0, {0.5, 0.5}, {1.0, 3.0}), 5.0, 1e-12);
+    CHECK_NEAR(garch_midas_variance(0.5, 1.0, 2.0, 0.1, 0.8), 0.55, 1e-12);
+
+    CHECK_NEAR(asymmetric_laplace_density(0.0, 0.0, 1.0, 0.5), 0.25, 1e-12);
+    CHECK_NEAR(average_seasonal_trends({1.0, 2.0, 3.0}), 2.0, 1e-12);
+    CHECK_NEAR(seasonal_trend_standard_error({{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}}),
+               0.5773502691896258, 1e-12);
+
+    CHECK_NEAR(beast_seasonal(0.0, 4.0, {1.0}, {0.0}), 1.0, 1e-12);
+    CHECK_NEAR(beast_seasonal(1.0, 4.0, {1.0}, {0.0}), 0.0, 1e-12);
+    CHECK_NEAR(beast_steps(5.0, {2.0, 4.0}, {1.0, 2.0}), 3.0, 1e-12);
+
+    CHECK_NEAR(gev_log_likelihood(0.0, 0.0, 1.0, 0.0), -1.0, 1e-12);
+    CHECK(significant_eigenvalue_count({10.0, 1.0, 0.5}, 1.0, 4.0) == 1);
+    const Matrix reconstruction =
+        rmt_reconstruction({2.0, 3.0}, {{1.0, 0.0}, {0.0, 1.0}});
+    CHECK_NEAR(reconstruction[0][0], 2.0, 1e-12);
+    CHECK_NEAR(reconstruction[1][1], 3.0, 1e-12);
+    CHECK_NEAR(total_least_squares({{1.0}, {2.0}}, {2.0, 4.0})[0], 2.0, 1e-12);
+
+    const Matrix design = sem_interaction_design({1.0, 2.0}, {3.0, 4.0});
+    CHECK_NEAR(design[1][2], 8.0, 1e-12);
+    const std::vector<double> demeaned = two_way_demean({1.0, 3.0, 5.0, 7.0}, {0, 0, 1, 1}, {0, 1, 0, 1});
+    for (double value : demeaned) CHECK_NEAR(value, 0.0, 1e-12);
+}
+
 int main() {
+    test_regimes_and_causal();
     test_copula_hmm();
     test_attribution_and_ml();
     test_change_detection();

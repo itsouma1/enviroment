@@ -3,6 +3,8 @@
 
 #include <vector>
 
+#include "ml.hpp"
+
 namespace climate {
 
 // ---------------------------------------------------------------------------
@@ -13,6 +15,9 @@ double gev_cdf(double value, double location, double scale, double shape);
 
 // Return level for return period 1/p.
 double gev_return_level(double probability, double location, double scale, double shape);
+
+// GEV log-likelihood for one observation.
+double gev_log_likelihood(double value, double location, double scale, double shape);
 
 // Generalized Pareto CDF for exceedance y above the threshold.
 double gp_cdf(double exceedance, double scale, double shape);
@@ -55,6 +60,18 @@ std::vector<double> optimal_fingerprint(const std::vector<std::vector<double>>& 
 double marchenko_pastur_bounds_lower(double variance, double aspect_ratio);
 double marchenko_pastur_bounds_upper(double variance, double aspect_ratio);
 double marchenko_pastur_density(double eigenvalue, double variance, double aspect_ratio);
+
+// Number of eigenvalues above the Marchenko-Pastur upper bound.
+int significant_eigenvalue_count(const std::vector<double>& eigenvalues, double variance,
+                                 double aspect_ratio);
+
+// C = sum_gamma lambda_gamma u_gamma u_gamma^T; eigenvectors[gamma] is u_gamma.
+Matrix rmt_reconstruction(const std::vector<double>& eigenvalues,
+                          const std::vector<std::vector<double>>& eigenvectors);
+
+// Total least squares: smallest right singular vector of [X | y].
+std::vector<double> total_least_squares(const Matrix& predictors,
+                                        const std::vector<double>& response);
 
 }  // namespace climate
 

@@ -6,6 +6,10 @@
 namespace climate {
 namespace {
 
+void require(bool condition, const char* message) {
+    if (!condition) throw std::runtime_error(message);
+}
+
 double polynomial(double gamma0, double gamma1, double gamma2, double covariate) {
     return gamma0 + gamma1 * covariate + gamma2 * covariate * covariate;
 }
@@ -30,6 +34,14 @@ double copula_parameter(CopulaFamily family, double gamma0, double gamma1, doubl
             return exponent;
     }
     throw std::runtime_error("copula_parameter: unknown family");
+}
+
+double joe_copula(double u, double v, double gamma) {
+    require(u >= 0.0 && u <= 1.0 && v >= 0.0 && v <= 1.0, "joe_copula: arguments outside [0,1]");
+    require(gamma >= 1.0, "joe_copula: gamma must be at least 1");
+    const double a = std::pow(1.0 - u, gamma);
+    const double b = std::pow(1.0 - v, gamma);
+    return 1.0 - std::pow(a + b - a * b, 1.0 / gamma);
 }
 
 double copula_parameter_derivative(CopulaFamily family, double gamma0, double gamma1,

@@ -27,6 +27,52 @@ std::vector<std::vector<double>> inverse(const std::vector<std::vector<double>>&
     return result;
 }
 
+// Cyclic Jacobi eigen-decomposition of a symmetric matrix.
+void jacobi_eigen(const std::vector<std::vector<double>>& input,
+                  std::vector<std::vector<double>>& eigenvectors,
+                  std::vector<double>& eigenvalues) {
+    const std::size_t n = input.size();
+    std::vector<std::vector<double>> a = input;
+    eigenvectors.assign(n, std::vector<double>(n, 0.0));
+    for (std::size_t i = 0; i < n; ++i) eigenvectors[i][i] = 1.0;
+    for (int sweep = 0; sweep < 100; ++sweep) {
+        double off_diagonal = 0.0;
+        for (std::size_t i = 0; i < n; ++i)
+            for (std::size_t j = i + 1; j < n; ++j) off_diagonal += a[i][j] * a[i][j];
+        if (off_diagonal < 1e-24) break;
+        for (std::size_t p = 0; p < n; ++p) {
+            for (std::size_t q = p + 1; q < n; ++q) {
+                if (std::fabs(a[p][q]) < 1e-18) continue;
+                const double theta = (a[q][q] - a[p][p]) / (2.0 * a[p][q]);
+                const double t = (theta >= 0.0 ? 1.0 : -1.0) /
+                                 (std::fabs(theta) + std::sqrt(theta * theta + 1.0));
+                const double cosine = 1.0 / std::sqrt(t * t + 1.0);
+                const double sine = t * cosine;
+                for (std::size_t k = 0; k < n; ++k) {
+                    const double a_pk = a[p][k];
+                    const double a_qk = a[q][k];
+                    a[p][k] = cosine * a_pk - sine * a_qk;
+                    a[q][k] = sine * a_pk + cosine * a_qk;
+                }
+                for (std::size_t k = 0; k < n; ++k) {
+                    const double a_kp = a[k][p];
+                    const double a_kq = a[k][q];
+                    a[k][p] = cosine * a_kp - sine * a_kq;
+                    a[k][q] = sine * a_kp + cosine * a_kq;
+                }
+                for (std::size_t k = 0; k < n; ++k) {
+                    const double v_kp = eigenvectors[k][p];
+                    const double v_kq = eigenvectors[k][q];
+                    eigenvectors[k][p] = cosine * v_kp - sine * v_kq;
+                    eigenvectors[k][q] = sine * v_kp + cosine * v_kq;
+                }
+            }
+        }
+    }
+    eigenvalues.assign(n, 0.0);
+    for (std::size_t i = 0; i < n; ++i) eigenvalues[i] = a[i][i];
+}
+
 }  // namespace
 
 double gev_cdf(double value, double location, double scale, double shape) {
@@ -44,6 +90,17 @@ double gev_return_level(double probability, double location, double scale, doubl
     const double logarithm = -std::log(1.0 - probability);
     if (std::fabs(shape) < 1e-12) return location - scale * std::log(logarithm);
     return location - scale / shape * (1.0 - std::pow(logarithm, -shape));
+}
+
+double gev_log_likelihood(double value, double location, double scale, double shape) {
+    require(scale > 0.0, "gev_log_likelihood: scale must be positive");
+    const double z = (value - location) / scale;
+    if (std::fabs(shape) < 1e-12)
+        return -std::log(scale) - z - std::exp(-z);
+    const double inner = 1.0 + shape * z;
+    require(inner > 0.0, "gev_log_likelihood: observation outside support");
+    return -std::log(scale) - (1.0 + 1.0 / shape) * std::log(inner) -
+           std::pow(inner, -1.0 / shape);
 }
 
 double gp_cdf(double exceedance, double scale, double shape) {
@@ -172,6 +229,64 @@ double marchenko_pastur_density(double eigenvalue, double variance, double aspec
     if (eigenvalue <= lower || eigenvalue >= upper) return 0.0;
     return 1.0 / (2.0 * 3.14159265358979323846 * variance * eigenvalue) *
            std::sqrt((upper - eigenvalue) * (eigenvalue - lower));
+}
+
+int significant_eigenvalue_count(const std::vector<double>& eigenvalues, double variance,
+                                 double aspect_ratio) {
+    const double upper = marchenko_pastur_bounds_upper(variance, aspect_ratio);
+    int count = 0;
+    for (double eigenvalue : eigenvalues)
+        if (eigenvalue > upper) ++count;
+    return count;
+}
+
+Matrix rmt_reconstruction(const std::vector<double>& eigenvalues,
+                          const std::vector<std::vector<double>>& eigenvectors) {
+    require(eigenvalues.size() == eigenvectors.size(), "rmt_reconstruction: size mismatch");
+    if (eigenvalues.empty()) return {};
+    const std::size_t dimension = eigenvectors[0].size();
+    Matrix result(dimension, std::vector<double>(dimension, 0.0));
+    for (std::size_t mode = 0; mode < eigenvalues.size(); ++mode) {
+        require(eigenvectors[mode].size() == dimension, "rmt_reconstruction: ragged vector");
+        for (std::size_t i = 0; i < dimension; ++i)
+            for (std::size_t j = 0; j < dimension; ++j)
+                result[i][j] += eigenvalues[mode] * eigenvectors[mode][i] * eigenvectors[mode][j];
+    }
+    return result;
+}
+
+std::vector<double> total_least_squares(const Matrix& predictors,
+                                        const std::vector<double>& response) {
+    require(!predictors.empty() && predictors.size() == response.size(),
+            "total_least_squares: size mismatch");
+    const std::size_t parameters = predictors[0].size();
+    const std::size_t columns = parameters + 1;
+    Matrix augmented(predictors.size(), std::vector<double>(columns, 0.0));
+    for (std::size_t row = 0; row < predictors.size(); ++row) {
+        require(predictors[row].size() == parameters, "total_least_squares: ragged predictors");
+        for (std::size_t column = 0; column < parameters; ++column)
+            augmented[row][column] = predictors[row][column];
+        augmented[row][parameters] = response[row];
+    }
+    Matrix gram(columns, std::vector<double>(columns, 0.0));
+    for (std::size_t i = 0; i < columns; ++i)
+        for (std::size_t j = 0; j < columns; ++j)
+            for (const auto& row : augmented) gram[i][j] += row[i] * row[j];
+
+    std::vector<std::vector<double>> eigenvectors;
+    std::vector<double> eigenvalues;
+    jacobi_eigen(gram, eigenvectors, eigenvalues);
+
+    std::size_t smallest = 0;
+    for (std::size_t i = 1; i < eigenvalues.size(); ++i)
+        if (eigenvalues[i] < eigenvalues[smallest]) smallest = i;
+
+    const double last = eigenvectors[columns - 1][smallest];
+    require(std::fabs(last) > 1e-12, "total_least_squares: degenerate direction");
+    std::vector<double> coefficients(parameters, 0.0);
+    for (std::size_t i = 0; i < parameters; ++i)
+        coefficients[i] = -eigenvectors[i][smallest] / last;
+    return coefficients;
 }
 
 }  // namespace climate
