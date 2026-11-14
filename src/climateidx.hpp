@@ -3,6 +3,8 @@
 
 #include <vector>
 
+#include "ml.hpp"
+
 namespace climate {
 
 // ---------------------------------------------------------------------------
@@ -82,6 +84,15 @@ double recharge_convolution(double initial_head, const std::vector<double>& rech
 double storage_depletion(const std::vector<double>& drawdown,
                          const std::vector<double>& cell_area,
                          double storage_coefficient);
+
+// ---------------------------------------------------------------------------
+// Diagnostic arrays
+// ---------------------------------------------------------------------------
+// H(x, t) = (1/N_y) sum_y F(x, y, t); input is one field per time step.
+Matrix hovmoller_average(const std::vector<Matrix>& fields);
+
+// Central-difference time derivative, one-sided at the ends.
+std::vector<double> phase_space_derivative(const std::vector<double>& values, double time_step);
 
 // ---------------------------------------------------------------------------
 // Stochastic volatility and regimes

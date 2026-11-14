@@ -293,6 +293,15 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Causal forests, copulas and HMMs.** `ml.hpp` also provides the honest
+CT-H criterion `(1/N_tr) sum tau^2 - (1/N_tr + 1/N_est) sum S^2`.
+`copula.hpp` implements the five non-stationary parameterisations (Gumbel,
+Joe, Clayton, Huesler-Reiss, Galambos) and their derivatives. `hmm.hpp`
+implements scaled Gaussian-emission forward-backward (alpha, beta, gamma,
+xi, log-likelihood) and Baum-Welch re-estimation of pi, A, mu and sigma^2.
+`climateidx.hpp` exposes `hovmoller_average` and `phase_space_derivative`
+as plain arrays for the plotting layer.
+
 **Learners (`ml.hpp`).** A CART regression tree with variance-reduction
 splits and impurity importance, a bootstrap random forest with feature
 subsampling, the deweathered prediction from a fixed meteorological state,

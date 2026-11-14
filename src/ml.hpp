@@ -53,6 +53,10 @@ struct RandomForest {
 double causal_forest_split_criterion(double left_count, double right_count, double left_effect,
                                      double right_effect);
 
+// Honest CT-H criterion: -EMSE = (1/N_tr) sum tau^2 - (1/N_tr + 1/N_est) sum S^2.
+double honest_emse_criterion(double treatment_effect_squared_sum, double splitting_count,
+                             double estimation_count, double leaf_variance_sum);
+
 // CATE estimand: mean(Y | treatment = 1) - mean(Y | treatment = 0).
 double cate_estimate(const std::vector<double>& treated_outcomes,
                      const std::vector<double>& control_outcomes);

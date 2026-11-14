@@ -164,6 +164,36 @@ double storage_depletion(const std::vector<double>& drawdown,
     return volume;
 }
 
+Matrix hovmoller_average(const std::vector<Matrix>& fields) {
+    require(!fields.empty() && !fields[0].empty(), "hovmoller_average: empty field");
+    const std::size_t columns = fields[0][0].size();
+    require(columns > 0, "hovmoller_average: no columns");
+    Matrix result(fields.size(), std::vector<double>(columns, 0.0));
+    for (std::size_t time = 0; time < fields.size(); ++time) {
+        require(!fields[time].empty(), "hovmoller_average: empty time slice");
+        for (const auto& row : fields[time])
+            require(row.size() == columns, "hovmoller_average: ragged field");
+        for (std::size_t column = 0; column < columns; ++column) {
+            double sum = 0.0;
+            for (const auto& row : fields[time]) sum += row[column];
+            result[time][column] = sum / static_cast<double>(fields[time].size());
+        }
+    }
+    return result;
+}
+
+std::vector<double> phase_space_derivative(const std::vector<double>& values,
+                                          double time_step) {
+    require(values.size() >= 2, "phase_space_derivative: need at least two values");
+    require(time_step > 0.0, "phase_space_derivative: time step must be positive");
+    std::vector<double> derivative(values.size(), 0.0);
+    for (std::size_t i = 1; i + 1 < values.size(); ++i)
+        derivative[i] = (values[i + 1] - values[i - 1]) / (2.0 * time_step);
+    derivative.front() = (values[1] - values[0]) / time_step;
+    derivative.back() = (values.back() - values[values.size() - 2]) / time_step;
+    return derivative;
+}
+
 double heston_variance_step(double variance, double mean_reversion, double long_run_variance,
                             double volatility_of_volatility, double time_step, double shock) {
     require(variance >= 0.0, "heston_variance_step: negative variance");

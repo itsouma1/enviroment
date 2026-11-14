@@ -28,6 +28,8 @@
 #include "climateidx.hpp"
 #include "attrib.hpp"
 #include "ml.hpp"
+#include "copula.hpp"
+#include "hmm.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1442,7 +1444,59 @@ void test_attribution_and_ml() {
     CHECK_NEAR(cate_estimate({3.0, 5.0}, {1.0, 2.0}), 2.5, 1e-12);
 }
 
+void test_copula_hmm() {
+    CHECK_NEAR(copula_parameter(CopulaFamily::Gumbel, 0.0, 1.0, 0.0, 0.0), 2.0, 1e-12);
+    CHECK_NEAR(copula_parameter(CopulaFamily::Clayton, 0.0, 1.0, 0.0, 0.0), 0.0, 1e-12);
+    CHECK_NEAR(copula_parameter(CopulaFamily::HuelserReiss, 0.0, 1.0, 0.0, 0.0), 1.0, 1e-12);
+    CHECK_NEAR(copula_parameter_derivative(CopulaFamily::Gumbel, 0.0, 1.0, 0.0, 0.0), 1.0,
+               1e-12);
+    CHECK_NEAR(copula_parameter_derivative(CopulaFamily::Gumbel, 0.0, 0.0, 0.5, 1.0),
+               std::exp(0.5), 1e-12);
+
+    CHECK_NEAR(honest_emse_criterion(4.0, 2.0, 2.0, 2.0), 0.0, 1e-12);
+
+    GaussianHmm single;
+    single.initial = {1.0};
+    single.transition = {{1.0}};
+    single.means = {0.0};
+    single.variances = {1.0};
+    const HmmPosterior single_posterior = hmm_forward_backward(single, {0.0, 0.0});
+    CHECK_NEAR(single_posterior.log_likelihood, 2.0 * std::log(1.0 / std::sqrt(2.0 * M_PI)),
+               1e-12);
+    CHECK_NEAR(single_posterior.gamma[1][0], 1.0, 1e-12);
+
+    GaussianHmm two;
+    two.initial = {0.5, 0.5};
+    two.transition = {{0.9, 0.1}, {0.1, 0.9}};
+    two.means = {0.0, 5.0};
+    two.variances = {1.0, 1.0};
+    const HmmPosterior posterior = hmm_forward_backward(two, {0.0, 0.0, 5.0, 5.0});
+    CHECK(posterior.gamma[0][0] > 0.99);
+    CHECK(posterior.gamma[2][1] > 0.99);
+    CHECK(posterior.xi.size() == 3);
+    CHECK_NEAR(posterior.gamma[1][0] + posterior.gamma[1][1], 1.0, 1e-12);
+
+    GaussianHmm initial;
+    initial.initial = {0.5, 0.5};
+    initial.transition = {{0.9, 0.1}, {0.1, 0.9}};
+    initial.means = {1.0, 4.0};
+    initial.variances = {1.0, 1.0};
+    const GaussianHmm trained = baum_welch(initial, {0.0, 0.0, 0.0, 5.0, 5.0, 5.0}, 50, 1e-9);
+    CHECK(trained.means[0] < 2.0);
+    CHECK(trained.means[1] > 3.0);
+    CHECK_NEAR(trained.transition[0][0] + trained.transition[0][1], 1.0, 1e-9);
+
+    const Matrix hovmoller = hovmoller_average({{{1.0, 2.0}, {3.0, 4.0}}});
+    CHECK_NEAR(hovmoller[0][0], 2.0, 1e-12);
+    CHECK_NEAR(hovmoller[0][1], 3.0, 1e-12);
+    const std::vector<double> derivative = phase_space_derivative({0.0, 1.0, 4.0}, 1.0);
+    CHECK_NEAR(derivative[0], 1.0, 1e-12);
+    CHECK_NEAR(derivative[1], 2.0, 1e-12);
+    CHECK_NEAR(derivative[2], 3.0, 1e-12);
+}
+
 int main() {
+    test_copula_hmm();
     test_attribution_and_ml();
     test_change_detection();
     test_advanced_ozone_landuse();

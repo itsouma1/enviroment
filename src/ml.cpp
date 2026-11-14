@@ -206,6 +206,14 @@ double causal_forest_split_criterion(double left_count, double right_count, doub
            (left_effect - right_effect) * (left_effect - right_effect);
 }
 
+double honest_emse_criterion(double treatment_effect_squared_sum, double splitting_count,
+                             double estimation_count, double leaf_variance_sum) {
+    require(splitting_count > 0.0 && estimation_count > 0.0,
+            "honest_emse_criterion: non-positive sample count");
+    return treatment_effect_squared_sum / splitting_count -
+           (1.0 / splitting_count + 1.0 / estimation_count) * leaf_variance_sum;
+}
+
 double cate_estimate(const std::vector<double>& treated_outcomes,
                      const std::vector<double>& control_outcomes) {
     require(!treated_outcomes.empty() && !control_outcomes.empty(),
