@@ -285,6 +285,17 @@ trend `2 alpha dCH4/dt`, the cold-trap sensitivity `0.45 ppmv/K`, kernel SARF
 summation, and ridge regression `(X^T X + lambda I)^-1 X^T y` with a linear
 predictor for the mloz/MLR emulators.
 
+**Change detection and extremes (notes 224-240 KB).** GEV and generalized
+Pareto CDFs and return levels (parameters may be functions of a covariate),
+the Ornstein-Uhlenbeck variance `sigma^2/(2 lambda)` and AR1
+`exp(-lambda dt)`, the sliding-window AR1 estimator, the rate-mismatch score,
+RSI and CUSUM, optimal fingerprinting `(X^T C_N^-1 X)^-1 X^T C_N^-1 y`, and
+the Marchenko-Pastur bounds and density. Mann-Kendall and Sen's slope live in
+`trend.hpp`. Climate indices, OHC/EEI, the sea-level budget, quadratic and
+broken-linear sea level, the local-linear DLM, groundwater storage, recharge
+convolution and depletion, Heston variance and Markov regimes live in
+`climateidx.hpp`.
+
 **Land-use change (notes 208-224 KB).** Fraction-weighted albedo mixing, the
 annual mean albedo change, kernel and clear-sky `-0.7 Delta alpha SWDW` forcing,
 the global conversion sum, `r_c = r_xi/(0.5 LAI)`, canopy Penman-Monteith, the

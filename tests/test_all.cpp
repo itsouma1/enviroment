@@ -24,6 +24,8 @@
 #include "fft.hpp"
 #include "land.hpp"
 #include "landuse.hpp"
+#include "detect.hpp"
+#include "climateidx.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1359,7 +1361,54 @@ void test_advanced_ozone_landuse() {
     CHECK_NEAR(linear_prediction(ridge, {2.0, 4.0}, 0.5), 8.5, 1e-12);
 }
 
+void test_change_detection() {
+    CHECK_NEAR(gev_cdf(0.0, 0.0, 1.0, 0.0), 0.36787944117144233, 1e-12);
+    CHECK_NEAR(gev_return_level(0.5, 0.0, 1.0, 0.0), 0.36651292058166435, 1e-12);
+    CHECK_NEAR(gp_cdf(1.0, 1.0, 0.0), 0.6321205588285577, 1e-12);
+    CHECK_NEAR(ou_stationary_variance(2.0, 2.0), 1.0, 1e-12);
+    CHECK_NEAR(ou_lag1_autocorrelation(2.0, 0.5), 0.36787944117144233, 1e-12);
+    CHECK_NEAR(ar1_estimate({1.0, 2.0, 3.0, 4.0}), 1.0, 1e-12);
+    CHECK_NEAR(rate_mismatch_criterion(2.0, 0.2, 1.0, 0.1), 4.0, 1e-12);
+    CHECK_NEAR(regime_shift_index({1.0, 2.0, 3.0}, 0.0, 1.0), 2.0, 1e-12);
+    CHECK_NEAR(cusum_statistic({1.0, 2.0, 3.0, 4.0}), 2.0, 1e-12);
+    CHECK_NEAR(optimal_fingerprint({{1.0}, {2.0}}, {2.0, 4.0}, {{1.0, 0.0}, {0.0, 1.0}})[0], 2.0,
+               1e-12);
+    CHECK_NEAR(marchenko_pastur_bounds_lower(1.0, 4.0), 1.0, 1e-12);
+    CHECK_NEAR(marchenko_pastur_bounds_upper(1.0, 4.0), 9.0, 1e-12);
+    CHECK_NEAR(marchenko_pastur_density(5.0, 1.0, 4.0), 0.12732395447351627, 1e-12);
+
+    CHECK_NEAR(area_mean_anomaly({1.0, 2.0}, {1.0, 1.0}), 1.5, 1e-12);
+    CHECK_NEAR(relative_nino34(1.5, 0.0, 0.5, 0.0), 1.0, 1e-12);
+    CHECK_NEAR(amo_relative(1.0, 0.4), 0.6, 1e-12);
+    CHECK_NEAR(pdo_projection({1.0, 2.0}, {3.0, 4.0}), 11.0, 1e-12);
+    CHECK_NEAR(amoc_index({{1.0, 2.0}, {3.0, 1.0}}), 3.0, 1e-12);
+    CHECK_NEAR(ocean_heat_content(1030.0, 3980.0, {1.0, 2.0}, {0.0, 0.0}, {100.0, 50.0}),
+               819880000.0, 1e-6);
+    CHECK_NEAR(layer_heat_content_anomaly(1030.0, 3980.0, 1.0, 100.0), 409940000.0, 1e-6);
+    CHECK_NEAR(earth_energy_imbalance(340.0, 240.0, 100.0), 0.0, 1e-12);
+    CHECK_NEAR(energy_imbalance_decomposition(1.0, 1.0, 0.5), 0.5, 1e-12);
+    CHECK_NEAR(sea_level_budget(1.0, 2.0, 3.0, 4.0), 10.0, 1e-12);
+    CHECK_NEAR(barystatic_sea_level(1.0, 2.0, 3.0, 4.0, 0.5), 10.5, 1e-12);
+    CHECK_NEAR(quadratic_sea_level(0.0, 1.0, 0.5, 2.0), 4.0, 1e-12);
+    CHECK_NEAR(quadratic_sea_level_acceleration(0.5), 1.0, 1e-12);
+    CHECK_NEAR(broken_linear_sea_level(0.0, 1.0, 2.0, 3.0, 2.0), 5.0, 1e-12);
+    CHECK_NEAR(groundwater_storage_anomaly(10.0, 1.0, 2.0, 3.0), 4.0, 1e-12);
+    CHECK_NEAR(recharge_convolution(0.0, {1.0, 2.0}, 1.0), 2.36787944117144233, 1e-12);
+    CHECK_NEAR(storage_depletion({1.0, 2.0}, {10.0, 10.0}, 0.1), 3.0, 1e-12);
+    CHECK_NEAR(heston_variance_step(0.04, 1.0, 0.04, 0.1, 0.1, 0.0), 0.04, 1e-12);
+    const std::vector<double> stationary =
+        markov_stationary_distribution({{0.9, 0.1}, {0.2, 0.8}});
+    CHECK_NEAR(stationary[0], 2.0 / 3.0, 1e-9);
+    CHECK_NEAR(regime_expected_value({1.0, 2.0}, {0.25, 0.75}), 1.75, 1e-12);
+
+    DynamicLinearState state;
+    state.update(1.0, 1.0, 0.0, 0.0);
+    CHECK_NEAR(state.level, 2.0 / 3.0, 1e-12);
+    CHECK_NEAR(state.rate, 1.0 / 3.0, 1e-12);
+}
+
 int main() {
+    test_change_detection();
     test_advanced_ozone_landuse();
     test_resolved_gaps();
     test_aerosol_ozone();
