@@ -1,0 +1,13 @@
+# Python environment for the Earthdata wrapper (recreate with python3 -m venv .venv)
+.venv/
+
+# Build artefacts
+*.o
+climate
+tests/test_all
+tools/generate_demo
+
+# Generated retrieval models and per-pixel outputs
+data/nlsst_model.csv
+data/nasa_team_model.csv
+data/ndvi_output.csv

@@ -1,0 +1,255 @@
+# climate
+
+A dependency-free C++17 implementation of the retrieval formulas, time-series
+decomposition and trend tests described in the NASA hackathon research notes:
+sea surface temperature (NLSST), atmospheric CO2 curve fitting, NDVI, NASA Team
+sea ice concentration and extent, GPI/GPCP precipitation merging, STL
+decomposition, Mann-Kendall, Sen's slope, and the deterministic
+intent -> catalog -> analysis pipeline.
+
+Only the C++ standard library is used. Nothing is linked, and no numerical
+library, JSON library or CSV library is required.
+
+## Build
+
+```sh
+make            # builds ./climate and tools/generate_demo
+make test       # builds and runs the self-checking test program
+make data       # writes the synthetic demo datasets into data/
+make demo       # query "is the arctic changing?" against data/
+```
+
+Requirements: a C++17 compiler (g++ or clang++) and `make`.
+
+## Layout
+
+| Path | Contents |
+|---|---|
+| `src/stats.*` | descriptive statistics, normal CDF/quantile, autocorrelation |
+| `src/linalg.*` | Gaussian elimination and Householder-QR least squares |
+| `src/fft.*` | radix-2 and Bluestein FFT, Thoning-style FFT low-pass filter |
+| `src/loess.*`, `src/stl.*` | local regression and the full STL inner/outer loop |
+| `src/harmonic.*` | polynomial + harmonic regression, derivative, growth rate |
+| `src/trend.*` | Mann-Kendall (tie corrected, Hamed-Rao), Sen's slope with CI, TFPW, seasonal MK |
+| `src/series.*` | gap filling, phase climatology, standardised anomalies |
+| `src/retrieval.*` | NLSST, NASA Team, NDVI, GPI, GPCP merge, energy/carbon/AMOC diagnostics |
+| `src/catalog.*` | the variable catalog with process and region tags |
+| `src/intent.*` | deterministic intent parser, JSON IR ingestion, whitelisted compiler |
+| `src/analysis.*` | the seasonality -> trend pipeline for ordinary and CO2 series |
+| `src/report.*` | text, Markdown and JSON reports |
+| `src/main.cpp` | command-line interface |
+| `tests/test_all.cpp` | formula and pipeline checks |
+| `tools/generate_demo.cpp` | generator for the synthetic datasets |
+
+## Commands
+
+```sh
+./climate catalog
+./climate catalog --process sea_ice --format json
+
+./climate query "is the arctic changing?"
+./climate query "how has sahel rainfall changed since 1980?" --data data
+./climate intent --file ir.json
+
+./climate analyze --file data/sst_monthly.csv --variable sst --units degC
+./climate analyze --file data/sst_monthly.csv --format json --out sst.json
+./climate co2 --file data/co2_monthly.csv
+
+./climate retrieve sst --file data/sst_matchups.csv --out data/nlsst_model.csv
+./climate retrieve sst --coeffs data/nlsst_model.csv --bt11 300.2 --bt12 299.3 \
+        --first-guess 300.0 --zenith 35
+./climate retrieve ndvi --file data/reflectance_pairs.csv --red red --nir nir
+./climate retrieve seaice --file data/sea_ice_grid_2024_09.csv
+./climate retrieve seaice-pixel --tie-points data/nasa_team_tiepoints.csv \
+        --tb19v 240 --tb19h 228 --tb37v 242
+./climate retrieve precip --file data/precip_estimates.csv --cold-fraction 0.35 \
+        --water-vapour 4.2 --a1 0.1 --a2 3.0
+
+./climate calibrate nlsst --file data/sst_matchups.csv --out data/nlsst_model.csv
+./climate calibrate seaice --tie-points data/nasa_team_tiepoints.csv --out data/nasa_team_model.csv
+
+./climate physics toa --forcing 3.7 --feedback -1.2 --delta-t 1.2
+./climate physics surface --albedo 0.2 --shortwave 200 --emissivity-air 0.9 \
+        --longwave 300 --emissivity-surface 0.98 --temperature 288 \
+        --latent 80 --sensible 40 --ground 5
+./climate physics carbon --start-ppm 400 --end-ppm 410 --start-year 2000 --end-year 2010
+./climate physics amoc --file data/amoc_velocity_26n.csv --depth 500
+./climate physics feedback --planck -3.2 --water-vapour 1.8 --lapse-rate -0.6 \
+        --albedo 0.35 --cloud 0.4
+./climate physics forcing-co2 --ppm 420 --reference-ppm 280
+./climate physics mie --size-parameter 5 --real 1.33 --imag 0.01
+./climate physics aod --number-concentration 1e8 --radius-um 0.1 --path-length 1000
+./climate physics wind-stress --u10 10 --v10 0
+./climate physics ekman --tau-x 0.1 --tau-y 0 --latitude 30
+./climate physics geostrophic --density 1025 --dp-dx 1e-4 --dp-dy 0 --latitude 30
+./climate physics thermal-wind --density 1025 --drho-dx 0 --drho-dy 1e-6 --latitude 30
+
+./climate retrieve index --file data/reflectance_pairs.csv --red red --nir nir \
+        --index evi --blue blue
+
+./climate data list
+./climate data inspect --file FILE.nc
+./climate data export --file FILE.nc --variable sst --out sst.csv --mode timeseries
+./climate data search --dataset sea_ice_extent --start 2024-01-01 --end 2024-12-31
+./climate data fetch --dataset sea_ice_extent --start 2024-01-01 --end 2024-12-31 --max 12
+./climate data convert --dataset sst --out sst.csv granule1.nc granule2.nc
+```
+
+Run `./climate help` for the complete option list.
+
+## Implemented formulas
+
+**SST (NLSST).** `SST = a0 + a1 BT11 + a2 (BT11-BT12) T_sfc
++ a3 (sec(theta)-1)(BT11-BT12) + a4 mirror + a5 theta* + a6 theta^2`.
+Coefficients are estimated by Householder-QR least squares from
+satellite-buoy matchups (`calibrate nlsst` / `retrieve sst --file`), or loaded
+from a coefficient CSV. The retrieval is applied per footprint with
+`retrieve sst --bt11 ...`.
+
+**CO2 (NOAA/CMDL).** Polynomial of degree *k* (default 2) plus *n* annual
+harmonics, fitted with iterative rejection of points beyond 3 residual standard
+deviations, exactly as in Thoning, Tans & Komhyr (1989). Harmonic amplitudes are
+`sqrt(A_n^2 + B_n^2)` and phases `atan2(B_n, A_n)`. The growth rate is the
+derivative of the fitted trend (polynomial part only, so the seasonal cycle does
+not contaminate it) and is also converted with `k = 2.124 PgC/ppm`. An
+FFT low-pass filter with configurable cutoff is available for the
+short-term/long-term separation.
+
+**NDVI.** `(rho_NIR - rho_RED) / (rho_NIR + rho_RED)`, with an undefined result
+(a non-finite value) when both reflectances are zero.
+
+**Sea ice.** The NASA Team algorithm is implemented in two forms:
+
+* direct inversion of the physical three-constituent mixture model for the
+  open-water, first-year and multiyear fractions using a 3-channel tie-point
+  matrix plus the closure `C_OW + C_FY + C_MY = 1`;
+* the empirical polarization/gradient form
+  `C = (a0 + a1 PR + a2 GR + a3 PR GR) / (1 + d1 PR + d2 GR + d3 PR GR)`,
+  with PR(19) and GR(37V/19V) and coefficients calibrated by least squares over
+  the mixture simplex generated from the tie points.
+
+Extent uses the 15% threshold: `SIE = sum A_cell * 1[SIC >= 0.15]`, area uses
+`SIA = sum SIC * A_cell` with spherical cell areas
+`R^2 dlambda (sin(lat2) - sin(lat1))`.
+
+**Precipitation.** GPI = 3 mm/h times the fraction of IR pixels colder than
+235 K, optionally scaled by `exp(a1 (w - a2))`, then a GPCP inverse-error-variance
+merge with weights `1/sigma_i^2`.
+
+**Coupled-system diagnostics.** `N = F + lambda dT`,
+`Rn = (1-alpha) Rs + eps_a Rl - sigma eps_s Ts^4` with the
+`Rn = LE + H + G` residual, the carbon mass-balance growth rate, and the
+zonally/depth-integrated AMOC streamfunction `Q(y, z)` in Sverdrup.
+
+**Radiative transfer and dynamics.** Feedback decomposition
+`lambda = lambda_0 + sum_i lambda_i` with equilibrium warming `-F/lambda` and
+ECS `-F_2x/lambda`; logarithmic CO2 forcing `5.35 ln(C/C0)`; Mie scattering for
+a homogeneous sphere (downward `D_n` recurrence, Riccati-Bessel functions, Qext,
+Qsca, asymmetry `g`, single-scattering albedo); aerosol optical depth
+`N pi r^2 Qext L`; bulk wind stress `rho_a Cd |U| U`; Ekman transport
+`(tau_y, -tau_x)/(rho f)` and pumping `curl(tau)/(rho f)`; geostrophic balance
+`f u = -(1/rho) dp/dy`, `f v = (1/rho) dp/dx`; thermal wind
+`f du/dz = (g/rho) d rho/dy`, `f dv/dz = -(g/rho) d rho/dx`; and the SAVI and
+EVI vegetation indices.
+
+**Separating trend from seasonality.** STL (`y = T + S + R`) with cycle-subseries
+LOESS smoothing, a low-pass moving-average filter, and bisquare robustness
+iterations; monthly climatology and standardised anomalies; Mann-Kendall with
+tie correction and the Hamed-Rao autocorrelation variance correction; optional
+trend-free prewhitening; Sen's slope with the rank-based confidence interval;
+and a within-block seasonal Mann-Kendall test.
+
+## The intent pipeline
+
+`query` implements the architecture from the notes: natural text is parsed into
+a structured IR (`process`, `region`, `start_year`, `end_year`), the IR is
+validated against the catalog whitelist, and deterministic code selects and
+analyses the variables. An external language model can be used purely as the
+intent parser: pass its JSON to `query --intent ir.json` or `intent --file ir.json`.
+Unknown processes, regions or variable ids are rejected rather than silently
+mapped to something else.
+
+## NASA Earthdata ingestion
+
+The C++ core never links a NetCDF, HDF5 or JSON library. Two mechanisms cover real
+NASA products:
+
+1. **Classic NetCDF-3 (CDF-1/CDF-2) is parsed by this project.** `src/netcdf.cpp`
+implements the header grammar, dimension/variable/attribute records, big-endian
+decoding for byte/short/int/float/double, record variables and time units
+("days since ...", "months since ...", "years since ..."). Use `data inspect` to
+dump a file and `data export` to write the CSV schema directly.
+2. **NetCDF-4/HDF5 is converted by a data-side wrapper.** `tools/nasa_fetch.py` uses
+`earthaccess` (CMR search and authenticated download), `xarray`/`netCDF4` (HDF5
+reads) and `numpy`/`pandas` (area weighting, extent, decimal years), then writes
+`time,value` or grid CSV plus a JSON manifest. C++ invokes it with `climate data
+search|fetch|convert`; the shell command is quoted and shown with `--print-command`.
+
+```sh
+python3 -m venv .venv
+./.venv/bin/pip install earthaccess xarray netCDF4
+export EARTHDATA_USERNAME=your_username
+export EARTHDATA_PASSWORD=your_password
+
+./climate data list
+./climate data fetch --dataset sea_ice_extent --start 2024-01-01 --end 2024-12-31 \
+        --out data/nasa --max 12
+./climate analyze --file data/nasa/sea_ice_extent_monthly.csv --variable sea_ice_extent \
+        --units "million km2"
+```
+
+`EARTHDATA_USERNAME`/`EARTHDATA_PASSWORD` (or `~/.netrc`) are read only by the
+wrapper. `--dry-run` prints the planned query without networking, which is what
+runs in CI without credentials.
+
+Dataset keys and their CMR collections live in `src/fetch.hpp`; the short name,
+version and variable list can be overridden on the command line, so a renamed
+collection never requires a code change. Versions are deliberately left
+unpinned because CMR returns nothing when a pinned version no longer exists;
+pass `--version` to pin one.
+
+`data/nasa/` contains two small NetCDF fixtures used by the tests and the
+examples: `sample_sst4.nc` (NetCDF-4, 180 months of a 45x90 SST field with a
+0.02 degC/yr trend) and `sample_sst3.nc` (the same data truncated to 24 months,
+written as NETCDF3_CLASSIC), plus `sample_seaice4.nc` for the extent path. They
+let the reader and converter be verified without downloading anything.
+
+## Data
+
+`data/` holds synthetic datasets generated by `tools/generate_demo.cpp`:
+realistic monthly SST, air temperature, CO2, NDVI and precipitation series with
+known trends, gaps, an injected outlier, a sea ice concentration grid, buoy
+matchups, NASA Team tie points, precipitation estimates and an AMOC velocity
+section. They exist to exercise every code path and to make the tests
+verifiable. They are not NASA products.
+
+The default NASA Team tie points and the bundling coefficients are
+representative example values. For scientific use, replace them with published
+tie points and matchup-derived coefficients from the sensor and period you are
+processing: `calibrate` and `retrieve sst --file` regenerate them from data.
+
+## Verification
+
+`make test` exercises the formulas directly: FFT round-trips, LOESS/STL recovery,
+harmonic coefficient and derivative recovery, Mann-Kendall/Sen on known series,
+NLSST coefficient recovery, NASA Team concentrations, GPCP weighting, spherical
+areas, JSON/CSV round-trips, intent parsing, the NetCDF-3 reader and exporter,
+and Mie efficiencies cross-checked against an independent implementation to
+1e-6. `data/nasa/sample_sst3.nc` is parsed and exported by the C++ reader;
+`sample_sst4.nc` and `sample_seaice_polar4.nc` are converted by the wrapper
+(area-weighted SST, 15% extent on a curvilinear grid). A live CMR search with
+the bundled registry returns real NSIDC granules. Downloading requires Earthdata
+credentials, which are not stored in this repository.
+
+## Notes and limits
+
+* Time columns are numeric: fractional years (e.g. `2024.9583`) are expected for
+  `analyze` and `co2`; other spacings work if `--period` and the window options
+  are set consistently.
+* `analyze` assumes the requested seasonal period; it does not detect it.
+* Missing values are linearly interpolated before decomposition, and the count
+  is reported.
+* STL requires at least two full seasonal cycles; shorter series fall back to a
+  calendar-phase climatology and the report says so.
+* The Mann-Kendall p-value uses the normal approximation with continuity
+  correction, appropriate for the series lengths this tool targets.
