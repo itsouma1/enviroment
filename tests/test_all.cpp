@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "aerosol.hpp"
 #include "analysis.hpp"
 #include "assim.hpp"
 #include "atmos.hpp"
@@ -30,6 +31,7 @@
 #include "linalg.hpp"
 #include "netcdf.hpp"
 #include "ocean.hpp"
+#include "ozone.hpp"
 #include "pde.hpp"
 #include "physics.hpp"
 #include "loess.hpp"
@@ -1231,7 +1233,56 @@ void test_new_gaps() {
     CHECK(weathered.mineral_fraction[5] < 1.0);
 }
 
+void test_aerosol_ozone() {
+    const MieEfficiencies small = mie_efficiencies(1.0, 1.5, 0.01);
+    CHECK_NEAR(small.q_ext, 0.242479335500, 1e-9);
+    CHECK_NEAR(small.q_sca, 0.213638571599, 1e-9);
+    CHECK_NEAR(small.q_abs, 0.028840763901, 1e-9);
+    const MieEfficiencies medium = mie_efficiencies(5.0, 1.33, 0.001);
+    CHECK_NEAR(medium.q_ext, 3.579847888555, 1e-8);
+    CHECK_NEAR(medium.q_sca, 3.558767512512, 1e-8);
+    const MieEfficiencies absorbing = mie_efficiencies(10.0, 1.5, 0.1);
+    CHECK_NEAR(absorbing.q_ext, 2.459790528444, 1e-8);
+    CHECK_NEAR(absorbing.q_sca, 1.235144209371, 1e-8);
+
+    const MieEfficiencies cross = mie_cross_sections(1e-6, 1e-6, 1.5, 0.01);
+    CHECK_NEAR(cross.q_ext / (3.14159265358979323846 * 1e-12),
+               mie_efficiencies(2.0 * 3.14159265358979323846, 1.5, 0.01).q_ext, 1e-9);
+    CHECK_NEAR(aerosol_optical_depth({1.0, 2.0}, {100.0, 50.0}), 200.0, 1e-12);
+    CHECK_NEAR(single_scattering_albedo(8.0, 10.0), 0.8, 1e-12);
+    CHECK_NEAR(angstrom_optical_depth(1.0, 0.5, 0.55, 1.5), 1.1536897329871667, 1e-12);
+    CHECK_NEAR(angstrom_exponent(1.0, std::pow(0.5 / 0.55, -2.0), 0.55, 0.5), 2.0, 1e-12);
+    CHECK_NEAR(direct_aerosol_forcing(1361.0, 0.8, 0.5, 0.1, 0.95, 0.7, 0.1), -5.2281454,
+               1e-7);
+
+    double d_up = 0.0, d_down = 0.0;
+    two_stream_derivatives(10.0, 5.0, 0.2, 0.9, 100.0, 0.5, 1.0, 0.5, 0.7, 0.3, d_up, d_down);
+    CHECK_NEAR(d_up, -34.730085818, 1e-3);
+    CHECK_NEAR(d_down, -18.098846306, 1e-3);
+    CHECK_NEAR(polarized_reflectance(1.0, 1.0, 1000.0, 0.5),
+               3.14159265358979323846 / 500.0 * std::sqrt(2.0), 1e-12);
+
+    CHECK_NEAR(kohler_activated_droplets(100.0, 1.0, 0.1), 9.090909090909092, 1e-12);
+    CHECK_NEAR(aci_index(-0.1, 0.2), 0.5, 1e-12);
+    CHECK_NEAR(aci_optical_depth_index(0.3, 0.2), 1.5, 1e-12);
+    CHECK_NEAR(aci_forcing_decomposition(1.0, -2.0, -0.5, -0.2), -1.7, 1e-12);
+    CHECK_NEAR(aci_residual_twomey(2.0, 0.5, 0.3), 1.2, 1e-12);
+    CHECK_NEAR(ml_aci_forcing(300.0, 0.5, 0.6, 0.1, 0.2, 0.1), -0.18, 1e-12);
+
+    CHECK_NEAR(chapman_ozone_production(1e-5, 1e12), 1e7, 1e-3);
+    CHECK_NEAR(chapman_odd_oxygen_loss(2e-15, 1e6, 1e12), -2e3, 1e-9);
+    CHECK_NEAR(nox_odd_oxygen_loss(1e-15, 1e9, 1e6), -2.0, 1e-12);
+    CHECK_NEAR(chapman_ozone_ratio(4e-5, 4e-6), 3.1622776601683795, 1e-12);
+    CHECK_NEAR(methane_fractional_release(10.0, 6.0), 0.4, 1e-12);
+    CHECK_NEAR(age_of_air(0.4), 3.6536, 1e-9);
+    CHECK_NEAR(stratospheric_water_vapour(3.0, 1.7, 0.7), 5.0, 1e-12);
+    CHECK_NEAR(stratospheric_water_vapour_change(0.4, 0.2), 0.16, 1e-12);
+    CHECK_NEAR(water_vapour_mass_perturbation({1.0, 2.0}, {100.0, 50.0}, 18.0, 29.0),
+               200.0 * 18.0 / 29.0, 1e-9);
+}
+
 int main() {
+    test_aerosol_ozone();
     test_new_gaps();
     test_cryo();
     test_pde();

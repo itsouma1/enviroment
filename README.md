@@ -276,6 +276,24 @@ fixation, canopy air-space exchange, the multilayer scalar tendency, the
 exponential soil-production function and its runoff/temperature-dependent
 reference rate.
 
+**Aerosol optics and forcing (notes 160-192 KB).** A full Mie solver for
+homogeneous spheres: logarithmic-derivative downward recurrence, Miller's
+downward Riccati-Bessel recursion and the stable chi recursion, returning
+`Q_ext`, `Q_sca` and `Q_abs`. It matches the reference `miepython`
+implementation to 1e-9 at size parameters 1, 5 and 10 with absorbing and
+non-absorbing indices. Around it: cross sections `pi r^2 Q`, column AOD,
+single-scattering albedo, Angstrom exponent and spectral scaling, the
+Charlson-Sokolik-Toon thin-layer forcing, the two-stream flux derivatives,
+polarized reflectance from Stokes Q/U, Kohler activation `N_a w/(w + d N_a)`,
+the ACI indices, the forcing decomposition and residual Twomey estimate, and
+the chained machine-learning forcing.
+
+**Ozone and stratospheric water vapour (notes 176-192 KB).** Chapman ozone
+production and odd-oxygen loss, the NOx catalytic loss rate, the Chapman
+equilibrium ratio, methane fractional release, the AoA cubic, the
+`H2O + 2CH4` conservation law, methane-driven SWV change, and the column mass
+perturbation.
+
 **Dimensional corrections.** Two implemented laws were dimensionally wrong as
 supplied and are now fixed rather than copied literally. The Hertz-Mindlin
 damping coefficient was given as `2 alpha A xi r_c sqrt(m K_n)/d`, which carries
