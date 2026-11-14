@@ -16,7 +16,10 @@
 #include "catalog.hpp"
 #include "common.hpp"
 #include "csv.hpp"
+#include "earth.hpp"
 #include "fft.hpp"
+#include "land.hpp"
+#include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
 #include "intent.hpp"
@@ -683,6 +686,129 @@ void test_fetch() {
     CHECK(!resolve_fetch_wrapper().empty());
 }
 
+void test_earth_land_spatial() {
+    // Planck feedback and pattern-corrected ECS.
+    CHECK_NEAR(planck_feedback(255.0), -3.7609, 1e-3);
+    CHECK_NEAR(pattern_corrected_ecs(-1.3, 0.5), 4.625, 1e-12);
+
+    // Two-layer energy balance model.
+    TwoLayerModel model;
+    CHECK_NEAR(two_layer_equilibrium(model, 3.7), 2.96, 1e-12);
+    const TwoLayerState state = integrate_two_layer(model, 3.7, 20000.0, 2.0);
+    CHECK_NEAR(state.surface, 2.96, 1e-3);
+    CHECK_NEAR(state.deep, 2.96, 1e-3);
+    CHECK_NEAR(ocean_heat_uptake(model, state), 0.0, 1e-5);
+    CHECK_NEAR(transient_climate_response(model), 1.8974358974, 1e-9);
+    CHECK_NEAR(equilibration_ratio(model), 1.5600000000, 1e-6);
+
+    // Carbon-cycle feedbacks.
+    CarbonFeedback carbon;
+    carbon.beta_land = 0.3;
+    carbon.gamma_land = -0.02;
+    carbon.beta_ocean = 0.6;
+    carbon.gamma_ocean = -0.05;
+    CHECK_NEAR(land_carbon_change(carbon, 100.0, 2.0), 29.96, 1e-12);
+    CHECK_NEAR(ocean_carbon_change(carbon, 100.0, 2.0), 59.9, 1e-12);
+    CHECK_NEAR(airborne_fraction(2.5, 10.0), 0.531, 1e-12);
+
+    // Permafrost decay with Q10 temperature dependence.
+    CHECK_NEAR(permafrost_decay_rate(0.01, 2.0, 10.0), 0.02, 1e-15);
+    CHECK_NEAR(permafrost_remaining_fraction(0.01, 2.0, 10.0, 100.0), 0.1353352832,
+               1e-10);
+
+    // Planck function inversion and Schwarzschild transfer.
+    const double wavelength = 10e-6;
+    const double radiance = planck_radiance(wavelength, 300.0);
+    CHECK_NEAR(radiance, 9.9240e6, 5e2);
+    CHECK_NEAR(brightness_temperature(wavelength, radiance), 300.0, 1e-9);
+    CHECK_NEAR(optical_depth(0.5, 2.0, 1.0), 1.0, 1e-15);
+    CHECK_NEAR(transmittance(1.0), std::exp(-1.0), 1e-15);
+    CHECK_NEAR(weighting_function(1.0, 0.01, 0.0), 0.01 / 9.80665, 1e-15);
+    CHECK_NEAR(layer_radiance(10.0, 20.0, std::log(2.0)), 15.0, 1e-12);
+
+    // Two-stream: pure absorption, then a conservative scattering layer.
+    const TwoStreamResult absorbed = two_stream_layer(1.0, 0.0, 0.0, 60.0, 0.0);
+    CHECK_NEAR(absorbed.reflectance, 0.0, 1e-15);
+    CHECK_NEAR(absorbed.direct_transmittance, std::exp(-2.0), 1e-12);
+    CHECK_NEAR(absorbed.total_transmittance, std::exp(-2.0), 1e-12);
+    CHECK_NEAR(absorbed.absorptance, 1.0 - std::exp(-2.0), 1e-12);
+
+    const TwoStreamResult scattering = two_stream_layer(5.0, 1.0, 0.85, 60.0, 0.0);
+    CHECK(scattering.reflectance > 0.0);
+    CHECK_NEAR(scattering.reflectance + scattering.total_transmittance + scattering.absorptance,
+               1.0, 1e-6);
+    const TwoStreamResult reflected = two_stream_layer(5.0, 1.0, 0.85, 60.0, 0.3);
+    CHECK_NEAR(reflected.reflectance + reflected.total_transmittance + reflected.absorptance, 1.0,
+               1e-6);
+
+    // Waves.
+    CHECK_NEAR(shallow_water_speed(9.80665, 100.0), 31.3156, 1e-4);
+    const EquatorialWave kelvin = kelvin_wave(2e-7, 9.80665, 100.0);
+    CHECK_NEAR(kelvin.frequency, 6.2631e-6, 1e-9);
+    const std::vector<double> frequencies = equatorial_wave_frequencies(2e-7, 2.3e-11, 30.0, 0);
+    CHECK(!frequencies.empty());
+    for (const double omega : frequencies) {
+        const double residual = omega * omega * omega / (30.0 * 30.0) -
+                                omega * (4e-14 + 2.3e-11 / 30.0) - 2.3e-11 * 2e-7;
+        CHECK_NEAR(residual, 0.0, 1e-16);
+    }
+
+    // Turbulence.
+    CHECK_NEAR(refractive_index_spectrum(1e-14, 1.0), 3.3e-16, 1e-20);
+    CHECK_NEAR(dissipation_rate_from_spectrum(1.0, 1.0, 10.0), 1.540408, 1e-5);
+    CHECK_NEAR(kolmogorov_microscale(1.5e-5, 1e-3), 1.3554e-3, 1e-6);
+    CHECK(kolmogorov_spectrum(1.0, 1e-3, 100.0) > 0.0);
+    CHECK_NEAR(stable_boundary_layer_ratio(1.0), 1.6129032258, 1e-9);
+
+    // Land surface energy balance and Penman-Monteith.
+    CHECK_NEAR(land_net_radiation(0.2, 1000.0, 1.0, 1.0, 288.0, 288.0), 800.0, 1e-9);
+    CHECK_NEAR(sensible_heat_flux(1.2, 1005.0, 290.0, 288.0, 20.0), 120.6, 1e-9);
+    CHECK_NEAR(aerodynamic_resistance(0.4, 0.3, 10.0, 0.0, 0.01, 0.0), 57.5646, 1e-3);
+    const double latent = penman_monteith_latent_heat(1.0, 100.0, 1.225, 1005.0, 0.0, 50.0,
+                                                      0.066, 50.0);
+    const double sensible = penman_monteith_sensible_heat(1.0, 100.0, 1.225, 1005.0, 0.0, 50.0,
+                                                          0.066, 50.0);
+    CHECK_NEAR(latent, 88.3392, 1e-3);
+    CHECK_NEAR(latent + sensible, 100.0, 1e-9);
+    CHECK_NEAR(surface_resistance_soil(100.0, 0.4, 0.1, 0.3), 337.5, 1e-9);
+
+    // Photosynthesis and stomatal conductance.
+    CHECK_NEAR(farquhar_rubisco(100.0, 30.0, 4.0, 40.0, 21.0, 21000.0), 37.1216, 1e-3);
+    CHECK_NEAR(farquhar_electron_transport(150.0, 30.0, 4.0), 25.6579, 1e-3);
+    CHECK_NEAR(farquhar_assimilation(37.1216, 25.6579, 1.0), 24.6579, 1e-3);
+    CHECK_NEAR(ball_berry_conductance(8.0, 20.0, 101325.0, 40.0, 4.0, 1.5, 1.5), 225166.6667,
+               1e-3);
+    CHECK_NEAR(medlyn_conductance(4.0, 20.0, 40.0, 1.0), 2.5, 1e-12);
+    CHECK_NEAR(leuning_conductance(0.01, 10.0, 20.0, 30.0, 4.0, 0.8, 1.0), 6.163846, 1e-6);
+
+    // Carbon balance, vegetation structure and soil water.
+    CHECK_NEAR(npp_lpj(100.0, 20.0), 60.0, 1e-12);
+    CHECK_NEAR(maintenance_respiration(1.0, 2.0, 30.0, 1.0, 4.0, 6.0, 0.0, 0.0, 0.0), 20.0,
+               1e-12);
+    CHECK_NEAR(lai_from_leaf_carbon(2.0, 2.5), 5.0, 1e-12);
+    CHECK_NEAR(xylem_conductance(-1.0, -1.0), 0.5, 1e-12);
+    CHECK_NEAR(soil_water_step(10.0, 5.0, 2.0, 1.0, 1.0, 1.0), 11.0, 1e-12);
+    CHECK_NEAR(soil_thermal_inertia(100.0, 0.3, 0.1, 500.0), 200.0, 1e-12);
+    CHECK_NEAR(vcmax_temperature(100.0, 25.0), 100.0, 1e-9);
+    CHECK(vcmax_temperature(100.0, 35.0) > 100.0);
+
+    // Spatial statistics.
+    const std::vector<double> values = {1.0, 2.0, 3.0};
+    const Weights identity = {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}};
+    CHECK_NEAR(getis_ord_gi(values, identity, 1), 0.0, 1e-12);
+    CHECK_NEAR(local_moran_i(values, identity, 1), 0.0, 1e-12);
+    CHECK_NEAR(geodetector_q({0.0, 0.0, 10.0, 10.0}, {0, 0, 1, 1}), 1.0, 1e-12);
+    CHECK_NEAR(geodetector_q({1.0, 2.0, 3.0}, {0, 0, 0}), 0.0, 1e-12);
+    CHECK_NEAR(walker_threshold(0.05, 10), 0.0051162, 1e-7);
+    const std::vector<double> adjusted = benjamini_hochberg({0.01, 0.04, 0.03, 0.005});
+    CHECK_NEAR(adjusted[0], 0.02, 1e-12);
+    CHECK_NEAR(adjusted[1], 0.04, 1e-12);
+    CHECK_NEAR(adjusted[2], 0.04, 1e-12);
+    CHECK_NEAR(adjusted[3], 0.02, 1e-12);
+    CHECK(benjamini_hochberg_rejections({0.01, 0.04, 0.03, 0.005}, 0.05).size() == 4);
+    CHECK_NEAR(poisson_scan_log_likelihood(10, 5.0, 100, 50.0), 69.314718, 1e-5);
+}
+
 }  // namespace
 
 int main() {
@@ -700,6 +826,7 @@ int main() {
     test_amoc();
     test_netcdf();
     test_physics();
+    test_earth_land_spatial();
     test_fetch();
 
     if (failures == 0) {

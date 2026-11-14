@@ -15,6 +15,9 @@
 #include "catalog.hpp"
 #include "common.hpp"
 #include "csv.hpp"
+#include "earth.hpp"
+#include "land.hpp"
+#include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
 #include "intent.hpp"
@@ -102,6 +105,28 @@ Arguments parse_arguments(int argc, char** argv, int start) {
         }
     }
     return args;
+}
+
+std::vector<double> parse_number_list(const std::string& text) {
+    std::vector<double> values;
+    std::stringstream stream(text);
+    std::string item;
+    while (std::getline(stream, item, ',')) {
+        if (item.empty()) continue;
+        values.push_back(std::stod(item));
+    }
+    return values;
+}
+
+std::vector<std::vector<double>> parse_matrix(const std::string& text) {
+    std::vector<std::vector<double>> rows;
+    std::stringstream stream(text);
+    std::string row;
+    while (std::getline(stream, row, ';')) {
+        if (row.empty()) continue;
+        rows.push_back(parse_number_list(row));
+    }
+    return rows;
 }
 
 std::string lowered(std::string text) {
@@ -261,6 +286,45 @@ void print_usage() {
         << "  physics geostrophic --density RHO --dp-dx DX --dp-dy DY --latitude LAT\n"
         << "  physics thermal-wind --density RHO --drho-dx DX --drho-dy DY --latitude LAT\n"
         << "      Coupled-system diagnostics and radiative-transfer formulas.\n\n"
+        << "  earth feedback-planck --temperature K\n"
+        << "  earth ecs --alpha A [--alpha-prime P] [--forcing F]\n"
+        << "  earth two-layer [--forcing F] [--years Y] [--feedback L] [--uptake G]\n"
+        << "          [--efficacy E] [--heat-capacity C] [--deep-heat-capacity C]\n"
+        << "  earth carbon-feedback --delta-c-atmos P --delta-t K [--beta-land B]\n"
+        << "          [--beta-ocean B] [--gamma-land G] [--gamma-ocean G]\n"
+        << "  earth airborne --growth-ppm P --emissions-pgc E\n"
+        << "  earth permafrost --carbon P [--k-ref K] [--q10 Q] [--temperature T] [--years Y]\n"
+        << "  earth planck --wavelength-um L --temperature K\n"
+        << "  earth brightness-temperature --wavelength-um L --radiance I\n"
+        << "  earth schwarzschild --absorption A --density RHO --path M [--humidity Q]\n"
+        << "  earth two-stream --tau T [--omega W] [--asymmetry G] [--zenith DEG] [--albedo A]\n"
+        << "  earth kelvin --depth M\n"
+        << "  earth equatorial-wave --k K --c C [--beta B] [--mode N]\n"
+        << "  earth turbulence --cn2 C --k K [--epsilon E] [--nu V] [--outer L]\n"
+        << "          [--frequency F --spectrum S --wind U]\n"
+        << "  earth stable-bl --mu M\n"
+        << "      Advanced climate sensitivity, radiation, waves and turbulence.\n\n"
+        << "  land radiation --albedo A --shortwave S --emissivity-surface ES\n"
+        << "          --emissivity-air EA --temperature-air TA --temperature-surface TS\n"
+        << "  land penman-monteith --net-radiation R [--delta D] [--rho RHO] [--cp C]\n"
+        << "          [--humidity-deficit DQ] [--r-a RA] [--gamma GAMMA] [--r-s RS]\n"
+        << "  land farquhar --vcmax V --ci C --gamma-star G --kc KC --oi OI --ko KO\n"
+        << "          [--j J] [--rd RD]\n"
+        << "  land stomatal --model ball-berry|medlyn|leuning [--g1 G1] [--assimilation A]\n"
+        << "          [--surface-co2 CS] [--gamma-star G] [--vpd V] [--d0 D0] [--pressure P]\n"
+        << "          [--g0 G0] [--a1 A1] [--ct CT] [--vpd-response F] [--pressure-scaling P]\n"
+        << "  land npp --gpp GPP --maintenance R\n"
+        << "  land lai --leaf-carbon C --sla S\n"
+        << "  land xylem --psi-soil PSI --p50 P50 [--shape A]\n"
+        << "  land soil-water --storage W --precip P --evap E --runoff R --drainage D [--dt DT]\n"
+        << "      Land-surface energy balance, photosynthesis and carbon balance.\n\n"
+        << "  spatial getis --values \"1,2,3\" --weights \"rows;of;matrix\" --index I\n"
+        << "  spatial lisa --values \"1,2,3\" --weights \"rows;of;matrix\" --index I\n"
+        << "  spatial geodetector --values \"...\" --strata \"0,0,1,1\"\n"
+        << "  spatial walker --alpha A --tests K\n"
+        << "  spatial fdr --p-values \"...\" [--alpha A]\n"
+        << "  spatial scan --inside N --expected-inside MU --total N --expected-total M\n"
+        << "      Local spatial statistics and field-significance corrections.\n\n"
         << "  retrieve index --file DATA.csv --red COL --nir COL [--blue COL]\n"
         << "          [--index ndvi|evi|savi] [--soil L] [--out FILE]\n"
         << "      NDVI, EVI or SAVI from reflectance pairs.\n\n"
@@ -1340,6 +1404,531 @@ int command_physics(const std::string& sub, const Arguments& args) {
     return 1;
 }
 
+int command_earth(const std::string& sub, const Arguments& args) {
+    if (sub == "feedback-planck") {
+        const double temperature = args.number("temperature", std::nan(""));
+        if (!std::isfinite(temperature) || temperature <= 0.0) {
+            std::cerr << "error: --temperature K (positive) is required\n";
+            return 1;
+        }
+        std::cout << "Planck feedback lambda_0 = -4 sigma T^3 = "
+                  << planck_feedback(temperature) << " W/m2/K\n";
+        return 0;
+    }
+
+    if (sub == "ecs") {
+        const double alpha = args.number("alpha", std::nan(""));
+        if (!std::isfinite(alpha)) {
+            std::cerr << "error: --alpha (historical effective feedback) is required\n";
+            return 1;
+        }
+        const double forcing = args.number("forcing", 3.7);
+        const double alpha_prime = args.number("alpha-prime", 0.0);
+        std::cout << "net feedback alpha + alpha' = " << alpha + alpha_prime << " W/m2/K\n";
+        std::cout << "ECS = -F/(alpha + alpha') = "
+                  << pattern_corrected_ecs(alpha, alpha_prime, forcing) << " K\n";
+        return 0;
+    }
+
+    if (sub == "two-layer") {
+        TwoLayerModel model;
+        model.heat_capacity = args.number("heat-capacity", model.heat_capacity);
+        model.deep_heat_capacity = args.number("deep-heat-capacity", model.deep_heat_capacity);
+        model.feedback = args.number("feedback", model.feedback);
+        model.uptake_efficiency = args.number("uptake", model.uptake_efficiency);
+        model.efficacy = args.number("efficacy", model.efficacy);
+        const double forcing = args.number("forcing", 3.7);
+        const double years = args.number("years", 150.0);
+        const TwoLayerState state = integrate_two_layer(model, forcing, years);
+        std::cout << "two-layer model after " << years << " years, F = " << forcing
+                  << " W/m2\n";
+        std::cout << "  surface warming      : " << state.surface << " K\n";
+        std::cout << "  deep-ocean warming   : " << state.deep << " K\n";
+        std::cout << "  equilibrium warming  : " << two_layer_equilibrium(model, forcing)
+                  << " K\n";
+        std::cout << "  ocean heat uptake    : " << ocean_heat_uptake(model, state)
+                  << " W/m2\n";
+        std::cout << "  OHUE                 : "
+                  << ocean_heat_uptake_efficiency(model, state) << " W/m2/K\n";
+        std::cout << "  TCR                  : " << transient_climate_response(model)
+                  << " K\n";
+        std::cout << "  ECS / TCR            : " << equilibration_ratio(model) << "\n";
+        return 0;
+    }
+
+    if (sub == "carbon-feedback") {
+        const double delta_c = args.number("delta-c-atmos", std::nan(""));
+        const double delta_t = args.number("delta-t", std::nan(""));
+        if (!std::isfinite(delta_c) || !std::isfinite(delta_t)) {
+            std::cerr << "error: --delta-c-atmos and --delta-t are required\n";
+            return 1;
+        }
+        CarbonFeedback feedback;
+        feedback.beta_land = args.number("beta-land", feedback.beta_land);
+        feedback.beta_ocean = args.number("beta-ocean", feedback.beta_ocean);
+        feedback.gamma_land = args.number("gamma-land", feedback.gamma_land);
+        feedback.gamma_ocean = args.number("gamma-ocean", feedback.gamma_ocean);
+        const double land = land_carbon_change(feedback, delta_c, delta_t);
+        const double ocean = ocean_carbon_change(feedback, delta_c, delta_t);
+        std::cout << "carbon feedback: beta = " << feedback.beta_total()
+                  << ", gamma = " << feedback.gamma_total() << " PgC/K\n";
+        std::cout << "  dC_land  = " << land << " PgC\n";
+        std::cout << "  dC_ocean = " << ocean << " PgC\n";
+        std::cout << "  dC_total = " << land + ocean << " PgC\n";
+        return 0;
+    }
+
+    if (sub == "airborne") {
+        const double growth = args.number("growth-ppm", std::nan(""));
+        const double emissions = args.number("emissions-pgc", std::nan(""));
+        if (!std::isfinite(growth) || !std::isfinite(emissions)) {
+            std::cerr << "error: --growth-ppm and --emissions-pgc are required\n";
+            return 1;
+        }
+        std::cout << "airborne fraction = " << airborne_fraction(growth, emissions) << "\n";
+        return 0;
+    }
+
+    if (sub == "permafrost") {
+        const double carbon = args.number("carbon", std::nan(""));
+        if (!std::isfinite(carbon) || carbon < 0.0) {
+            std::cerr << "error: --carbon PgC is required\n";
+            return 1;
+        }
+        const double k_reference = args.number("k-ref", 0.01);
+        const double q10 = args.number("q10", 2.0);
+        const double temperature = args.number("temperature", 0.0);
+        const double years = args.number("years", 100.0);
+        const double rate = permafrost_decay_rate(k_reference, q10, temperature);
+        const double remaining = permafrost_remaining_fraction(k_reference, q10, temperature, years);
+        std::cout << "decay rate k(T) = " << rate << " 1/yr\n";
+        std::cout << "remaining fraction after " << years << " years = " << remaining << "\n";
+        std::cout << "remaining carbon = " << carbon * remaining << " PgC\n";
+        return 0;
+    }
+
+    if (sub == "planck" || sub == "brightness-temperature") {
+        const double wavelength_um = args.number("wavelength-um", std::nan(""));
+        if (!std::isfinite(wavelength_um) || wavelength_um <= 0.0) {
+            std::cerr << "error: --wavelength-um (positive) is required\n";
+            return 1;
+        }
+        const double wavelength = wavelength_um * 1e-6;
+        if (sub == "planck") {
+            const double temperature = args.number("temperature", std::nan(""));
+            if (!std::isfinite(temperature) || temperature <= 0.0) {
+                std::cerr << "error: --temperature K (positive) is required\n";
+                return 1;
+            }
+            const double radiance = planck_radiance(wavelength, temperature);
+            std::cout << "Planck radiance at " << wavelength_um << " um, " << temperature
+                      << " K = " << radiance << " W/m2/sr/m\n";
+            std::cout << "  per micrometre = " << radiance * 1e-6 << " W/m2/sr/um\n";
+        } else {
+            const double radiance = args.number("radiance", std::nan(""));
+            if (!std::isfinite(radiance) || radiance <= 0.0) {
+                std::cerr << "error: --radiance W/m2/sr/m (positive) is required\n";
+                return 1;
+            }
+            std::cout << "brightness temperature at " << wavelength_um << " um = "
+                      << brightness_temperature(wavelength, radiance) << " K\n";
+        }
+        return 0;
+    }
+
+    if (sub == "schwarzschild") {
+        const double absorption = args.number("absorption", std::nan(""));
+        const double density = args.number("density", std::nan(""));
+        const double path = args.number("path", std::nan(""));
+        if (!std::isfinite(absorption) || !std::isfinite(density) || !std::isfinite(path)) {
+            std::cerr << "error: --absorption, --density and --path are required\n";
+            return 1;
+        }
+        const double tau = optical_depth(absorption, density, path);
+        std::cout << "optical depth tau = " << tau << "\n";
+        std::cout << "transmittance = " << transmittance(tau) << "\n";
+        if (args.has("humidity")) {
+            const double weight = weighting_function(absorption, args.number("humidity", 0.0), tau);
+            std::cout << "weighting function W = " << weight << "\n";
+            if (args.has("planck")) {
+                std::cout << "contribution B W = "
+                          << contribution_function(args.number("planck", 0.0), weight) << "\n";
+            }
+        }
+        return 0;
+    }
+
+    if (sub == "two-stream") {
+        const double tau = args.number("tau", std::nan(""));
+        if (!std::isfinite(tau) || tau < 0.0) {
+            std::cerr << "error: --tau (non-negative) is required\n";
+            return 1;
+        }
+        const double omega = args.number("omega", 1.0);
+        const double asymmetry = args.number("asymmetry", 0.85);
+        const double zenith = args.number("zenith", 60.0);
+        const double albedo = args.number("albedo", 0.0);
+        const TwoStreamResult result =
+            two_stream_layer(tau, omega, asymmetry, zenith, albedo, args.integer("levels", 256));
+        std::cout << "two-stream layer: tau = " << tau << ", omega = " << omega
+                  << ", g = " << asymmetry << ", zenith = " << zenith
+                  << " deg, surface albedo = " << albedo << "\n";
+        std::cout << "  reflectance             = " << result.reflectance << "\n";
+        std::cout << "  direct transmittance    = " << result.direct_transmittance << "\n";
+        std::cout << "  diffuse transmittance   = " << result.diffuse_transmittance << "\n";
+        std::cout << "  total transmittance     = " << result.total_transmittance << "\n";
+        std::cout << "  absorptance             = " << result.absorptance << "\n";
+        std::cout << "  R + T + A               = "
+                  << result.reflectance + result.total_transmittance + result.absorptance
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "kelvin") {
+        const double depth = args.number("depth", std::nan(""));
+        if (!std::isfinite(depth) || depth < 0.0) {
+            std::cerr << "error: --depth M is required\n";
+            return 1;
+        }
+        const double speed = shallow_water_speed(9.80665, depth);
+        std::cout << "Kelvin wave speed c = sqrt(gH) = " << speed << " m/s\n";
+        const double k = args.number("k", 0.0);
+        if (k != 0.0) {
+            const EquatorialWave wave = kelvin_wave(k, 9.80665, depth);
+            std::cout << "  frequency omega = " << wave.frequency << " rad/s\n";
+        }
+        return 0;
+    }
+
+    if (sub == "equatorial-wave") {
+        const double k = args.number("k", std::nan(""));
+        const double c = args.number("c", std::nan(""));
+        if (!std::isfinite(k) || !std::isfinite(c) || c <= 0.0) {
+            std::cerr << "error: --k and --c (positive) are required\n";
+            return 1;
+        }
+        const double beta = args.number("beta", 2.3e-11);
+        const int mode = args.integer("mode", 0);
+        const std::vector<EquatorialWave> modes = equatorial_wave_modes(k, beta, c, mode);
+        std::cout << "equatorial modes: k = " << k << " rad/m, beta = " << beta
+                  << " 1/m/s, c = " << c << " m/s, n = " << mode << "\n";
+        if (modes.empty()) std::cout << "  no positive-frequency roots\n";
+        for (std::size_t i = 0; i < modes.size(); ++i) {
+            std::cout << "  mode " << i << ": omega = " << modes[i].frequency
+                      << " rad/s, phase speed = " << modes[i].phase_speed << " m/s\n";
+        }
+        return 0;
+    }
+
+    if (sub == "turbulence") {
+        const double cn2 = args.number("cn2", std::nan(""));
+        const double k = args.number("k", std::nan(""));
+        if (!std::isfinite(cn2) || !std::isfinite(k)) {
+            std::cerr << "error: --cn2 and --k are required\n";
+            return 1;
+        }
+        std::cout << "refractive-index spectrum phi_n = " << refractive_index_spectrum(cn2, k)
+                  << " m^(11/3)\n";
+        double epsilon = args.number("epsilon", std::nan(""));
+        if (!std::isfinite(epsilon)) {
+            const double frequency = args.number("frequency", std::nan(""));
+            const double spectrum = args.number("spectrum", std::nan(""));
+            const double wind = args.number("wind", std::nan(""));
+            if (!std::isfinite(frequency) || !std::isfinite(spectrum) || !std::isfinite(wind)) {
+                std::cerr << "error: give --epsilon, or --frequency, --spectrum and --wind\n";
+                return 1;
+            }
+            epsilon = dissipation_rate_from_spectrum(frequency, spectrum, wind);
+            std::cout << "dissipation rate epsilon = " << epsilon << " m2/s3\n";
+        }
+        const double nu = args.number("nu", 1.5e-5);
+        std::cout << "Kolmogorov microscale = " << kolmogorov_microscale(nu, epsilon) << " m\n";
+        if (args.has("outer")) {
+            std::cout << "E(k) = "
+                      << kolmogorov_spectrum(k, epsilon, args.number("outer", 1.0)) << " m3/s2\n";
+        }
+        return 0;
+    }
+
+    if (sub == "stable-bl") {
+        const double mu = args.number("mu", std::nan(""));
+        if (!std::isfinite(mu) || mu <= 0.0) {
+            std::cerr << "error: --mu (positive) is required\n";
+            return 1;
+        }
+        std::cout << "stable boundary-layer ratio L_s/h = " << stable_boundary_layer_ratio(mu)
+                  << "\n";
+        return 0;
+    }
+
+    std::cerr << "error: unknown earth diagnostic '" << sub
+              << "'; expected feedback-planck, ecs, two-layer, carbon-feedback, airborne, "
+                 "permafrost, planck, brightness-temperature, schwarzschild, two-stream, "
+                 "kelvin, equatorial-wave, turbulence or stable-bl\n";
+    return 1;
+}
+
+int command_land(const std::string& sub, const Arguments& args) {
+    if (sub == "radiation") {
+        const double albedo = args.number("albedo", std::nan(""));
+        const double shortwave = args.number("shortwave", std::nan(""));
+        const double epsilon_surface = args.number("emissivity-surface", std::nan(""));
+        const double epsilon_air = args.number("emissivity-air", std::nan(""));
+        const double temperature_air = args.number("temperature-air", std::nan(""));
+        const double temperature_surface = args.number("temperature-surface", std::nan(""));
+        if (!std::isfinite(albedo) || !std::isfinite(shortwave) ||
+            !std::isfinite(epsilon_surface) || !std::isfinite(epsilon_air) ||
+            !std::isfinite(temperature_air) || !std::isfinite(temperature_surface)) {
+            std::cerr << "error: --albedo, --shortwave, --emissivity-surface, --emissivity-air, "
+                         "--temperature-air and --temperature-surface are required\n";
+            return 1;
+        }
+        std::cout << "net radiation Rn = "
+                  << land_net_radiation(albedo, shortwave, epsilon_surface, epsilon_air,
+                                        temperature_air, temperature_surface)
+                  << " W/m2\n";
+        return 0;
+    }
+
+    if (sub == "penman-monteith") {
+        const double net = args.number("net-radiation", std::nan(""));
+        if (!std::isfinite(net)) {
+            std::cerr << "error: --net-radiation (Rn - G) is required\n";
+            return 1;
+        }
+        const double delta = args.number("delta", 1.0);
+        const double rho = args.number("rho", 1.225);
+        const double cp = args.number("cp", 1005.0);
+        const double deficit = args.number("humidity-deficit", 0.0);
+        const double resistance = args.number("r-a", 50.0);
+        const double gamma = args.number("gamma", 0.066);
+        const double surface_resistance = args.number("r-s", 100.0);
+        const double latent = penman_monteith_latent_heat(
+            delta, net, rho, cp, deficit, resistance, gamma, surface_resistance);
+        const double sensible = penman_monteith_sensible_heat(
+            delta, net, rho, cp, deficit, resistance, gamma, surface_resistance);
+        std::cout << "Penman-Monteith latent heat LE = " << latent << " W/m2\n";
+        std::cout << "sensible heat H = " << sensible << " W/m2\n";
+        std::cout << "LE + H = " << latent + sensible << " W/m2 (should equal Rn - G)\n";
+        return 0;
+    }
+
+    if (sub == "farquhar") {
+        const double vcmax = args.number("vcmax", std::nan(""));
+        const double ci = args.number("ci", std::nan(""));
+        const double gamma_star = args.number("gamma-star", std::nan(""));
+        const double kc = args.number("kc", std::nan(""));
+        const double oi = args.number("oi", std::nan(""));
+        const double ko = args.number("ko", std::nan(""));
+        if (!std::isfinite(vcmax) || !std::isfinite(ci) || !std::isfinite(gamma_star) ||
+            !std::isfinite(kc) || !std::isfinite(oi) || !std::isfinite(ko)) {
+            std::cerr << "error: --vcmax, --ci, --gamma-star, --kc, --oi and --ko are required\n";
+            return 1;
+        }
+        const double ac = farquhar_rubisco(vcmax, ci, gamma_star, kc, oi, ko);
+        double aj = std::nan("");
+        if (args.has("j")) aj = farquhar_electron_transport(args.number("j", 0.0), ci, gamma_star);
+        const double rd = args.number("rd", 0.0);
+        const double an = farquhar_assimilation(ac, std::isfinite(aj) ? aj : ac, rd);
+        std::cout << "Rubisco-limited Ac = " << ac << " umol/m2/s\n";
+        if (std::isfinite(aj))
+            std::cout << "electron-transport-limited Aj = " << aj << " umol/m2/s\n";
+        std::cout << "net assimilation An = " << an << " umol/m2/s\n";
+        return 0;
+    }
+
+    if (sub == "stomatal") {
+        const std::string model = lowered(args.get("model", "ball-berry"));
+        const double assimilation = args.number("assimilation", 0.0);
+        if (model == "ball-berry") {
+            std::cout << "Ball-Berry gs = "
+                      << ball_berry_conductance(args.number("g1", 8.0), assimilation,
+                                                args.number("pressure", 101325.0),
+                                                args.number("surface-co2", 40.0),
+                                                args.number("gamma-star", 4.0),
+                                                args.number("vpd", 1.0),
+                                                args.number("d0", 1.5))
+                      << " umol/m2/s\n";
+        } else if (model == "medlyn") {
+            std::cout << "Medlyn gs = "
+                      << medlyn_conductance(args.number("g1", 4.0), assimilation,
+                                            args.number("surface-co2", 40.0),
+                                            args.number("vpd", 1.0))
+                      << " umol/m2/s\n";
+        } else if (model == "leuning") {
+            std::cout << "Leuning gs = "
+                      << leuning_conductance(args.number("g0", 0.01),
+                                             args.number("a1", 10.0), assimilation,
+                                             args.number("ct", 30.0),
+                                             args.number("gamma-star", 4.0),
+                                             args.number("vpd-response", 1.0),
+                                             args.number("pressure-scaling", 1.0))
+                      << " umol/m2/s\n";
+        } else {
+            std::cerr << "error: unknown stomatal model '" << model
+                      << "'; expected ball-berry, medlyn or leuning\n";
+            return 1;
+        }
+        return 0;
+    }
+
+    if (sub == "npp") {
+        const double gpp = args.number("gpp", std::nan(""));
+        const double maintenance = args.number("maintenance", 0.0);
+        if (!std::isfinite(gpp)) {
+            std::cerr << "error: --gpp is required\n";
+            return 1;
+        }
+        std::cout << "NPP = 0.75 (GPP - Rm) = " << npp_lpj(gpp, maintenance) << "\n";
+        return 0;
+    }
+
+    if (sub == "respiration") {
+        std::cout << "maintenance respiration Rm = "
+                  << maintenance_respiration(args.number("coefficient", 1.0),
+                                             args.number("q10", 2.0),
+                                             args.number("temperature", 20.0),
+                                             args.number("leaf-nitrogen", 1.0),
+                                             args.number("leaf-carbon", 0.0),
+                                             args.number("root-carbon", 0.0),
+                                             args.number("sapwood", 0.0),
+                                             args.number("wood-leaf", 0.0),
+                                             args.number("wood-root", 0.0))
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "lai") {
+        std::cout << "LAI = "
+                  << lai_from_leaf_carbon(args.number("leaf-carbon", 0.0),
+                                          args.number("sla", 0.0))
+                  << " m2/m2\n";
+        return 0;
+    }
+
+    if (sub == "xylem") {
+        const double psi = args.number("psi-soil", std::nan(""));
+        const double p50 = args.number("p50", std::nan(""));
+        if (!std::isfinite(psi) || !std::isfinite(p50)) {
+            std::cerr << "error: --psi-soil and --p50 are required\n";
+            return 1;
+        }
+        std::cout << "xylem conductance G = "
+                  << xylem_conductance(psi, p50, args.number("shape", 5.0)) << "\n";
+        return 0;
+    }
+
+    if (sub == "soil-water") {
+        const double storage = args.number("storage", std::nan(""));
+        if (!std::isfinite(storage)) {
+            std::cerr << "error: --storage is required\n";
+            return 1;
+        }
+        std::cout << "soil water storage after the step = "
+                  << soil_water_step(storage, args.number("precip", 0.0),
+                                     args.number("evap", 0.0), args.number("runoff", 0.0),
+                                     args.number("drainage", 0.0), args.number("dt", 1.0))
+                  << "\n";
+        return 0;
+    }
+
+    std::cerr << "error: unknown land diagnostic '" << sub
+              << "'; expected radiation, penman-monteith, farquhar, stomatal, npp, "
+                 "respiration, lai, xylem or soil-water\n";
+    return 1;
+}
+
+int command_spatial(const std::string& sub, const Arguments& args) {
+    const auto load = [&](std::vector<double>& values, Weights& weights) {
+        values = parse_number_list(args.get("values"));
+        weights = parse_matrix(args.get("weights"));
+        if (values.empty()) throw std::runtime_error("--values is required");
+        if (weights.empty()) throw std::runtime_error("--weights is required");
+    };
+
+    if (sub == "getis" || sub == "lisa") {
+        std::vector<double> values;
+        Weights weights;
+        load(values, weights);
+        const int index = args.integer("index", 0);
+        if (index < 0 || static_cast<std::size_t>(index) >= values.size()) {
+            std::cerr << "error: --index is out of range\n";
+            return 1;
+        }
+        const double statistic =
+            sub == "getis" ? getis_ord_gi(values, weights, static_cast<std::size_t>(index))
+                            : local_moran_i(values, weights, static_cast<std::size_t>(index));
+        std::cout << (sub == "getis" ? "Getis-Ord Gi*" : "local Moran I") << " at index "
+                  << index << " = " << statistic << "\n";
+        return 0;
+    }
+
+    if (sub == "geodetector") {
+        const std::vector<double> values = parse_number_list(args.get("values"));
+        const std::vector<double> raw_strata = parse_number_list(args.get("strata"));
+        std::vector<int> strata;
+        for (const double value : raw_strata) strata.push_back(static_cast<int>(value));
+        if (values.empty() || values.size() != strata.size()) {
+            std::cerr << "error: --values and --strata must have equal length\n";
+            return 1;
+        }
+        std::cout << "Geo-Detector q = " << geodetector_q(values, strata) << "\n";
+        return 0;
+    }
+
+    if (sub == "walker") {
+        const int tests = args.integer("tests", 0);
+        const double alpha = args.number("alpha", 0.05);
+        if (tests <= 0) {
+            std::cerr << "error: --tests K (positive) is required\n";
+            return 1;
+        }
+        std::cout << "Walker local threshold for K = " << tests << " at alpha_global = " << alpha
+                  << ": p = " << walker_threshold(alpha, tests) << "\n";
+        return 0;
+    }
+
+    if (sub == "fdr") {
+        const std::vector<double> p_values = parse_number_list(args.get("p-values"));
+        if (p_values.empty()) {
+            std::cerr << "error: --p-values is required\n";
+            return 1;
+        }
+        const std::vector<double> adjusted = benjamini_hochberg(p_values);
+        std::cout << "Benjamini-Hochberg q-values:\n";
+        for (std::size_t i = 0; i < adjusted.size(); ++i) {
+            std::cout << "  p[" << i << "] = " << p_values[i] << " -> q = " << adjusted[i] << "\n";
+        }
+        const double alpha = args.number("alpha", 0.05);
+        const std::vector<std::size_t> rejected =
+            benjamini_hochberg_rejections(p_values, alpha);
+        std::cout << "rejected at FDR " << alpha << ": " << rejected.size() << " of "
+                  << p_values.size() << "\n";
+        return 0;
+    }
+
+    if (sub == "scan") {
+        const int inside = args.integer("inside", -1);
+        const int total = args.integer("total", -1);
+        const double expected_inside = args.number("expected-inside", std::nan(""));
+        const double expected_total = args.number("expected-total", std::nan(""));
+        if (inside < 0 || total <= 0 || !std::isfinite(expected_inside) ||
+            !std::isfinite(expected_total)) {
+            std::cerr << "error: --inside, --total, --expected-inside and --expected-total are "
+                         "required\n";
+            return 1;
+        }
+        std::cout << "Poisson scan log-likelihood ratio = "
+                  << poisson_scan_log_likelihood(inside, expected_inside, total, expected_total)
+                  << "\n";
+        return 0;
+    }
+
+    std::cerr << "error: unknown spatial diagnostic '" << sub
+              << "'; expected getis, lisa, geodetector, walker, fdr or scan\n";
+    return 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1383,7 +1972,8 @@ int main(int argc, char** argv) {
             const Arguments args = parse_arguments(argc, argv, 3);
             return command_data(sub, args);
         }
-        if (command == "retrieve" || command == "calibrate" || command == "physics") {
+        if (command == "retrieve" || command == "calibrate" || command == "physics" ||
+            command == "earth" || command == "land" || command == "spatial") {
             if (argc < 3) {
                 std::cerr << "error: " << command << " needs a subcommand; run climate help\n";
                 return 1;
@@ -1392,6 +1982,9 @@ int main(int argc, char** argv) {
             const Arguments args = parse_arguments(argc, argv, 3);
             if (command == "retrieve") return command_retrieve(sub, args);
             if (command == "calibrate") return command_calibrate(sub, args);
+            if (command == "earth") return command_earth(sub, args);
+            if (command == "land") return command_land(sub, args);
+            if (command == "spatial") return command_spatial(sub, args);
             return command_physics(sub, args);
         }
 

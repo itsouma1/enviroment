@@ -84,6 +84,13 @@ Requirements: a C++17 compiler (g++ or clang++) and `make`.
 ./climate physics geostrophic --density 1025 --dp-dx 1e-4 --dp-dy 0 --latitude 30
 ./climate physics thermal-wind --density 1025 --drho-dx 0 --drho-dy 1e-6 --latitude 30
 
+./climate earth two-layer --years 150 --forcing 3.7
+./climate earth two-stream --tau 5 --omega 1 --asymmetry 0.85 --zenith 60
+./climate earth equatorial-wave --k 2e-7 --c 30 --mode 0
+./climate land penman-monteith --net-radiation 100 --delta 1 --gamma 0.066
+./climate land farquhar --vcmax 100 --ci 30 --gamma-star 4 --kc 40 --oi 21 --ko 21000 --j 150
+./climate spatial getis --values "1,2,3" --weights "1,1,1;1,1,1;1,1,1" --index 1
+
 ./climate retrieve index --file data/reflectance_pairs.csv --red red --nir nir \
         --index evi --blue blue
 
@@ -151,6 +158,36 @@ Qsca, asymmetry `g`, single-scattering albedo); aerosol optical depth
 `f u = -(1/rho) dp/dy`, `f v = (1/rho) dp/dx`; thermal wind
 `f du/dz = (g/rho) d rho/dy`, `f dv/dz = -(g/rho) d rho/dx`; and the SAVI and
 EVI vegetation indices.
+
+**Advanced climate sensitivity.** Two-layer energy balance
+`C dT/dt = F + lambda T - eps gamma (T - Td)`, `Cd dTd/dt = gamma (T - Td)`,
+integrated with classical RK4; ocean heat uptake `gamma (T - Td)`, its efficiency
+`OHU / dT`, transient response `F_2x / (-lambda + eps gamma)`, and the
+pattern-corrected sensitivity `ECS = -F_2x / (alpha + alpha')`. Carbon-cycle
+feedback decomposition `dC = beta dC_atmos + gamma dT` for land and ocean, the
+airborne fraction `dC_atmos * 2.124 / emissions`, and permafrost decay
+`dC/dt = -k(T) C` with `k(T) = k_ref Q10^((T-T_ref)/10)`.
+
+**Atmospheric radiation and turbulence.** Planck radiance
+`2hc^2/lambda^5 / (exp(hc/lambda kT) - 1)` and its inverse for brightness
+temperature; Schwarzschild optical depth, transmittance, weighting function
+`(1/g) k q exp(-tau)` and contribution function; a two-stream Eddington solver
+with direct beam, surface albedo and finite-difference solution of the coupled
+flux equations (energy closure checked by `make test`); shallow-water and
+equatorial wave dispersion `omega^3/c^2 - omega(k^2 + (2n+1)beta/c) - beta k = 0`;
+Kolmogorov `phi_n = 0.033 Cn^2 k^(-11/3)`, dissipation rate, microscale,
+`E(k)` spectrum and the stable boundary-layer depth ratio.
+
+**Land surface and biosphere.** Net radiation, bulk sensible heat, aerodynamic
+resistance, Penman-Monteith latent and sensible heat (which sum to `Rn - G` by
+construction), soil-moisture surface resistance, Farquhar Rubisco- and
+electron-transport-limited assimilation, Ball-Berry, Medlyn and Leuning
+stomatal conductance, LPJ NPP and maintenance respiration, LAI from leaf carbon,
+xylem cavitation conductance, the soil water balance and soil thermal inertia.
+
+**Spatial statistics.** Getis-Ord Gi*, local Moran's I, the Geo-Detector
+q-statistic, the Walker field-significance threshold, Benjamini-Hochberg
+q-values and rejections, and the Kulldorff Poisson scan log-likelihood ratio.
 
 **Separating trend from seasonality.** STL (`y = T + S + R`) with cycle-subseries
 LOESS smoothing, a low-pass moving-average filter, and bisquare robustness
@@ -235,7 +272,10 @@ harmonic coefficient and derivative recovery, Mann-Kendall/Sen on known series,
 NLSST coefficient recovery, NASA Team concentrations, GPCP weighting, spherical
 areas, JSON/CSV round-trips, intent parsing, the NetCDF-3 reader and exporter,
 and Mie efficiencies cross-checked against an independent implementation to
-1e-6. `data/nasa/sample_sst3.nc` is parsed and exported by the C++ reader;
+1e-6. The advanced modules are checked the same way: RK4 convergence to the
+two-layer equilibrium, Planck forward/inverse round-trip, two-stream energy
+closure, Penman-Monteith closure, and closed-form values for the spatial
+statistics. `data/nasa/sample_sst3.nc` is parsed and exported by the C++ reader;
 `sample_sst4.nc` and `sample_seaice_polar4.nc` are converted by the wrapper
 (area-weighted SST, 15% extent on a curvilinear grid). A live CMR search with
 the bundled registry returns real NSIDC granules. Downloading requires Earthdata
