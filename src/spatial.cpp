@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numeric>
 #include <stdexcept>
+
+#include "linalg.hpp"
 
 namespace climate {
 namespace {
@@ -162,6 +165,130 @@ double poisson_scan_log_likelihood(int inside_count, double inside_expected, int
     const double outside = static_cast<double>(outside_count) *
                            std::log(static_cast<double>(outside_count) / outside_expected);
     return inside + outside;
+}
+
+LisaClass lisa_classification(const std::vector<double>& values, const Weights& weights,
+                              std::size_t index) {
+    check_shape(values, weights);
+    if (index >= values.size()) throw std::runtime_error("lisa_classification: index");
+    const Moments stats = moments(values);
+    double lagged = 0.0;
+    for (std::size_t j = 0; j < values.size(); ++j)
+        lagged += weights[index][j] * (values[j] - stats.mean);
+    const bool centre_high = values[index] > stats.mean;
+    const bool neighbours_high = lagged > 0.0;
+    if (centre_high && neighbours_high) return LisaClass::HighHigh;
+    if (!centre_high && !neighbours_high) return LisaClass::LowLow;
+    return centre_high ? LisaClass::HighLow : LisaClass::LowHigh;
+}
+
+double gaussian_kernel(double distance, double bandwidth) {
+    if (!(bandwidth > 0.0)) throw std::runtime_error("gaussian_kernel: bandwidth");
+    return std::exp(-0.5 * distance * distance / (bandwidth * bandwidth));
+}
+
+std::vector<double> gwr_coefficients(const Matrix& predictors, const std::vector<double>& response,
+                                     const std::vector<double>& distances, double bandwidth) {
+    if (predictors.empty() || predictors.size() != response.size() ||
+        predictors.size() != distances.size())
+        throw std::runtime_error("gwr_coefficients: size mismatch");
+    const std::size_t parameters = predictors[0].size();
+    Matrix normal(parameters, std::vector<double>(parameters, 0.0));
+    std::vector<double> rhs(parameters, 0.0);
+    for (std::size_t row = 0; row < predictors.size(); ++row) {
+        if (predictors[row].size() != parameters)
+            throw std::runtime_error("gwr_coefficients: ragged predictors");
+        const double weight = gaussian_kernel(distances[row], bandwidth);
+        for (std::size_t i = 0; i < parameters; ++i) {
+            rhs[i] += weight * predictors[row][i] * response[row];
+            for (std::size_t j = 0; j < parameters; ++j)
+                normal[i][j] += weight * predictors[row][i] * predictors[row][j];
+        }
+    }
+    std::vector<double> coefficients;
+    if (!solve_linear_system(normal, rhs, coefficients))
+        throw std::runtime_error("gwr_coefficients: singular local design");
+    return coefficients;
+}
+
+double matern32_covariance(double distance, double variance, double length_scale) {
+    if (!(variance >= 0.0) || !(length_scale > 0.0))
+        throw std::runtime_error("matern32_covariance: invalid parameters");
+    const double scaled = std::sqrt(3.0) * distance / length_scale;
+    return variance * (1.0 + scaled) * std::exp(-scaled);
+}
+
+double probit_category_probability(double latent_mean, double lower_threshold,
+                                   double upper_threshold, double sigma) {
+    if (!(sigma > 0.0)) throw std::runtime_error("probit_category_probability: sigma");
+    const auto normal_cdf = [](double z) { return 0.5 * std::erfc(-z / std::sqrt(2.0)); };
+    const double lower =
+        std::isinf(lower_threshold) ? (lower_threshold < 0.0 ? 0.0 : 1.0)
+                                    : normal_cdf((lower_threshold - latent_mean) / sigma);
+    const double upper =
+        std::isinf(upper_threshold) ? (upper_threshold < 0.0 ? 0.0 : 1.0)
+                                    : normal_cdf((upper_threshold - latent_mean) / sigma);
+    return std::max(0.0, upper - lower);
+}
+
+double hotelling_functional_scan(int inside_count, int outside_count,
+                                 const std::vector<double>& inside_mean,
+                                 const std::vector<double>& outside_mean,
+                                 const Matrix& pooled_covariance) {
+    if (inside_count <= 0 || outside_count <= 0)
+        throw std::runtime_error("hotelling_functional_scan: counts must be positive");
+    const std::size_t dimensions = inside_mean.size();
+    if (outside_mean.size() != dimensions || pooled_covariance.size() != dimensions)
+        throw std::runtime_error("hotelling_functional_scan: size mismatch");
+    std::vector<double> difference(dimensions, 0.0);
+    for (std::size_t i = 0; i < dimensions; ++i) difference[i] = inside_mean[i] - outside_mean[i];
+    std::vector<double> solved;
+    if (!solve_linear_system(pooled_covariance, difference, solved))
+        throw std::runtime_error("hotelling_functional_scan: singular covariance");
+    double quadratic = 0.0;
+    for (std::size_t i = 0; i < dimensions; ++i) quadratic += difference[i] * solved[i];
+    return static_cast<double>(inside_count) * static_cast<double>(outside_count) /
+           static_cast<double>(inside_count + outside_count) * quadratic;
+}
+
+double crisp_criterion(const std::vector<double>& values, const std::vector<int>& region_mask,
+                       double penalty, double lambda) {
+    if (values.size() != region_mask.size())
+        throw std::runtime_error("crisp_criterion: size mismatch");
+    double inside_sum = 0.0, outside_sum = 0.0;
+    int inside_count = 0, outside_count = 0;
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        if (region_mask[i] != 0) {
+            inside_sum += values[i];
+            ++inside_count;
+        } else {
+            outside_sum += values[i];
+            ++outside_count;
+        }
+    }
+    const double inside_mean = inside_count > 0 ? inside_sum / inside_count : 0.0;
+    const double outside_mean = outside_count > 0 ? outside_sum / outside_count : 0.0;
+    double criterion = lambda * penalty;
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        const double mean = region_mask[i] != 0 ? inside_mean : outside_mean;
+        criterion += (values[i] - mean) * (values[i] - mean);
+    }
+    return criterion;
+}
+
+double log_gaussian_cox_intensity(double intercept, const std::vector<double>& covariates,
+                                  const std::vector<double>& coefficients,
+                                  double spatial_effect) {
+    if (covariates.size() != coefficients.size())
+        throw std::runtime_error("log_gaussian_cox_intensity: size mismatch");
+    double linear = intercept + spatial_effect;
+    for (std::size_t i = 0; i < covariates.size(); ++i) linear += covariates[i] * coefficients[i];
+    return linear;
+}
+
+double deviance_information_criterion(double mean_deviance, double deviance_at_mean) {
+    const double effective_parameters = mean_deviance - deviance_at_mean;
+    return effective_parameters + mean_deviance;
 }
 
 }  // namespace climate

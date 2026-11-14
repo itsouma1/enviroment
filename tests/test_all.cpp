@@ -32,6 +32,8 @@
 #include "hmm.hpp"
 #include "regime.hpp"
 #include "causal.hpp"
+#include "magnitude.hpp"
+#include "coherence.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1539,7 +1541,52 @@ void test_regimes_and_causal() {
     for (double value : demeaned) CHECK_NEAR(value, 0.0, 1e-12);
 }
 
+void test_spatial_advanced() {
+    const std::vector<double> values = {1.0, 2.0, 3.0};
+    const Weights weights = {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}};
+    CHECK(lisa_classification(values, weights, 0) == LisaClass::LowLow);
+    CHECK(lisa_classification(values, weights, 2) == LisaClass::HighHigh);
+    CHECK_NEAR(gaussian_kernel(0.0, 2.0), 1.0, 1e-12);
+    CHECK_NEAR(gaussian_kernel(2.0, 2.0), std::exp(-0.5), 1e-12);
+
+    const std::vector<double> gwr =
+        gwr_coefficients({{1.0, 0.0}, {0.0, 1.0}, {1.0, 1.0}}, {2.0, 3.0, 5.0},
+                         {0.0, 0.0, 0.0}, 1.0);
+    CHECK_NEAR(gwr[0], 2.0, 1e-12);
+    CHECK_NEAR(gwr[1], 3.0, 1e-12);
+
+    CHECK_NEAR(matern32_covariance(0.0, 2.0, 1.0), 2.0, 1e-12);
+    CHECK_NEAR(matern32_covariance(1.0, 2.0, 1.0), 2.0 * (1.0 + std::sqrt(3.0)) * std::exp(-std::sqrt(3.0)),
+               1e-12);
+    CHECK_NEAR(probit_category_probability(0.0, -1e300, 0.0, 1.0), 0.5, 1e-12);
+    CHECK_NEAR(hotelling_functional_scan(1, 1, {1.0}, {0.0}, {{1.0}}), 0.5, 1e-12);
+    CHECK_NEAR(crisp_criterion({1.0, 3.0}, {1, 0}, 0.0, 3.0), 0.0, 1e-12);
+    CHECK_NEAR(crisp_criterion({1.0, 3.0}, {1, 0}, 2.0, 3.0), 6.0, 1e-12);
+    CHECK_NEAR(log_gaussian_cox_intensity(1.0, {1.0}, {2.0}, 0.5), 3.5, 1e-12);
+    CHECK_NEAR(deviance_information_criterion(10.0, 8.0), 12.0, 1e-12);
+
+    CHECK_NEAR(quadratic_trend_level(1.0, 2.0, 0.5, 2.0), 7.0, 1e-12);
+    CHECK_NEAR(quadratic_trend_rate(2.0, 0.5, 2.0), 4.0, 1e-12);
+    CHECK_NEAR(quadratic_trend_acceleration(0.5), 1.0, 1e-12);
+    CHECK_NEAR(linearithmic_trend_level(1.0, 2.0, std::exp(1.0)), 1.0 + 2.0 * std::exp(1.0), 1e-12);
+    CHECK_NEAR(linearithmic_trend_rate(2.0, std::exp(1.0)), 4.0, 1e-12);
+    CHECK_NEAR(linearithmic_trend_acceleration(2.0, std::exp(1.0)), 2.0 / std::exp(1.0), 1e-12);
+    CHECK_NEAR(step_magnitude(5.0, 3.0), 2.0, 1e-12);
+    CHECK_NEAR(integrated_change({0.0, 1.0, 3.0}, 1.0), 2.5, 1e-12);
+    CHECK_NEAR(return_level_shift(5.0, 2.0), 3.0, 1e-12);
+    CHECK_NEAR(newey_west_variance({1.0, 1.0, 1.0}, 1), 0.0, 1e-12);
+
+    std::vector<double> series(16);
+    for (std::size_t i = 0; i < series.size(); ++i)
+        series[i] = std::sin(0.5 * static_cast<double>(i));
+    const ComplexField field = morlet_cwt(series, 1.0, {1.0, 2.0, 4.0});
+    CHECK(field.size() == 3);
+    CHECK(field[0].size() == series.size());
+    CHECK_NEAR(wavelet_coherence(field, field, 8, 1, 3, 1), 1.0, 1e-12);
+}
+
 int main() {
+    test_spatial_advanced();
     test_regimes_and_causal();
     test_copula_hmm();
     test_attribution_and_ml();

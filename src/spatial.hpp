@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <vector>
 
+#include "ml.hpp"
+
 namespace climate {
 
 using Weights = std::vector<std::vector<double>>;
@@ -26,6 +28,47 @@ double local_moran_i(const std::vector<double>& values, const Weights& weights,
 //   q = 1 - sum_h n_h sigma_h^2 / (N sigma^2)
 // Strata labels are arbitrary integers.
 double geodetector_q(const std::vector<double>& values, const std::vector<int>& strata);
+
+// LISA regime from the sign of the local statistic and its neighbourhood.
+enum class LisaClass { HighHigh, LowLow, HighLow, LowHigh };
+LisaClass lisa_classification(const std::vector<double>& values, const Weights& weights,
+                              std::size_t index);
+
+// Gaussian kernel weight for a distance and bandwidth.
+double gaussian_kernel(double distance, double bandwidth);
+
+// Geographically weighted regression coefficients at one location:
+// beta = (X^T W X)^-1 X^T W y.
+std::vector<double> gwr_coefficients(const Matrix& predictors, const std::vector<double>& response,
+                                     const std::vector<double>& distances, double bandwidth);
+
+// Matern 3/2 covariance.
+double matern32_covariance(double distance, double variance, double length_scale);
+
+// ---------------------------------------------------------------------------
+// Spatially varying changepoints
+// ---------------------------------------------------------------------------
+// P(lower < tau <= upper) for a probit threshold model with latent mean mu.
+double probit_category_probability(double latent_mean, double lower_threshold,
+                                   double upper_threshold, double sigma);
+
+// Hotelling T^2 for a functional scan window.
+double hotelling_functional_scan(int inside_count, int outside_count,
+                                 const std::vector<double>& inside_mean,
+                                 const std::vector<double>& outside_mean,
+                                 const Matrix& pooled_covariance);
+
+// CRISP objective: within-region and outside sums of squares plus a penalty.
+double crisp_criterion(const std::vector<double>& values, const std::vector<int>& region_mask,
+                       double penalty, double lambda);
+
+// Log-Gaussian Cox process log-intensity log lambda = x^T beta + omega.
+double log_gaussian_cox_intensity(double intercept, const std::vector<double>& covariates,
+                                  const std::vector<double>& coefficients,
+                                  double spatial_effect);
+
+// DIC = p_D + Dbar with p_D = Dbar - D(theta_bar).
+double deviance_information_criterion(double mean_deviance, double deviance_at_mean);
 
 // ---------------------------------------------------------------------------
 // Field significance

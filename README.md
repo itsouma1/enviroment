@@ -293,6 +293,17 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Spatial detection (notes 288-320 KB).** `spatial.hpp` now adds LISA regime
+classification, the Gaussian kernel, GWR local coefficients
+`(X^T W X)^-1 X^T W y`, Matern 3/2 covariance, probit changepoint category
+probabilities, the Hotelling functional scan, the CRISP objective, LGCP
+log-intensity and DIC. Getis-Ord, local Moran, Geo-Detector, Walker, BH and
+the Poisson scan were already present. `coherence.hpp` implements the Morlet
+CWT and box-smoothed wavelet coherence. `magnitude.hpp` implements quadratic
+level/rate/acceleration at the sample end, the linearithmic value, rate and
+`beta/t` acceleration, step magnitude, trapezoidal integrated change, return
+level shifts and the Newey-West Bartlett long-run variance.
+
 **2026 time-varying inference (notes 256-288 KB).** `regime.hpp` implements
 the symmetric alpha-stable increment, the feedback manifold `h(T) = lambda(T)
 + kappa(T)/T` and `dT/dt = F - lambda T - kappa`, logistic and exponential
