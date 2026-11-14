@@ -195,4 +195,198 @@ double hibler_ice_pressure(double p_star, double thickness_m, double concentrati
     return p_star * thickness_m * std::exp(-c * (1.0 - concentration));
 }
 
+double idemix_mu0(double mu, double buoyancy_frequency, double coriolis, double n0, double f0) {
+    if (buoyancy_frequency <= 0.0 || coriolis <= 0.0)
+        throw std::runtime_error("idemix_mu0: N and f must be positive");
+    if (n0 <= 0.0 || f0 <= 0.0)
+        throw std::runtime_error("idemix_mu0: reference N0 and f0 must be positive");
+    if (buoyancy_frequency <= coriolis)
+        throw std::runtime_error("idemix_mu0: N must exceed f");
+    return mu / std::acosh(n0 / f0);
+}
+
+double idemix_dissipation(double mu0, double coriolis, double buoyancy_frequency,
+                          double gm_bandwidth, double wave_energy) {
+    if (buoyancy_frequency <= coriolis)
+        throw std::runtime_error("idemix_dissipation: N must exceed f");
+    if (buoyancy_frequency <= 0.0)
+        throw std::runtime_error("idemix_dissipation: N must be positive");
+    const double f_e = coriolis * std::acosh(buoyancy_frequency / coriolis);
+    const double ratio = gm_bandwidth / buoyancy_frequency;
+    return mu0 * f_e * ratio * ratio * wave_energy * wave_energy;
+}
+
+double idemix_dissipation_derivative(double mu0, double coriolis, double buoyancy_frequency,
+                                     double gm_bandwidth, double wave_energy) {
+    if (buoyancy_frequency <= coriolis || buoyancy_frequency <= 0.0)
+        throw std::runtime_error("idemix_dissipation_derivative: N must exceed positive f");
+    const double f_e = coriolis * std::acosh(buoyancy_frequency / coriolis);
+    const double ratio = gm_bandwidth / buoyancy_frequency;
+    return 2.0 * mu0 * f_e * ratio * ratio * wave_energy;
+}
+
+double idemix_vertical_term(double vertical_group_velocity, double relaxation_time,
+                            double second_derivative) {
+    if (relaxation_time < 0.0)
+        throw std::runtime_error("idemix_vertical_term: relaxation time must be >= 0");
+    return -vertical_group_velocity * vertical_group_velocity * relaxation_time *
+           second_derivative;
+}
+
+double kpp_bulk_richardson(double reference_buoyancy, double buoyancy_at_depth, double depth,
+                           double reference_velocity, double velocity_at_depth,
+                           double turbulent_velocity_scale) {
+    if (depth < 0.0) throw std::runtime_error("kpp_bulk_richardson: depth must be >= 0");
+    const double shear = reference_velocity - velocity_at_depth;
+    const double denominator = shear * shear + turbulent_velocity_scale * turbulent_velocity_scale;
+    if (denominator == 0.0)
+        throw std::runtime_error("kpp_bulk_richardson: zero shear and turbulent scale");
+    return (reference_buoyancy - buoyancy_at_depth) * depth / denominator;
+}
+
+double kpp_bulk_richardson_sensitivity(double reference_buoyancy, double buoyancy_at_depth,
+                                       double depth, double reference_velocity,
+                                       double velocity_at_depth,
+                                       double turbulent_velocity_scale) {
+    const double shear = reference_velocity - velocity_at_depth;
+    const double denominator = shear * shear + turbulent_velocity_scale * turbulent_velocity_scale;
+    if (denominator == 0.0)
+        throw std::runtime_error("kpp_bulk_richardson_sensitivity: zero denominator");
+    return -2.0 * turbulent_velocity_scale * (reference_buoyancy - buoyancy_at_depth) * depth /
+           (denominator * denominator);
+}
+
+HorizontalVector stochastic_pressure_acceleration(double dp_dx, double dp_dy,
+                                                  double reference_density) {
+    if (reference_density <= 0.0)
+        throw std::runtime_error("stochastic_pressure_acceleration: density must be positive");
+    HorizontalVector acceleration;
+    acceleration.x = -dp_dx / reference_density;
+    acceleration.y = -dp_dy / reference_density;
+    return acceleration;
+}
+
+double bbm_effective_viscosity(double undamaged_viscosity, double damage, double damage_exponent,
+                               double concentration_parameter, double concentration) {
+    if (undamaged_viscosity < 0.0)
+        throw std::runtime_error("bbm_effective_viscosity: viscosity must be >= 0");
+    if (damage < 0.0 || damage > 1.0)
+        throw std::runtime_error("bbm_effective_viscosity: damage must be in [0,1]");
+    if (concentration < 0.0 || concentration > 1.0)
+        throw std::runtime_error("bbm_effective_viscosity: concentration must be in [0,1]");
+    return undamaged_viscosity * std::pow(1.0 - damage, damage_exponent) *
+           std::exp(-damage_exponent * concentration_parameter * (1.0 - concentration));
+}
+
+double bbm_viscosity_damage_derivative(double undamaged_viscosity, double damage,
+                                       double damage_exponent, double concentration_parameter,
+                                       double concentration) {
+    if (damage <= 0.0 || damage >= 1.0)
+        throw std::runtime_error("bbm_viscosity_damage_derivative: damage must be in (0,1)");
+    const double common = undamaged_viscosity * std::pow(1.0 - damage, damage_exponent - 1.0) *
+                          std::exp(-damage_exponent * concentration_parameter *
+                                   (1.0 - concentration));
+    return -damage_exponent * common;
+}
+
+double mohr_coulomb_yield(double normal_stress, double cohesion, double friction_angle_deg) {
+    if (cohesion < 0.0) throw std::runtime_error("mohr_coulomb_yield: cohesion must be >= 0");
+    return cohesion + normal_stress * std::tan(deg_to_rad(friction_angle_deg));
+}
+
+double bbm_elastic_stress(double damage, double stiffness, double elastic_strain) {
+    if (damage < 0.0 || damage > 1.0)
+        throw std::runtime_error("bbm_elastic_stress: damage must be in [0,1]");
+    return (1.0 - damage) * stiffness * elastic_strain;
+}
+
+double bbm_friction_stress(double normal_stress, double max_pressure, double elastic_stress,
+                           double viscous_stress) {
+    if (max_pressure < 0.0)
+        throw std::runtime_error("bbm_friction_stress: P_max must be >= 0");
+    if (normal_stress > 0.0) return viscous_stress;
+    if (normal_stress > -max_pressure) return elastic_stress;
+    return viscous_stress;
+}
+
+double teos10_gibbs_water(double t_celsius, double pressure_pa,
+                          const std::vector<double>& g_jk, double gu, double tu, double pu) {
+    if (g_jk.size() != 8 * 7)
+        throw std::runtime_error("teos10_gibbs_water: expected 56 (8 x 7) coefficients");
+    if (tu <= 0.0 || pu <= 0.0)
+        throw std::runtime_error("teos10_gibbs_water: scaling constants must be positive");
+    const double t = t_celsius / tu;
+    const double p = pressure_pa / pu;
+    double total = 0.0;
+    double t_power = 1.0;
+    for (int j = 0; j <= 7; ++j) {
+        double p_power = 1.0;
+        for (int k = 0; k <= 6; ++k) {
+            total += g_jk[static_cast<std::size_t>(j * 7 + k)] * t_power * p_power;
+            p_power *= p;
+        }
+        t_power *= t;
+    }
+    return gu * total;
+}
+
+double teos10_gibbs_saline(double salinity, double t_celsius, double pressure_pa,
+                           const std::vector<SalineTerm>& terms, double gu, double su, double tu,
+                           double pu) {
+    if (salinity < 0.0) throw std::runtime_error("teos10_gibbs_saline: salinity must be >= 0");
+    if (su <= 0.0 || tu <= 0.0 || pu <= 0.0)
+        throw std::runtime_error("teos10_gibbs_saline: scaling constants must be positive");
+    const double s = salinity / su;
+    const double t = t_celsius / tu;
+    const double p = pressure_pa / pu;
+    double total = 0.0;
+    for (const auto& term : terms) {
+        if (term.i < 1) throw std::runtime_error("teos10_gibbs_saline: i must be >= 1");
+        if (term.j < 0 || term.k < 0)
+            throw std::runtime_error("teos10_gibbs_saline: j and k must be >= 0");
+        double salinity_part = 0.0;
+        if (term.i == 1) {
+            if (s <= 0.0)
+                throw std::runtime_error("teos10_gibbs_saline: i = 1 term needs S > 0");
+            salinity_part = 0.5 * s * std::log(s);
+        } else {
+            salinity_part = std::pow(s, term.i / 2.0);
+        }
+        total += term.coefficient * salinity_part * std::pow(t, term.j) * std::pow(p, term.k);
+    }
+    return gu * total;
+}
+
+double gibbs_sound_speed(const std::function<double(double, double, double)>& gibbs,
+                         double salinity, double t_celsius, double pressure_pa,
+                         double temperature_step, double pressure_step) {
+    if (!gibbs) throw std::runtime_error("gibbs_sound_speed: empty Gibbs function");
+    if (temperature_step <= 0.0 || pressure_step <= 0.0)
+        throw std::runtime_error("gibbs_sound_speed: steps must be positive");
+    const double h_t = temperature_step;
+    const double h_p = pressure_step;
+    const auto g = [&](double t, double p) { return gibbs(salinity, t, p); };
+
+    const double g_t = (g(t_celsius + h_t, pressure_pa) - g(t_celsius - h_t, pressure_pa)) /
+                       (2.0 * h_t);
+    const double g_p = (g(t_celsius, pressure_pa + h_p) - g(t_celsius, pressure_pa - h_p)) /
+                       (2.0 * h_p);
+    const double g_tt = (g(t_celsius + h_t, pressure_pa) - 2.0 * g(t_celsius, pressure_pa) +
+                         g(t_celsius - h_t, pressure_pa)) /
+                        (h_t * h_t);
+    const double g_pp = (g(t_celsius, pressure_pa + h_p) - 2.0 * g(t_celsius, pressure_pa) +
+                         g(t_celsius, pressure_pa - h_p)) /
+                        (h_p * h_p);
+    const double g_tp = (g(t_celsius + h_t, pressure_pa + h_p) -
+                         g(t_celsius + h_t, pressure_pa - h_p) -
+                         g(t_celsius - h_t, pressure_pa + h_p) +
+                         g(t_celsius - h_t, pressure_pa - h_p)) /
+                        (4.0 * h_t * h_p);
+    (void)g_t;
+    const double denominator = g_tp * g_tp - g_tt * g_pp;
+    if (denominator <= 0.0)
+        throw std::runtime_error("gibbs_sound_speed: non-physical Gibbs curvature");
+    return g_p * std::sqrt(g_tt / denominator);
+}
+
 }  // namespace climate

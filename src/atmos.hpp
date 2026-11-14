@@ -80,4 +80,48 @@ double ion_equilibrium_number(double ionization_rate, double recombination_coeff
 // Recombination-limited limit n = sqrt(q / alpha).
 double recombination_limited_ions(double ionization_rate, double recombination_coefficient);
 
+// ---------------------------------------------------------------------------
+// Convective updraft momentum budget (Tan et al. 2018)
+//   H = r_d sqrt(a_u)
+//   (1 - alpha_a) d(w2)/dz = 2 a B_u - 2 b eps/(1-a_u) w2
+//                            - 2 b'/(H (1-a_u)^2) w2
+// ---------------------------------------------------------------------------
+struct UpdraftParameters {
+    double area = 0.1;             // a_u, updraft fractional area
+    double entrainment = 1e-3;     // eps, fractional entrainment rate (1/m)
+    double b = 0.5;                // pressure/entrainment correlation coefficient
+    double b_prime = 0.5;          // drag coefficient
+    double alpha_a = 0.1;          // advective coefficient
+    double plume_spacing = 1000.0; // r_d, characteristic plume spacing (m)
+};
+
+double updraft_drag_length(const UpdraftParameters& parameters);
+
+double updraft_momentum_tendency(double w_squared, double effective_buoyancy,
+                                 const UpdraftParameters& parameters);
+
+// d(drag)/dH = -2 b' w2 / (H^2 (1-a_u)^2).
+double updraft_drag_sensitivity(double w_squared, const UpdraftParameters& parameters);
+
+struct UpdraftColumn {
+    std::vector<double> height_m;
+    std::vector<double> w_squared;
+};
+
+UpdraftColumn integrate_updraft(const std::vector<double>& height_m,
+                                const std::vector<double>& effective_buoyancy,
+                                const UpdraftParameters& parameters,
+                                double initial_w_squared = 0.0);
+
+// ---------------------------------------------------------------------------
+// Aerosol moment closure
+// ---------------------------------------------------------------------------
+// Mass-based free-molecular kernel:
+//   beta = K_f sqrt(1/m_i + 1/m_j) (m_i^(1/3) + m_j^(1/3))^2
+double mass_based_coagulation(double k_free_molecular, double mass_i, double mass_j);
+
+// Log-normal source-independent moment decay:
+//   M0/M00 = [ (5 sqrt(2)/6) a0 b0 tau + 1 ]^(-6/5)
+double lognormal_moment_decay(double a0, double b0, double dimensionless_time);
+
 }  // namespace climate

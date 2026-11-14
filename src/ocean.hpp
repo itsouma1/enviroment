@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <vector>
 
 namespace climate {
@@ -100,5 +101,98 @@ double doppler_shifted_frequency(double intrinsic_frequency, double wavenumber, 
 // ---------------------------------------------------------------------------
 // Hibler pressure: P = P* h exp(-C (1 - A)).
 double hibler_ice_pressure(double p_star, double thickness_m, double concentration, double c);
+
+// ---------------------------------------------------------------------------
+// IDEMIX internal-wave energetics
+// ---------------------------------------------------------------------------
+// mu0 = mu / arccosh(N0/f0); f_e = f arccosh(N/f);
+// eps = mu0 f_e (m_*^2 / N^2) E^2.
+double idemix_mu0(double mu, double buoyancy_frequency, double coriolis, double n0, double f0);
+
+double idemix_dissipation(double mu0, double coriolis, double buoyancy_frequency,
+                          double gm_bandwidth, double wave_energy);
+
+// d(eps)/dE = 2 mu0 f_e (m_*^2/N^2) E.
+double idemix_dissipation_derivative(double mu0, double coriolis, double buoyancy_frequency,
+                                     double gm_bandwidth, double wave_energy);
+
+// Vertical redistribution term -d/dz(c0 tau_v d(c0 E)/dz) for constant c0.
+double idemix_vertical_term(double vertical_group_velocity, double relaxation_time,
+                            double second_derivative);
+
+// ---------------------------------------------------------------------------
+// KPP bulk Richardson number
+// ---------------------------------------------------------------------------
+// Rib = [B_r - B(d)] d / (|V_r - V(d)|^2 + V_t^2).
+double kpp_bulk_richardson(double reference_buoyancy, double buoyancy_at_depth, double depth,
+                           double reference_velocity, double velocity_at_depth,
+                           double turbulent_velocity_scale);
+
+// dRib/dVt = -2 Vt [B_r - B(d)] d / (|dV|^2 + Vt^2)^2.
+double kpp_bulk_richardson_sensitivity(double reference_buoyancy, double buoyancy_at_depth,
+                                       double depth, double reference_velocity,
+                                       double velocity_at_depth,
+                                       double turbulent_velocity_scale);
+
+// ---------------------------------------------------------------------------
+// Stochastic non-hydrostatic pressure
+// ---------------------------------------------------------------------------
+struct HorizontalVector {
+    double x = 0.0;
+    double y = 0.0;
+};
+
+// Acceleration from the martingale pressure: -(1/rho0) grad_H(dp^sigma).
+// Under the strong hydrostatic hypothesis its vertical derivative vanishes.
+HorizontalVector stochastic_pressure_acceleration(double dp_dx, double dp_dy,
+                                                  double reference_density);
+
+// ---------------------------------------------------------------------------
+// Sea-ice Brittle Bingham-Maxwell rheology
+// ---------------------------------------------------------------------------
+// eta = eta0 (1-d)^alpha exp[-alpha c* (1-A)].
+double bbm_effective_viscosity(double undamaged_viscosity, double damage, double damage_exponent,
+                               double concentration_parameter, double concentration);
+
+// d(eta)/dd = -alpha eta0 (1-d)^(alpha-1) exp[-alpha c* (1-A)].
+double bbm_viscosity_damage_derivative(double undamaged_viscosity, double damage,
+                                       double damage_exponent, double concentration_parameter,
+                                       double concentration);
+
+// Mohr-Coulomb envelope: tau = c + sigma_N tan(phi).
+double mohr_coulomb_yield(double normal_stress, double cohesion, double friction_angle_deg);
+
+// Damaged elasticity: sigma = (1 - D) C epsilon.
+double bbm_elastic_stress(double damage, double stiffness, double elastic_strain);
+
+// Friction-element regimes: divergent (sigma_N > 0), elastic, and convergent
+// beyond -P_max (viscous flow).
+double bbm_friction_stress(double normal_stress, double max_pressure, double elastic_stress,
+                           double viscous_stress);
+
+// ---------------------------------------------------------------------------
+// TEOS-10 Gibbs function (generic evaluators; coefficient tables are external)
+// ---------------------------------------------------------------------------
+struct SalineTerm {
+    int i = 1;  // salinity power i/2, i >= 1
+    int j = 0;  // temperature power
+    int k = 0;  // pressure power
+    double coefficient = 0.0;
+};
+
+// g^W = gu sum_jk g_jk (t/tu)^j (p/pu)^k with g_jk stored row-major, 8 x 7.
+double teos10_gibbs_water(double t_celsius, double pressure_pa,
+                          const std::vector<double>& g_jk, double gu = 1.0, double tu = 40.0,
+                          double pu = 1e8);
+
+// g^S = gu sum { g1jk/2 (S/Su) ln(S/Su) + sum_{i>1} gijk (S/Su)^(i/2) } (t/tu)^j (p/pu)^k.
+double teos10_gibbs_saline(double salinity, double t_celsius, double pressure_pa,
+                           const std::vector<SalineTerm>& terms, double gu = 1.0,
+                           double su = 40.0, double tu = 40.0, double pu = 1e8);
+
+// c = g_P sqrt(g_TT / (g_TP^2 - g_TT g_PP)), with central differences of g(S,t,p).
+double gibbs_sound_speed(const std::function<double(double, double, double)>& gibbs,
+                         double salinity, double t_celsius, double pressure_pa,
+                         double temperature_step = 1e-4, double pressure_step = 1e2);
 
 }  // namespace climate

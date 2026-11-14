@@ -179,4 +179,84 @@ double recombination_limited_ions(double ionization_rate, double recombination_c
     return std::sqrt(ionization_rate / recombination_coefficient);
 }
 
+double updraft_drag_length(const UpdraftParameters& parameters) {
+    if (parameters.area <= 0.0)
+        throw std::runtime_error("updraft_drag_length: updraft area must be positive");
+    if (parameters.plume_spacing <= 0.0)
+        throw std::runtime_error("updraft_drag_length: plume spacing must be positive");
+    return parameters.plume_spacing * std::sqrt(parameters.area);
+}
+
+double updraft_momentum_tendency(double w_squared, double effective_buoyancy,
+                                 const UpdraftParameters& parameters) {
+    const double area = parameters.area;
+    if (area <= 0.0 || area >= 1.0)
+        throw std::runtime_error("updraft_momentum_tendency: area must be in (0,1)");
+    const double advective = 1.0 - parameters.alpha_a;
+    if (advective == 0.0)
+        throw std::runtime_error("updraft_momentum_tendency: 1 - alpha_a is zero");
+    const double drag_length = updraft_drag_length(parameters);
+    const double entrainment_term = 2.0 * parameters.b * parameters.entrainment / (1.0 - area);
+    const double drag_term =
+        2.0 * parameters.b_prime / (drag_length * (1.0 - area) * (1.0 - area));
+    return (2.0 * area * effective_buoyancy - (entrainment_term + drag_term) * w_squared) /
+           advective;
+}
+
+double updraft_drag_sensitivity(double w_squared, const UpdraftParameters& parameters) {
+    const double drag_length = updraft_drag_length(parameters);
+    return -2.0 * parameters.b_prime * w_squared /
+           (drag_length * drag_length * (1.0 - parameters.area) * (1.0 - parameters.area));
+}
+
+UpdraftColumn integrate_updraft(const std::vector<double>& height_m,
+                                const std::vector<double>& effective_buoyancy,
+                                const UpdraftParameters& parameters,
+                                double initial_w_squared) {
+    if (height_m.size() != effective_buoyancy.size() || height_m.size() < 2)
+        throw std::runtime_error("integrate_updraft: need paired height and buoyancy levels");
+    if (initial_w_squared < 0.0)
+        throw std::runtime_error("integrate_updraft: initial w2 must be non-negative");
+
+    UpdraftColumn column;
+    column.height_m.push_back(height_m[0]);
+    column.w_squared.push_back(initial_w_squared);
+    double w2 = initial_w_squared;
+
+    for (std::size_t i = 0; i + 1 < height_m.size(); ++i) {
+        const double dz = height_m[i + 1] - height_m[i];
+        if (dz <= 0.0)
+            throw std::runtime_error("integrate_updraft: heights must increase");
+        const double buoyancy = 0.5 * (effective_buoyancy[i] + effective_buoyancy[i + 1]);
+        const double k1 = updraft_momentum_tendency(w2, buoyancy, parameters);
+        const double k2 = updraft_momentum_tendency(w2 + 0.5 * dz * k1, buoyancy, parameters);
+        const double k3 = updraft_momentum_tendency(w2 + 0.5 * dz * k2, buoyancy, parameters);
+        const double k4 = updraft_momentum_tendency(w2 + dz * k3, buoyancy, parameters);
+        w2 += dz / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
+        if (w2 < 0.0) w2 = 0.0;
+        column.height_m.push_back(height_m[i + 1]);
+        column.w_squared.push_back(w2);
+    }
+    return column;
+}
+
+double mass_based_coagulation(double k_free_molecular, double mass_i, double mass_j) {
+    if (mass_i <= 0.0 || mass_j <= 0.0)
+        throw std::runtime_error("mass_based_coagulation: masses must be positive");
+    if (k_free_molecular < 0.0)
+        throw std::runtime_error("mass_based_coagulation: K_f must be >= 0");
+    const double inverse_mass = std::sqrt(1.0 / mass_i + 1.0 / mass_j);
+    const double cube_root = std::cbrt(mass_i) + std::cbrt(mass_j);
+    return k_free_molecular * inverse_mass * cube_root * cube_root;
+}
+
+double lognormal_moment_decay(double a0, double b0, double dimensionless_time) {
+    if (dimensionless_time < 0.0)
+        throw std::runtime_error("lognormal_moment_decay: time must be >= 0");
+    const double factor = 5.0 * std::sqrt(2.0) / 6.0 * a0 * b0 * dimensionless_time + 1.0;
+    if (factor <= 0.0)
+        throw std::runtime_error("lognormal_moment_decay: non-positive factor");
+    return std::pow(factor, -6.0 / 5.0);
+}
+
 }  // namespace climate

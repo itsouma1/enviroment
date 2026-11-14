@@ -213,6 +213,16 @@ Martin export, air-sea CO2 flux, DIC, bulk latent/sensible heat fluxes, iron
 co-limitation and ligand speciation, mCDR potential, the Pierson-Moskowitz
 spectrum, Doppler-shifted frequency and Hibler ice pressure.
 
+**Closure upgrades.** Convective updraft budget with the diagnosed drag length
+`H = r_d sqrt(a_u)` and its `d/dH` sensitivity; mass-based free-molecular
+coagulation and the log-normal moment decay; IDEMIX `mu0`, quadratic wave
+dissipation and its `d/dE`; the KPP bulk Richardson number with `dRib/dVt`;
+BBM damage-dependent viscosity with its derivative, Mohr-Coulomb yield, damaged
+elasticity and the three friction regimes; and the martingale-pressure
+acceleration under the strong hydrostatic hypothesis. TEOS-10 is provided as
+generic Gibbs evaluators (pure-water 8x7 coefficients and saline terms) plus a
+sound-speed routine that differentiates any supplied Gibbs function.
+
 Two formulas in the notes are dimensionally inconsistent and are implemented
 in their standard forms: the mixed-layer depth
 `int 2 N^2 dz / int N^2 dz` (dimensionless) is replaced by the `N^2` centroid,

@@ -876,6 +876,61 @@ void test_atmos_ocean() {
     CHECK_NEAR(hibler_ice_pressure(2e4, 2.0, 0.9, 20.0), 5413.4113, 1e-3);
 }
 
+void test_closures() {
+    // Updraft momentum budget and drag length.
+    UpdraftParameters updraft;
+    CHECK_NEAR(updraft_drag_length(updraft), 316.2278, 1e-3);
+    CHECK_NEAR(updraft_momentum_tendency(1.0, 0.05, updraft), 0.0055387142, 1e-9);
+    CHECK_NEAR(updraft_drag_sensitivity(1.0, updraft), -1.234568e-5, 1e-11);
+    const UpdraftColumn column = integrate_updraft({0.0, 100.0, 200.0}, {0.01, 0.01, 0.01}, updraft,
+                                                   0.0);
+    CHECK(column.w_squared[1] > 0.0);
+    CHECK(column.w_squared[2] > column.w_squared[1]);
+
+    // Aerosol moment closure.
+    CHECK_NEAR(mass_based_coagulation(1.0, 1.0, 1.0), 5.656854249, 1e-9);
+    CHECK_NEAR(lognormal_moment_decay(1.0, 1.0, 1.0), 0.3928332311, 1e-9);
+
+    // IDEMIX energetics.
+    CHECK_NEAR(idemix_mu0(2.0, 1e-3, 1e-4, 5.24e-3, 7.29e-5), 0.4025694455, 1e-9);
+    CHECK_NEAR(idemix_dissipation(0.4025694455, 1e-4, 1e-3, 0.01, 1.0), 0.0120498006,
+               1e-9);
+    CHECK_NEAR(idemix_dissipation_derivative(0.4025694455, 1e-4, 1e-3, 0.01, 1.0),
+               0.0240996012, 1e-9);
+    CHECK_NEAR(idemix_vertical_term(0.01, 15.0 * 86400.0, 1.0), -129.6, 1e-9);
+
+    // KPP bulk Richardson number and its Vt sensitivity.
+    CHECK_NEAR(kpp_bulk_richardson(0.0, -0.01, 100.0, 0.0, 0.0, 0.01), 10000.0, 1e-6);
+    CHECK_NEAR(kpp_bulk_richardson_sensitivity(0.0, -0.01, 100.0, 0.0, 0.0, 0.01), -2e6, 1e-1);
+
+    // Stochastic martingale pressure acceleration.
+    const HorizontalVector acceleration = stochastic_pressure_acceleration(1.0, 0.0, 1000.0);
+    CHECK_NEAR(acceleration.x, -0.001, 1e-12);
+    CHECK_NEAR(acceleration.y, 0.0, 1e-12);
+
+    // BBM rheology.
+    CHECK_NEAR(bbm_effective_viscosity(1e5, 0.2, 2.0, 20.0, 0.9), 1172.2009, 1e-3);
+    CHECK_NEAR(bbm_viscosity_damage_derivative(1e5, 0.2, 2.0, 20.0, 0.9), -2930.5022,
+               1e-3);
+    CHECK_NEAR(mohr_coulomb_yield(-1e5, 1e5, 30.0), 42264.9731, 1e-4);
+    CHECK_NEAR(bbm_elastic_stress(0.5, 1e9, 1e-3), 5e5, 1e-6);
+    CHECK_NEAR(bbm_friction_stress(1e4, 1e6, 2.0, 3.0), 3.0, 1e-12);
+    CHECK_NEAR(bbm_friction_stress(-1e4, 1e6, 2.0, 3.0), 2.0, 1e-12);
+    CHECK_NEAR(bbm_friction_stress(-1e7, 1e6, 2.0, 3.0), 3.0, 1e-12);
+
+    // TEOS-10 generic Gibbs evaluation and sound speed from a known quadratic.
+    std::vector<double> water(56, 0.0);
+    water[1 * 7 + 0] = 1.0;
+    CHECK_NEAR(teos10_gibbs_water(40.0, 0.0, water), 1.0, 1e-12);
+    CHECK_NEAR(teos10_gibbs_water(80.0, 0.0, water), 2.0, 1e-12);
+    CHECK_NEAR(teos10_gibbs_saline(40.0, 0.0, 0.0, {{2, 0, 0, 1.0}}), 1.0, 1e-12);
+
+    const auto gibbs = [](double, double t, double p) {
+        return 0.5 * t * t + 2.0 * t * p - 1.0 * p * p;
+    };
+    CHECK_NEAR(gibbs_sound_speed(gibbs, 35.0, 100.0, 1.0), 80.83316151, 1e-3);
+}
+
 }  // namespace
 
 int main() {
@@ -895,6 +950,7 @@ int main() {
     test_physics();
     test_earth_land_spatial();
     test_atmos_ocean();
+    test_closures();
     test_fetch();
 
     if (failures == 0) {

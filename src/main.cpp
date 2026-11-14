@@ -333,6 +333,10 @@ void print_usage() {
         << "  atmos aqueous --k0 K0 --k1 K1 --k2 K2 --so2 C --hso3 C --so3 C --oxidant C\n"
         << "  atmos coagulation --r1 UM --r2 UM [--temperature K] [--density RHO]\n"
         << "  atmos ion --ionization Q --alpha A [--attachment B] [--aerosol Z]\n"
+        << "  atmos updraft --spacing R --area A --w2 W --buoyancy B [--entrainment E]\n"
+        << "          [--b B] [--b-prime B] [--alpha-a A]\n"
+        << "  atmos moment --a0 A --b0 B --tau T\n"
+        << "  atmos coagulation-mass --kf K --mi M --mj M\n"
         << "      CAPE/CIN, photolysis, falloff kinetics, aerosols and ion balance.\n\n"
         << "  ocean stratification --density RHO --drho-dz D\n"
         << "  ocean mixed-layer --file PROFILE.csv   (columns depth, n2)\n"
@@ -355,6 +359,9 @@ void print_usage() {
         << "  ocean mcdr --dic D --alk A --gamma-alk GA --gamma-dic GD\n"
         << "  ocean waves --wind U19.5 --omega W\n"
         << "  ocean hibler --p-star P --thickness H --concentration A --c C\n"
+        << "  ocean idemix --mu MU --n N --f F --m-star M --energy E\n"
+        << "  ocean kpp --br BR --bd BD --depth D --vr VR --vd VD --vt VT\n"
+        << "  ocean bbm --eta0 ETA --damage D --alpha A --c-star C --concentration A\n"
         << "      Ocean mixing, biogeochemistry, wave spectra and sea-ice rheology.\n\n"
         << "  retrieve index --file DATA.csv --red COL --nir COL [--blue COL]\n"
         << "          [--index ndvi|evi|savi] [--soil L] [--out FILE]\n"
@@ -2082,6 +2089,44 @@ int command_atmos(const std::string& sub, const Arguments& args) {
         return 0;
     }
 
+    if (sub == "updraft") {
+        UpdraftParameters parameters;
+        parameters.plume_spacing = args.number("spacing", parameters.plume_spacing);
+        parameters.area = args.number("area", parameters.area);
+        parameters.entrainment = args.number("entrainment", parameters.entrainment);
+        parameters.b = args.number("b", parameters.b);
+        parameters.b_prime = args.number("b-prime", parameters.b_prime);
+        parameters.alpha_a = args.number("alpha-a", parameters.alpha_a);
+        const double w_squared = args.number("w2", std::nan(""));
+        const double buoyancy = args.number("buoyancy", std::nan(""));
+        if (!std::isfinite(w_squared) || !std::isfinite(buoyancy)) {
+            std::cerr << "error: --w2 and --buoyancy are required\n";
+            return 1;
+        }
+        std::cout << "drag length H = " << updraft_drag_length(parameters) << " m\n";
+        std::cout << "d(w2)/dz = "
+                  << updraft_momentum_tendency(w_squared, buoyancy, parameters) << " m/s2\n";
+        std::cout << "d(drag)/dH = " << updraft_drag_sensitivity(w_squared, parameters)
+                  << " m/s2/m\n";
+        return 0;
+    }
+
+    if (sub == "moment") {
+        std::cout << "log-normal moment ratio M0/M00 = "
+                  << lognormal_moment_decay(args.number("a0", 1.0), args.number("b0", 1.0),
+                                            args.number("tau", 0.0))
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "coagulation-mass") {
+        std::cout << "mass-based coagulation kernel = "
+                  << mass_based_coagulation(args.number("kf", 1.0), args.number("mi", 1.0),
+                                            args.number("mj", 1.0))
+                  << "\n";
+        return 0;
+    }
+
     std::cerr << "error: unknown atmos diagnostic '" << sub
               << "'; expected cape, photolysis, falloff, aqueous, coagulation or ion\n";
     return 1;
@@ -2305,6 +2350,58 @@ int command_ocean(const std::string& sub, const Arguments& args) {
                                          args.number("concentration", 1.0),
                                          args.number("c", 20.0))
                   << " N/m\n";
+        return 0;
+    }
+
+    if (sub == "idemix") {
+        const double n = args.number("n", std::nan(""));
+        const double f = args.number("f", std::nan(""));
+        const double m_star = args.number("m-star", std::nan(""));
+        const double energy = args.number("energy", std::nan(""));
+        if (!std::isfinite(n) || !std::isfinite(f) || !std::isfinite(m_star) ||
+            !std::isfinite(energy)) {
+            std::cerr << "error: --n, --f, --m-star and --energy are required\n";
+            return 1;
+        }
+        const double mu0 = idemix_mu0(args.number("mu", 2.0), n, f, 5.24e-3, 7.29e-5);
+        std::cout << "mu0 = " << mu0 << "\n";
+        std::cout << "dissipation = " << idemix_dissipation(mu0, f, n, m_star, energy)
+                  << " W/m3\n";
+        std::cout << "d(dissipation)/dE = "
+                  << idemix_dissipation_derivative(mu0, f, n, m_star, energy) << " 1/s\n";
+        return 0;
+    }
+
+    if (sub == "kpp") {
+        const double br = args.number("br", std::nan(""));
+        const double bd = args.number("bd", std::nan(""));
+        const double depth = args.number("depth", std::nan(""));
+        if (!std::isfinite(br) || !std::isfinite(bd) || !std::isfinite(depth)) {
+            std::cerr << "error: --br, --bd and --depth are required\n";
+            return 1;
+        }
+        const double vr = args.number("vr", 0.0);
+        const double vd = args.number("vd", 0.0);
+        const double vt = args.number("vt", 0.0);
+        std::cout << "bulk Richardson number = " << kpp_bulk_richardson(br, bd, depth, vr, vd, vt)
+                  << "\n";
+        std::cout << "dRi/dVt = " << kpp_bulk_richardson_sensitivity(br, bd, depth, vr, vd, vt)
+                  << "\n";
+        return 0;
+    }
+
+    if (sub == "bbm") {
+        const double damage = args.number("damage", std::nan(""));
+        if (!std::isfinite(damage)) {
+            std::cerr << "error: --damage is required\n";
+            return 1;
+        }
+        std::cout << "BBM effective viscosity = "
+                  << bbm_effective_viscosity(args.number("eta0", 1e5), damage,
+                                             args.number("alpha", 2.0),
+                                             args.number("c-star", 20.0),
+                                             args.number("concentration", 1.0))
+                  << " Pa s\n";
         return 0;
     }
 
