@@ -16,6 +16,7 @@
 #include "atmos.hpp"
 #include "catalog.hpp"
 #include "common.hpp"
+#include "cryo.hpp"
 #include "csv.hpp"
 #include "earth.hpp"
 #include "fft.hpp"
@@ -929,11 +930,76 @@ void test_closures() {
         return 0.5 * t * t + 2.0 * t * p - 1.0 * p * p;
     };
     CHECK_NEAR(gibbs_sound_speed(gibbs, 35.0, 100.0, 1.0), 80.83316151, 1e-3);
+
+    // Pure-water table against the official GSW reference values.
+    const GibbsDerivatives pure = teos10_pure_water_derivatives(10.0, 1e7);
+    CHECK_NEAR(pure.g, 9320.754144273566, 1e-6);
+    CHECK_NEAR(pure.g_t, -150.0810634484812, 1e-7);
+    CHECK_NEAR(pure.g_p, 0.0009955890810800538, 1e-16);
+    CHECK_NEAR(sound_speed_from_derivatives(pure), 1463.531085477897, 1e-6);
+    const GibbsDerivatives cold = teos10_pure_water_derivatives(0.0, 0.0);
+    CHECK_NEAR(cold.g, 101.342743139674, 1e-10);
+    CHECK_NEAR(cold.g_t, 0.1476445869773505, 1e-12);
+    CHECK_NEAR(cold.g_p, 0.00100015695367145, 1e-16);
 }
 
 }  // namespace
 
+void test_cryo() {
+    CHECK_NEAR(glen_rate_factor(1e-16, 60000.0, 270.0), 2.469044184578022e-28, 1e-40);
+    CHECK_NEAR(glen_strain_rate(1e-16, 1e5, 3.0), 0.1, 1e-12);
+    CHECK_NEAR(effective_strain(0.1, 0.0, 0.0, 0.0, 0.0, 0.0), 0.0707106781, 1e-9);
+    CHECK_NEAR(effective_stress(1e5, 0.0, 0.0, 0.0, 0.0, 0.0), 70710.6781, 1e-3);
+    CHECK_NEAR(ice_viscosity(1e8, 0.1, 3.0), 5e9, 1e-3);
+    CHECK_NEAR(sia_velocity(1e-16, 0.01, 1000.0), 1e-6, 1e-18);
+    CHECK_NEAR(weertman_sliding(1e-3, 1e5, 1e4, 3.0, 1.0), 1e8, 1e-6);
+    CHECK_NEAR(coulomb_sliding(0.5, 1e4), 5000.0, 1e-9);
+
+    CHECK_NEAR(bulk_ice_stress(1.3, 1.5e-3, 10.0, 0.0, 0.0, 0.0, 0.0).x, 0.195, 1e-12);
+    const HorizontalStress air{0.1, 0.0};
+    const HorizontalStress ocean{0.0, 0.2};
+    double du = 0.0, dv = 0.0;
+    sea_ice_momentum_tendency(du, dv, 0.1, 0.0, 100.0, 1e-4, air, ocean, 0.0, 0.0,
+                              HorizontalStress{});
+    CHECK_NEAR(du, 0.001, 1e-12);
+    CHECK_NEAR(dv, 0.00199, 1e-12);
+
+    CHECK_NEAR(surface_melt_energy(0.5, 300.0, 200.0, 1.0, 273.15), 34.34217769919542, 1e-9);
+    CHECK_NEAR(stefan_front_velocity(2.0, 5.0, 1.0, 1.0, 1000.0, 3.34e5), 2.6946107784e-8,
+               1e-18);
+    CHECK_NEAR(stefan_number(2000.0, 1500.0, 275.0, 273.0, 1.0, 1.0, 1000.0, 0.3, 3.34e5),
+               0.0598802395, 1e-10);
+    CHECK_NEAR(active_layer_depth(1.0, 1.5, 1000.0, 3.34e5), 0.0947736035, 1e-9);
+
+    CHECK_NEAR(basal_melt_three_equation(1027.0, 917.0, 2.5e-3, 2.5e-5, 3.34e5, 2009.0,
+                                         273.15, 271.25, 3985.0, 0.05, 272.65),
+               1.1827226367e-9, 1e-16);
+    CHECK_NEAR(basal_melt_simplified(3985.0, 3.34e5, 1027.0, 917.0, 1e-5, 1.0, -0.5, -1.9),
+               1.8707295333e-7, 1e-15);
+    CHECK(plume_melt(1.0, -2.0, 1.0, 7.86e-4, 34.0, 9.81, 0.05, 0.1, 1000.0, 0.5, 1.0, 0.0025,
+                     0.1, 0.1, 1.0) > 0.0);
+
+    CHECK_NEAR(subglacial_flux(1e-3, 0.1, 1.0, 2.0, -0.01), 1e-8, 1e-18);
+    CHECK_NEAR(hydraulic_potential(1000.0, 9.81, 100.0, 5e5), 1481000.0, 1e-6);
+    CHECK_NEAR(subglacial_melt(0.05, 1e5, 1e-4, 1e-4, 0.01, 4218.0, 1000.0, 0.0, 917.0,
+                               3.34e5),
+               3.2813329720e-8, 1e-16);
+
+    CHECK_NEAR(calving_flux(1000.0, 1e4), 1e7, 1e-6);
+    CHECK_NEAR(phase_field_notch(500.0, 1e5), 33000.00309374985, 1e-9);
+    CHECK_NEAR(firn_densification_rate(1e5, 1e-3, 917.0, 400.0, 60000.0, 250.0),
+               1.3842340922940609e-7, 1e-16);
+    CHECK_NEAR(overburden_pressure(400.0, 10.0), 39226.6, 1e-9);
+    CHECK_NEAR(herron_langway_gradient(1.0, 400.0, 917.0), 225.51799345692476, 1e-9);
+    CHECK_NEAR(vertical_ice_velocity(0.1, 0.0, 0.0, 500.0, 1000.0, 1.0), -0.025, 1e-12);
+
+    CHECK_NEAR(tipping_equilibrium(1.0, 2.0, 1.0, 1.0, 1.0), -1.0, 1e-12);
+    CHECK_NEAR(tipping_critical_thickness(2.0, -1.0), 1.0, 1e-12);
+    CHECK_NEAR(scalar_kalman_update(0.0, 10.0, 1.0, 1.0), 5.0, 1e-12);
+}
+
 int main() {
+    test_cryo();
     test_linalg();
     test_stats();
     test_csv_and_json();

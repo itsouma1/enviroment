@@ -223,6 +223,30 @@ acceleration under the strong hydrostatic hypothesis. TEOS-10 is provided as
 generic Gibbs evaluators (pure-water 8x7 coefficients and saline terms) plus a
 sound-speed routine that differentiates any supplied Gibbs function.
 
+**TEOS-10.** The 41-term IAPWS-2009 pure-water table is embedded as an 8 x 7
+coefficient array, and `teos10_pure_water_derivatives` returns the full tuple
+`(g, g_T, g_P, g_TT, g_TP, g_PP)`. `sound_speed_from_derivatives` uses
+`c = g_P sqrt(g_TT / (g_TP^2 - g_TT g_PP))`; at 10 C and 1000 dbar it reproduces
+the official GSW value 1463.5311 m/s. The saline evaluator takes the same term
+structure but still needs its 64 coefficients; GSW-C embeds them as expanded
+polynomial code rather than a data array, so they are not copied blindly.
+`climate ocean teos-pure --t 10 --p 1e7` prints the tuple and sound speed.
+
+**Cryosphere (notes 96-112 KB).** `src/cryo.*` implements Glen's rate factor
+and flow law, the effective strain/stress invariants, ice viscosity, the SIA
+velocity and Weertman-Budd/Coulomb sliding, bulk air/sea-ice stress with the
+rotation matrix, the full sea-ice momentum tendency, surface melt energy, the
+Stefan front velocity, Stefan number and active-layer depth, three-equation and
+simplified basal melt, the plume melt law, subglacial discharge and hydraulic
+potential, geothermal/frictional bed melt, calving flux, the phase-field notch
+depth, Arthern firn densification with the 550 kg/m^3 rate switch, overburden
+pressure, the Herron-Langway gradient, the Nye vertical-velocity profile, the
+tipping-point equilibrium and fold thickness, and the scalar Kalman update.
+Not reducible to closed form without further data: the full-Stokes/first-order
+PDE solves, SHAKTI's unspecified creep-closure term, the phase-field fracture
+PDE, and the grounding-line migration formula, which is dimensionally
+inconsistent as written and is therefore omitted rather than guessed.
+
 Two formulas in the notes are dimensionally inconsistent and are implemented
 in their standard forms: the mixed-layer depth
 `int 2 N^2 dz / int N^2 dz` (dimensionless) is replaced by the `N^2` centroid,

@@ -362,6 +362,7 @@ void print_usage() {
         << "  ocean idemix --mu MU --n N --f F --m-star M --energy E\n"
         << "  ocean kpp --br BR --bd BD --depth D --vr VR --vd VD --vt VT\n"
         << "  ocean bbm --eta0 ETA --damage D --alpha A --c-star C --concentration A\n"
+        << "  ocean teos-pure --t C --p PA\n"
         << "      Ocean mixing, biogeochemistry, wave spectra and sea-ice rheology.\n\n"
         << "  retrieve index --file DATA.csv --red COL --nir COL [--blue COL]\n"
         << "          [--index ndvi|evi|savi] [--soil L] [--out FILE]\n"
@@ -2402,6 +2403,24 @@ int command_ocean(const std::string& sub, const Arguments& args) {
                                              args.number("c-star", 20.0),
                                              args.number("concentration", 1.0))
                   << " Pa s\n";
+        return 0;
+    }
+
+    if (sub == "teos-pure") {
+        const double t = args.number("t", std::nan(""));
+        const double p = args.number("p", std::nan(""));
+        if (!std::isfinite(t) || !std::isfinite(p)) {
+            std::cerr << "error: --t and --p are required\n";
+            return 1;
+        }
+        const GibbsDerivatives d = teos10_pure_water_derivatives(t, p);
+        std::cout << "g = " << d.g << " J/kg\n";
+        std::cout << "g_T = " << d.g_t << " J/kg/K\n";
+        std::cout << "g_P = " << d.g_p << " m3/kg\n";
+        std::cout << "g_TT = " << d.g_tt << "\n";
+        std::cout << "g_TP = " << d.g_tp << "\n";
+        std::cout << "g_PP = " << d.g_pp << "\n";
+        std::cout << "sound speed = " << sound_speed_from_derivatives(d) << " m/s\n";
         return 0;
     }
 

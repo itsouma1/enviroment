@@ -190,6 +190,31 @@ double teos10_gibbs_saline(double salinity, double t_celsius, double pressure_pa
                            const std::vector<SalineTerm>& terms, double gu = 1.0,
                            double su = 40.0, double tu = 40.0, double pu = 1e8);
 
+struct GibbsDerivatives {
+    double g = 0.0;    // J/kg
+    double g_t = 0.0;  // J/kg/K
+    double g_p = 0.0;  // m^3/kg
+    double g_tt = 0.0;
+    double g_tp = 0.0;
+    double g_pp = 0.0;
+};
+
+// The 41-term IAPWS-2009 pure-water table, stored row-major as 8 x 7 (j, k).
+const std::vector<double>& pure_water_gibbs_coefficients();
+
+GibbsDerivatives teos10_pure_water_derivatives(double t_celsius, double pressure_pa,
+                                               double gu = 1.0, double tu = 40.0,
+                                               double pu = 1e8);
+
+GibbsDerivatives teos10_saline_derivatives(double salinity, double t_celsius,
+                                           double pressure_pa,
+                                           const std::vector<SalineTerm>& terms, double gu = 1.0,
+                                           double su = 40.0, double tu = 40.0,
+                                           double pu = 1e8);
+
+// c = g_p sqrt(g_tt / (g_tp^2 - g_tt g_pp)) from a derivative tuple.
+double sound_speed_from_derivatives(const GibbsDerivatives& derivatives);
+
 // c = g_P sqrt(g_TT / (g_TP^2 - g_TT g_PP)), with central differences of g(S,t,p).
 double gibbs_sound_speed(const std::function<double(double, double, double)>& gibbs,
                          double salinity, double t_celsius, double pressure_pa,

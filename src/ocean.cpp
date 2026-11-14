@@ -357,6 +357,132 @@ double teos10_gibbs_saline(double salinity, double t_celsius, double pressure_pa
     return gu * total;
 }
 
+const std::vector<double>& pure_water_gibbs_coefficients() {
+    // Row-major (j, k); coefficients not listed in the table are zero.
+    static const std::vector<double> coefficients = {
+        // j = 0
+        0.101342743139674e3, 0.100015695367145e6, -0.254457654203630e4,
+        0.284517778446287e3, -0.333146754253611e2, 0.420263108803084e1,
+        -0.546428511471039,
+        // j = 1
+        0.590578347909402e1, -0.270983805184062e3, 0.776153611613101e3,
+        -0.196512550881220e3, 0.289796526294175e2, -0.213290083518327e1, 0.0,
+        // j = 2
+        -0.123577859330390e5, 0.145503645404680e4, -0.756558385769359e3,
+        0.273479662323528e3, -0.555604063817218e2, 0.434420671917197e1, 0.0,
+        // j = 3
+        0.736741204151612e3, -0.672507783145070e3, 0.499360390819152e3,
+        -0.239545330654412e3, 0.488012518593872e2, -0.166307106208905e1, 0.0,
+        // j = 4
+        -0.148185936433658e3, 0.397968445406972e3, -0.301815380621876e3,
+        0.152196371733841e3, -0.263748377232802e2, 0.0, 0.0,
+        // j = 5
+        0.580259125842571e2, -0.194618310617595e3, 0.120520654902025e3,
+        -0.552723052340152e2, 0.648190668077221e1, 0.0, 0.0,
+        // j = 6
+        -0.189843846514172e2, 0.635113936641785e2, -0.222897317140459e2,
+        0.817060541818112e1, 0.0, 0.0, 0.0,
+        // j = 7
+        0.305081646487967e1, -0.963108119393062e1, 0.0, 0.0, 0.0, 0.0, 0.0,
+    };
+    return coefficients;
+}
+
+GibbsDerivatives teos10_pure_water_derivatives(double t_celsius, double pressure_pa, double gu,
+                                               double tu, double pu) {
+    if (tu <= 0.0 || pu <= 0.0)
+        throw std::runtime_error("teos10_pure_water_derivatives: scales must be positive");
+    const auto& coefficients = pure_water_gibbs_coefficients();
+    const double t = t_celsius / tu;
+    const double p = pressure_pa / pu;
+
+    double g = 0.0, gt = 0.0, gp = 0.0, gtt = 0.0, gtp = 0.0, gpp = 0.0;
+    double t_power = 1.0;  // t^j
+    for (int j = 0; j <= 7; ++j) {
+        double p_power = 1.0;  // p^k
+        for (int k = 0; k <= 6; ++k) {
+            const double c = coefficients[static_cast<std::size_t>(j * 7 + k)];
+            if (c != 0.0) {
+                g += c * t_power * p_power;
+                if (j >= 1) gt += c * j * std::pow(t, j - 1) * p_power;
+                if (k >= 1) gp += c * k * t_power * std::pow(p, k - 1);
+                if (j >= 2) gtt += c * j * (j - 1) * std::pow(t, j - 2) * p_power;
+                if (j >= 1 && k >= 1)
+                    gtp += c * j * k * std::pow(t, j - 1) * std::pow(p, k - 1);
+                if (k >= 2) gpp += c * k * (k - 1) * t_power * std::pow(p, k - 2);
+            }
+            p_power *= p;
+        }
+        t_power *= t;
+    }
+    GibbsDerivatives derivatives;
+    derivatives.g = gu * g;
+    derivatives.g_t = gu / tu * gt;
+    derivatives.g_p = gu / pu * gp;
+    derivatives.g_tt = gu / (tu * tu) * gtt;
+    derivatives.g_tp = gu / (tu * pu) * gtp;
+    derivatives.g_pp = gu / (pu * pu) * gpp;
+    return derivatives;
+}
+
+GibbsDerivatives teos10_saline_derivatives(double salinity, double t_celsius, double pressure_pa,
+                                           const std::vector<SalineTerm>& terms, double gu,
+                                           double su, double tu, double pu) {
+    if (salinity < 0.0) throw std::runtime_error("teos10_saline_derivatives: salinity must be >= 0");
+    if (su <= 0.0 || tu <= 0.0 || pu <= 0.0)
+        throw std::runtime_error("teos10_saline_derivatives: scales must be positive");
+    const double s = salinity / su;
+    const double t = t_celsius / tu;
+    const double p = pressure_pa / pu;
+
+    double g = 0.0, gt = 0.0, gp = 0.0, gtt = 0.0, gtp = 0.0, gpp = 0.0;
+    for (const auto& term : terms) {
+        if (term.i < 1 || term.j < 0 || term.k < 0)
+            throw std::runtime_error("teos10_saline_derivatives: invalid term indices");
+        double salinity_part = 0.0;
+        if (term.i == 1) {
+            if (s <= 0.0)
+                throw std::runtime_error("teos10_saline_derivatives: i = 1 term needs S > 0");
+            salinity_part = 0.5 * s * std::log(s);
+        } else {
+            salinity_part = std::pow(s, term.i / 2.0);
+        }
+        const double tp = std::pow(t, term.j) * std::pow(p, term.k);
+        g += term.coefficient * salinity_part * tp;
+        if (term.j >= 1)
+            gt += term.coefficient * salinity_part * term.j * std::pow(t, term.j - 1) *
+                  std::pow(p, term.k);
+        if (term.k >= 1)
+            gp += term.coefficient * salinity_part * std::pow(t, term.j) * term.k *
+                  std::pow(p, term.k - 1);
+        if (term.j >= 2)
+            gtt += term.coefficient * salinity_part * term.j * (term.j - 1) *
+                   std::pow(t, term.j - 2) * std::pow(p, term.k);
+        if (term.j >= 1 && term.k >= 1)
+            gtp += term.coefficient * salinity_part * term.j * term.k *
+                   std::pow(t, term.j - 1) * std::pow(p, term.k - 1);
+        if (term.k >= 2)
+            gpp += term.coefficient * salinity_part * std::pow(t, term.j) * term.k *
+                   (term.k - 1) * std::pow(p, term.k - 2);
+    }
+    GibbsDerivatives derivatives;
+    derivatives.g = gu * g;
+    derivatives.g_t = gu / tu * gt;
+    derivatives.g_p = gu / pu * gp;
+    derivatives.g_tt = gu / (tu * tu) * gtt;
+    derivatives.g_tp = gu / (tu * pu) * gtp;
+    derivatives.g_pp = gu / (pu * pu) * gpp;
+    return derivatives;
+}
+
+double sound_speed_from_derivatives(const GibbsDerivatives& derivatives) {
+    const double denominator =
+        derivatives.g_tp * derivatives.g_tp - derivatives.g_tt * derivatives.g_pp;
+    if (denominator == 0.0 || derivatives.g_tt / denominator < 0.0)
+        throw std::runtime_error("sound_speed_from_derivatives: non-physical curvature");
+    return derivatives.g_p * std::sqrt(derivatives.g_tt / denominator);
+}
+
 double gibbs_sound_speed(const std::function<double(double, double, double)>& gibbs,
                          double salinity, double t_celsius, double pressure_pa,
                          double temperature_step, double pressure_step) {
