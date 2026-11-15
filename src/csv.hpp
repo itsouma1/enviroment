@@ -21,6 +21,9 @@ struct Table {
 // and CRLF line endings are supported. Throws std::runtime_error on failure.
 Table read_csv(const std::string& path, char delimiter = ',');
 
+// Parses delimited text that is already in memory (same grammar as read_csv).
+Table parse_csv_text(const std::string& text, char delimiter = ',');
+
 // Parses a numeric field. Recognised missing-value markers ("", "NA", "N/A",
 // "NaN", "null", "-9999") return false and leave the output untouched.
 bool parse_number(const std::string& text, double& out);

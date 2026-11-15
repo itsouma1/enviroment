@@ -31,6 +31,7 @@
 #include "series.hpp"
 #include "stats.hpp"
 #include "trend.hpp"
+#include "ui.hpp"
 
 using namespace climate;
 
@@ -374,6 +375,8 @@ void print_usage() {
         << "  data inspect --file FILE.nc\n"
         << "  data export --file FILE.nc --variable V --out CSV [--mode timeseries|grid]\n"
         << "      NASA Earthdata acquisition wrapper and NetCDF-3 inspection.\n\n"
+        << "  ui [--port 8080] [--host 127.0.0.1]\n"
+        << "      Start the local Climate Workbench dashboard in a browser.\n\n"
         << "  help\n"
         << "      Show this message.\n";
 }
@@ -2465,6 +2468,13 @@ int main(int argc, char** argv) {
         if (command == "co2") {
             const Arguments args = parse_arguments(argc, argv, 2);
             return command_co2(args);
+        }
+        if (command == "ui") {
+            const Arguments args = parse_arguments(argc, argv, 2);
+            UiOptions options;
+            options.host = args.get("host", "127.0.0.1");
+            options.port = args.integer("port", 8080);
+            return run_ui_server(options);
         }
         if (command == "data") {
             if (argc < 3) {

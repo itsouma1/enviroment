@@ -31,7 +31,10 @@ data: tools/generate_demo
 demo: $(BIN) data
 	./$(BIN) query "is the arctic changing?" --data data
 
+ui: $(BIN)
+	./$(BIN) ui --port 8080
+
 clean:
 	rm -f $(OBJ) $(BIN) tools/generate_demo tests/test_all
 
-.PHONY: all test data demo clean
+.PHONY: all test data demo ui clean

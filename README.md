@@ -17,6 +17,7 @@ make            # builds ./climate and tools/generate_demo
 make test       # builds and runs the self-checking test program
 make data       # writes the synthetic demo datasets into data/
 make demo       # query "is the arctic changing?" against data/
+make ui         # start the local workbench at http://127.0.0.1:8080
 ```
 
 Requirements: a C++17 compiler (g++ or clang++) and `make`.
@@ -38,6 +39,7 @@ Requirements: a C++17 compiler (g++ or clang++) and `make`.
 | `src/analysis.*` | the seasonality -> trend pipeline for ordinary and CO2 series |
 | `src/report.*` | text, Markdown and JSON reports |
 | `src/main.cpp` | command-line interface |
+| `src/ui.*`, `src/ui_page.*` | dependency-free HTTP server and the embedded workbench dashboard |
 | `tests/test_all.cpp` | formula and pipeline checks |
 | `tools/generate_demo.cpp` | generator for the synthetic datasets |
 
@@ -111,6 +113,40 @@ Requirements: a C++17 compiler (g++ or clang++) and `make`.
 ```
 
 Run `./climate help` for the complete option list.
+
+## Workbench UI
+
+```sh
+./climate ui                       # http://127.0.0.1:8080
+./climate ui --port 9000 --host 0.0.0.0
+```
+
+The binary serves a self-contained single-page dashboard; there is no asset
+directory, Node runtime or front-end build step. The page embeds its CSS and
+JavaScript and calls the same C++ functions as the command line through a small
+JSON API. Its visual language is a beige/brown CRT console: solid panels, square
+controls, scanlines and phosphor charts, with no gradients or external assets.
+
+The landing page is the **Trend Detective** workflow: variable and region
+selection, an explicit data-acquisition gate (coverage, gaps, missing values and
+artifacts are disclosed before testing), STL seasonality removal, Mann-Kendall /
+Sen inference, a spatial-readiness check that refuses to invent a map for a
+scalar series, and a final report with export. The NASA Data page lists the CMR
+product routes and generates reproducible `nasa_fetch.py fetch --dry-run` plans;
+live downloads use the same wrapper and require Earthdata Login plus
+`earthaccess`. The Formula Registry indexes every public function declaration
+from `src/*.hpp` (over 900 in the current tree), and the Command Console runs any
+non-UI subcommand in the binary. The remaining laboratories expose the CO2
+polyharmonic fit, NLSST/NDVI-EVI-SAVI/NASA Team/GPI retrievals, information
+theory, SST uncertainty propagation, physics calculators, the variable catalog
+and the deterministic intent compiler.
+
+The server is a plain POSIX socket listener with one short-lived thread per
+request, so it remains standard-library-only. It binds to loopback by default;
+use `--host 0.0.0.0` only on a trusted network. Uploaded CSV text is parsed in
+memory and is not written to disk. The UI is deliberately local: there are no
+accounts, telemetry or external requests. The console executes only the bundled
+`climate` binary, with the `ui` subcommand blocked to avoid recursive servers.
 
 ## Implemented formulas
 

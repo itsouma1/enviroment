@@ -81,11 +81,9 @@ std::string Table::cell(std::size_t row, int column_index) const {
     return rows[row][static_cast<std::size_t>(column_index)];
 }
 
-Table read_csv(const std::string& path, char delimiter) {
-    std::ifstream input(path);
-    if (!input) throw std::runtime_error("cannot open file: " + path);
-
+Table parse_csv_text(const std::string& text, char delimiter) {
     Table table;
+    std::istringstream input(text);
     std::string line;
     bool have_header = false;
     while (std::getline(input, line)) {
@@ -102,8 +100,20 @@ Table read_csv(const std::string& path, char delimiter) {
         if (fields.size() > table.header.size()) fields.resize(table.header.size());
         table.rows.push_back(std::move(fields));
     }
-    if (!have_header) throw std::runtime_error("file has no header row: " + path);
+    if (!have_header) throw std::runtime_error("CSV has no header row");
     return table;
+}
+
+Table read_csv(const std::string& path, char delimiter) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("cannot open file: " + path);
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+    try {
+        return parse_csv_text(buffer.str(), delimiter);
+    } catch (const std::exception& exception) {
+        throw std::runtime_error(std::string(exception.what()) + ": " + path);
+    }
 }
 
 bool parse_number(const std::string& raw, double& out) {
