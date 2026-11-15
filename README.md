@@ -293,6 +293,14 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Variable-specific validation (notes 480-520 KB).** `validation.hpp`
+implements the standardised-difference truth test, the quadruple-collocation
+closure, LIF, the quadratic sea-ice SIC bias and derivative,
+inverse-variance precipitation merging, the hit/missed/false bias sum, the
+OCO retrieval+representation error covariance and flux error decomposition,
+the ocean-colour `J^T C J` propagation, data/model measurement uncertainty
+and the partially-linear CATE estimator.
+
 **Homogenisation and causal attribution (notes 448-480 KB).** `homogen.hpp`
 implements the benchmark metrics (absolute bias, FOEX, relative RMSE), the
 bivariate ACMANT objective, ensemble homogenisation mean/variance, the

@@ -40,6 +40,7 @@
 #include "geostat.hpp"
 #include "intercal.hpp"
 #include "homogen.hpp"
+#include "validation.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1797,7 +1798,24 @@ void test_homogenisation() {
     CHECK_NEAR(cyclegan_objective(1.0, 2.0, 3.0, 1.0), 6.0, 1e-12);
 }
 
+void test_variable_validation() {
+    CHECK_NEAR(standardised_difference_variance({1.0, -1.0}, {0.0, 0.0}, 1.0, 1.0, 0.0), 0.5,
+               1e-12);
+    CHECK_NEAR(quadruple_collocation_covariance(3.0, 1.0, 1.0, 2.0), 1.0, 1e-12);
+    CHECK_NEAR(linear_ice_fraction(30.0, 100.0), 30.0, 1e-12);
+    CHECK_NEAR(sea_ice_quadratic_bias(0.0, 0.1, 0.01, 0.5), 0.0525, 1e-12);
+    CHECK_NEAR(sea_ice_bias_derivative(0.1, 0.01, 0.5), 0.11, 1e-12);
+    CHECK_NEAR(inverse_variance_merge({1.0, 2.0}, {1.0, 4.0}), 1.2, 1e-12);
+    CHECK_NEAR(precipitation_bias_sum(1.0, 2.0, 3.0), 6.0, 1e-12);
+    CHECK_NEAR(observation_error_covariance({{2.0}}, {{3.0}})[0][0], 5.0, 1e-12);
+    CHECK_NEAR(flux_error_decomposition(1.0, 2.0, 3.0), std::sqrt(14.0), 1e-12);
+    CHECK_NEAR(ocean_colour_variance({1.0, 2.0}, {{1.0, 0.0}, {0.0, 1.0}}), 5.0, 1e-12);
+    CHECK_NEAR(measurement_uncertainty(3.0, 4.0), 5.0, 1e-12);
+    CHECK_NEAR(partially_linear_effect({1.0, 2.0}, {1.0, 2.0}), 1.0, 1e-12);
+}
+
 int main() {
+    test_variable_validation();
     test_homogenisation();
     test_geostat_intercal();
     test_metrology();
