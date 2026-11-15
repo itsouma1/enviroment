@@ -293,6 +293,18 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Homogenisation and causal attribution (notes 448-480 KB).** `homogen.hpp`
+implements the benchmark metrics (absolute bias, FOEX, relative RMSE), the
+bivariate ACMANT objective, ensemble homogenisation mean/variance, the
+BYS-CUSUM residual statistic and Student-t likelihood, the Singh-Maddala
+density, the sparse-jump objective, the cautious selection-bias correction,
+SUHI and excursion probability, and the variational lower bound.
+`intercal.hpp` adds STAR V5.0 linear/Z terms and TLT synthesis, ACI
+susceptibility `beta1 alpha1`, cloud-fraction N_d bias, LWP error variance,
+the DML residual estimator, G-computation, natural-effect addition, SNO
+scene variance, CLARREO bias variance, TRUTHS total uncertainty, the
+random-walk Kalman update, and CycleGAN adversarial/cycle losses.
+
 **SPDE, GTWR and sensor intercalibration (notes 384-400 KB).**
 `geostat.hpp` implements the SPDE Matern variance and precision
 `tau^2(kappa^2 C + G)^alpha`, GMRF conditional mean/covariance,

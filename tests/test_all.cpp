@@ -39,6 +39,7 @@
 #include "metrology.hpp"
 #include "geostat.hpp"
 #include "intercal.hpp"
+#include "homogen.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1748,7 +1749,56 @@ void test_geostat_intercal() {
     CHECK_NEAR(sno_t_statistic(1.0, 2.0, 4), 1.0, 1e-12);
 }
 
+void test_homogenisation() {
+    CHECK_NEAR(absolute_mean_bias({1.0, 4.0}, {0.0, 0.0}), 2.5, 1e-12);
+    CHECK_NEAR(factor_of_exceedance({2.0, 0.0}, {1.0, 1.0}), 0.0, 1e-12);
+    CHECK_NEAR(relative_rmse({2.0, 4.0}, {4.0, 8.0}, {0.0, 0.0}), 0.5, 1e-12);
+    CHECK_NEAR(acmant_objective({0.0, 2.0}, {1.0, 1.0}, {}, 1.0), 2.0, 1e-12);
+
+    std::vector<double> mean, variance;
+    homogenisation_ensemble({{1.0, 2.0}, {3.0, 4.0}}, mean, variance);
+    CHECK_NEAR(mean[0], 2.0, 1e-12);
+    CHECK_NEAR(variance[1], 2.0, 1e-12);
+
+    CHECK_NEAR(residual_cusum({1.0, 1.0, 1.0, 1.0}, 2), 0.0, 1e-12);
+    CHECK_NEAR(student_t_log_likelihood({0.0}, 3.0, 1.0),
+               std::lgamma(2.0) - std::lgamma(1.5) - 0.5 * std::log(3.0 * M_PI), 1e-12);
+    CHECK_NEAR(singh_maddala_density(1.0, 1.0, 1.0, 1.0), 0.25, 1e-12);
+    CHECK_NEAR(sparse_jump_objective({{0.0}, {10.0}}, {0, 1}, {{0.0}, {10.0}}, 1.0), 1.0, 1e-12);
+    CHECK_NEAR(cautious_correction(10.0, 2.0), 8.0, 1e-12);
+    CHECK_NEAR(surface_urban_heat_island(5.0, 2.0), 3.0, 1e-12);
+    CHECK_NEAR(excursion_probability(0.5, 0.0, 0.2), 0.9937903346742238, 1e-12);
+    CHECK_NEAR(variational_lower_bound(2.0, 3.0), -1.0, 1e-12);
+
+    CHECK_NEAR(msu_linear_radiance(1.0, 2.0, 5.0, 1.0), 9.0, 1e-12);
+    CHECK_NEAR(msu_drift_term(2.0, 1.0, 3.0), 8.0, 1e-12);
+    CHECK_NEAR(msu_tlt_synthesis(1.0, 2.0, 3.0), 0.602, 1e-12);
+    CHECK_NEAR(msu_z_counts(2.0, 5.0, 1.0, 3.0), 32.0, 1e-12);
+    CHECK_NEAR(aci_susceptibility(0.5, 2.0), 1.0, 1e-12);
+    CHECK_NEAR(nd_relative_bias(0.1, -0.5, 0.5), -0.45, 1e-12);
+    CHECK_NEAR(lwp_error_variance(2.0, 3.0, 0.01, 0.04, -0.005), 0.34, 1e-12);
+    CHECK_NEAR(dml_treatment_effect({1.0, 2.0}, {1.0, 2.0}), 1.0, 1e-12);
+    CHECK_NEAR(g_computation_effect({1.0, 2.0, 3.0}, {0.2, 0.3, 0.5}), 2.3, 1e-12);
+    CHECK_NEAR(natural_effect_total(1.0, 2.0), 3.0, 1e-12);
+    CHECK_NEAR(mean_squared_error({1.0, 3.0}, {0.0, 0.0}), 5.0, 1e-12);
+    CHECK_NEAR(coefficient_of_determination({1.0, 2.0, 3.0}, {1.0, 2.0, 3.0}), 1.0, 1e-12);
+
+    CHECK_NEAR(sno_scene_variance(1.0, 2.0), 3.0, 1e-12);
+    CHECK_NEAR(clarreo_bias_variance({1.0, 1.0}), 0.5, 1e-12);
+    CHECK_NEAR(truths_total_uncertainty(1.0, 2.0, 3.0), std::sqrt(14.0), 1e-12);
+    double gain = 0.0, innovation = 0.0, innovation_variance = 0.0;
+    const double drift = kalman_random_walk(0.0, 1.0, 0.5, 1.0, 2.0, 2.0, gain, innovation,
+                                           innovation_variance);
+    CHECK_NEAR(drift, 0.8571428571428571, 1e-12);
+    CHECK_NEAR(gain, 0.42857142857142855, 1e-12);
+    CHECK_NEAR(innovation_variance, 3.5, 1e-12);
+    CHECK_NEAR(adversarial_loss({1.0}, {0.0}), 0.0, 1e-12);
+    CHECK_NEAR(cycle_consistency_loss({1.0, 3.0}, {2.0, 5.0}), 1.5, 1e-12);
+    CHECK_NEAR(cyclegan_objective(1.0, 2.0, 3.0, 1.0), 6.0, 1e-12);
+}
+
 int main() {
+    test_homogenisation();
     test_geostat_intercal();
     test_metrology();
     test_magnitude_hierarchy();

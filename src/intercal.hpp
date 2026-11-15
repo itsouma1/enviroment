@@ -17,6 +17,13 @@ double gsics_uncertainty(double geo_radiance, double offset, double slope,
 // ---------------------------------------------------------------------------
 // MSU/AMSU calibration and drift
 // ---------------------------------------------------------------------------
+double msu_linear_radiance(double cold_space_radiance, double slope, double earth_counts,
+                           double cold_counts);
+
+double msu_drift_term(double kappa, double mechanism_one, double mechanism_two);
+
+double msu_tlt_synthesis(double tmt, double tut, double tls);
+
 double msu_delta_radiance(double alpha, double beta, double time, double reference_time);
 
 double msu_nonlinearity(double mu0, double k, double time, double reference_time);
@@ -100,6 +107,54 @@ double bias_regression_slope(const std::vector<double>& target,
 // ---------------------------------------------------------------------------
 // SNO variance budget
 // ---------------------------------------------------------------------------
+double sno_scene_variance(double instrument_variance, double scene_variance);
+
+double clarreo_bias_variance(const std::vector<double>& weights);
+
+double truths_total_uncertainty(double spectral, double geometric, double noise);
+
+// One random-walk Kalman update; returns the updated mean and writes the
+// updated variance, gain, innovation and innovation variance.
+double kalman_random_walk(double mean, double variance, double process_variance, double dt,
+                          double observation, double observation_variance, double& gain,
+                          double& innovation, double& innovation_variance);
+
+// CycleGAN losses.
+double adversarial_loss(const std::vector<double>& real_scores,
+                        const std::vector<double>& fake_scores);
+
+double cycle_consistency_loss(const std::vector<double>& forward_cycle,
+                              const std::vector<double>& original);
+
+double cyclegan_objective(double forward_adversarial, double backward_adversarial,
+                          double cycle_loss, double lambda);
+
+double msu_z_counts(double slope, double earth_counts, double cold_counts, double warm_counts);
+
+// Aerosol-cloud interaction and susceptibility.
+double aci_susceptibility(double droplet_slope, double extinction_slope);
+
+double nd_relative_bias(double cloud_fraction_slope, double cloud_fraction_intercept,
+                        double cloud_fraction);
+
+double lwp_error_variance(double effective_radius, double optical_depth,
+                          double optical_depth_variance, double effective_radius_variance,
+                          double cross_covariance);
+
+double dml_treatment_effect(const std::vector<double>& residual_outcome,
+                            const std::vector<double>& residual_treatment);
+
+double g_computation_effect(const std::vector<double>& stage_effects,
+                            const std::vector<double>& stage_probabilities);
+
+double natural_effect_total(double direct_effect, double indirect_effect);
+
+double mean_squared_error(const std::vector<double>& predicted,
+                          const std::vector<double>& observed);
+
+double coefficient_of_determination(const std::vector<double>& predicted,
+                                    const std::vector<double>& observed);
+
 double sno_variance_decomposition(double spatial_variance, double temporal_variance,
                                   double noise_variance);
 

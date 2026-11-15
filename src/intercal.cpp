@@ -32,6 +32,19 @@ double gsics_uncertainty(double geo_radiance, double offset, double slope,
     return std::sqrt(variance);
 }
 
+double msu_linear_radiance(double cold_space_radiance, double slope, double earth_counts,
+                           double cold_counts) {
+    return cold_space_radiance + slope * (earth_counts - cold_counts);
+}
+
+double msu_drift_term(double kappa, double mechanism_one, double mechanism_two) {
+    return kappa * (mechanism_one + mechanism_two);
+}
+
+double msu_tlt_synthesis(double tmt, double tut, double tls) {
+    return 1.430 * tmt - 0.462 * tut + 0.032 * tls;
+}
+
 double msu_delta_radiance(double alpha, double beta, double time, double reference_time) {
     return alpha + beta * (time - reference_time);
 }
@@ -206,6 +219,145 @@ double bias_regression_slope(const std::vector<double>& target,
     }
     require(variance > 0.0, "bias_regression_slope: zero reference variance");
     return covariance / variance;
+}
+
+double msu_z_counts(double slope, double earth_counts, double cold_counts, double warm_counts) {
+    return slope * slope * (earth_counts - cold_counts) * (earth_counts - warm_counts);
+}
+
+double aci_susceptibility(double droplet_slope, double extinction_slope) {
+    return droplet_slope * extinction_slope;
+}
+
+double nd_relative_bias(double cloud_fraction_slope, double cloud_fraction_intercept,
+                        double cloud_fraction) {
+    return cloud_fraction_slope * cloud_fraction + cloud_fraction_intercept;
+}
+
+double lwp_error_variance(double effective_radius, double optical_depth,
+                          double optical_depth_variance, double effective_radius_variance,
+                          double cross_covariance) {
+    return effective_radius * effective_radius * optical_depth_variance +
+           optical_depth * optical_depth * effective_radius_variance +
+           2.0 * effective_radius * optical_depth * cross_covariance;
+}
+
+double dml_treatment_effect(const std::vector<double>& residual_outcome,
+                            const std::vector<double>& residual_treatment) {
+    require(!residual_outcome.empty() && residual_outcome.size() == residual_treatment.size(),
+            "dml_treatment_effect: size mismatch");
+    double covariance = 0.0, variance = 0.0;
+    for (std::size_t i = 0; i < residual_outcome.size(); ++i) {
+        covariance += residual_treatment[i] * residual_outcome[i];
+        variance += residual_treatment[i] * residual_treatment[i];
+    }
+    require(variance > 0.0, "dml_treatment_effect: zero treatment variance");
+    return covariance / variance;
+}
+
+double g_computation_effect(const std::vector<double>& stage_effects,
+                            const std::vector<double>& stage_probabilities) {
+    require(stage_effects.size() == stage_probabilities.size(),
+            "g_computation_effect: size mismatch");
+    double total = 0.0;
+    for (std::size_t i = 0; i < stage_effects.size(); ++i)
+        total += stage_effects[i] * stage_probabilities[i];
+    return total;
+}
+
+double natural_effect_total(double direct_effect, double indirect_effect) {
+    return direct_effect + indirect_effect;
+}
+
+double mean_squared_error(const std::vector<double>& predicted,
+                          const std::vector<double>& observed) {
+    require(!predicted.empty() && predicted.size() == observed.size(),
+            "mean_squared_error: size mismatch");
+    double total = 0.0;
+    for (std::size_t i = 0; i < predicted.size(); ++i) {
+        const double difference = predicted[i] - observed[i];
+        total += difference * difference;
+    }
+    return total / static_cast<double>(predicted.size());
+}
+
+double coefficient_of_determination(const std::vector<double>& predicted,
+                                    const std::vector<double>& observed) {
+    require(!predicted.empty() && predicted.size() == observed.size(),
+            "coefficient_of_determination: size mismatch");
+    double mean = 0.0;
+    for (double value : observed) mean += value;
+    mean /= static_cast<double>(observed.size());
+    double residual = 0.0, total = 0.0;
+    for (std::size_t i = 0; i < predicted.size(); ++i) {
+        residual += (predicted[i] - observed[i]) * (predicted[i] - observed[i]);
+        total += (observed[i] - mean) * (observed[i] - mean);
+    }
+    require(total > 0.0, "coefficient_of_determination: zero variance");
+    return 1.0 - residual / total;
+}
+
+double sno_scene_variance(double instrument_variance, double scene_variance) {
+    return instrument_variance + scene_variance;
+}
+
+double clarreo_bias_variance(const std::vector<double>& weights) {
+    double total = 0.0;
+    for (double weight : weights) {
+        require(weight > 0.0, "clarero_bias_variance: non-positive weight");
+        total += weight;
+    }
+    require(total > 0.0, "clarero_bias_variance: zero total weight");
+    return 1.0 / total;
+}
+
+double truths_total_uncertainty(double spectral, double geometric, double noise) {
+    return std::sqrt(spectral * spectral + geometric * geometric + noise * noise);
+}
+
+double kalman_random_walk(double mean, double variance, double process_variance, double dt,
+                          double observation, double observation_variance, double& gain,
+                          double& innovation, double& innovation_variance) {
+    require(variance >= 0.0 && process_variance >= 0.0 && dt >= 0.0,
+            "kalman_random_walk: negative variance");
+    require(observation_variance > 0.0, "kalman_random_walk: observation variance");
+    const double predicted_variance = variance + process_variance * dt;
+    innovation_variance = predicted_variance + observation_variance;
+    gain = predicted_variance / innovation_variance;
+    innovation = observation - mean;
+    const double updated = mean + gain * innovation;
+    variance = (1.0 - gain) * predicted_variance;
+    return updated;
+}
+
+double adversarial_loss(const std::vector<double>& real_scores,
+                        const std::vector<double>& fake_scores) {
+    require(!real_scores.empty() && !fake_scores.empty(), "adversarial_loss: empty scores");
+    double total = 0.0;
+    for (double score : real_scores) {
+        require(score > 0.0 && score <= 1.0, "adversarial_loss: score outside (0,1]");
+        total += std::log(score);
+    }
+    for (double score : fake_scores) {
+        require(score >= 0.0 && score < 1.0, "adversarial_loss: score outside [0,1)");
+        total += std::log(1.0 - score);
+    }
+    return total / static_cast<double>(real_scores.size() + fake_scores.size());
+}
+
+double cycle_consistency_loss(const std::vector<double>& forward_cycle,
+                              const std::vector<double>& original) {
+    require(!forward_cycle.empty() && forward_cycle.size() == original.size(),
+            "cycle_consistency_loss: size mismatch");
+    double total = 0.0;
+    for (std::size_t i = 0; i < original.size(); ++i)
+        total += std::fabs(forward_cycle[i] - original[i]);
+    return total / static_cast<double>(original.size());
+}
+
+double cyclegan_objective(double forward_adversarial, double backward_adversarial,
+                          double cycle_loss, double lambda) {
+    return forward_adversarial + backward_adversarial + lambda * cycle_loss;
 }
 
 double sno_variance_decomposition(double spatial_variance, double temporal_variance,
