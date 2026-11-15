@@ -293,6 +293,30 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Trend testing, attribution and algorithmic decisions.** `multitrend.hpp`
+implements the Libiseller-Grimvall MK cross-covariance, scalar and quadratic
+multivariate tests, partial MK, seasonal-score covariance, moving-window
+Kendall dependence trends (MDT/MOT) and a permutation p-value. `attrib2.hpp`
+adds GLS optimal fingerprinting, detection and amplitude consistency,
+single- and multi-pattern attribution, joint/Schur signal-to-noise, the
+bias-corrected errors-in-variables estimating equation, Box-Cox nonlinear
+co-trending, and Bierens partial-sum generalized eigenvalues. `causal2.hpp`
+provides partial-correlation CI tests, a lagged PCMCI skeleton, the MCI effect
+size, Gaussian-copula R-CaMK null simulation, and Gaussian-vine higher-tree
+diagnostics. `restrand.hpp` implements RESTREND residuals, segmented trends,
+SDID weights and effects, placebo tests, stability selection, knockoff
+thresholds, Theil-Sen, Pettitt and Benjamini-Hochberg. `precip.hpp` adds the
+two-state Markov occurrence chain with spatial latent coupling, Gamma amounts,
+Wilks correlation derivatives and locally weighted parameter interpolation.
+`readers.hpp` provides longitude normalization, bilinear weights/sampling and
+NetCDF HFR/ERA5 velocity grids. `tempac.hpp` computes first-harmonic annual
+cycle amplitude, first-EOF fingerprints, projections, noise-trend S/N,
+cyclostationary harmonic loadings and reduced-space optimal interpolation.
+`maturity.hpp` scores the three ESIP dimensions, GHRSST CDAF eligibility and
+metrics, and CEOS-ARD type/specification validation. `relevance.hpp` adds the
+variance/mutual-information relevance score, marginal gains, VIF and greedy
+selection.
+
 **Regional sign partitioning and clustering.** `clustering.hpp` implements fuzzy
 C-means with its membership/centroid updates and objective, membership
 sensitivities and fractal centroid trends; attribute-weighted DBSCAN with an

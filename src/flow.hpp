@@ -34,6 +34,40 @@ std::vector<std::pair<std::size_t, std::size_t>> constrained_ridge_path(
 bool has_closed_contour(const Matrix& field, std::size_t row, std::size_t column,
                         double threshold, std::size_t max_radius);
 
+// Longest path through local maxima in the increasing-value DAG.
+std::vector<std::pair<std::size_t, std::size_t>> longest_path_ridge(
+    const Matrix& field, std::size_t max_step, double max_difference);
+
+struct ContourSegment {
+    double x1 = 0.0;
+    double y1 = 0.0;
+    double x2 = 0.0;
+    double y2 = 0.0;
+};
+
+std::vector<ContourSegment> marching_squares_segments(const Matrix& field,
+                                                       double threshold);
+
+std::vector<std::vector<std::pair<double, double>>> closed_contours(
+    const Matrix& field, double threshold);
+
+// 3-D gradient-direction non-maximum suppression with trilinear sampling.
+std::vector<double> non_maximum_suppression_3d(const std::vector<double>& magnitude,
+                                               const std::vector<double>& gradient_x,
+                                               const std::vector<double>& gradient_y,
+                                               const std::vector<double>& gradient_t,
+                                               std::size_t nx, std::size_t ny,
+                                               std::size_t nt, double step);
+
+// Viterbi ridge on -log(field) with a quadratic latitude-jump penalty.
+std::vector<std::size_t> penalized_ridge_path(const Matrix& field, double penalty);
+
+// Cyclic shifted Viterbi passes with a per-longitude majority vote.
+std::vector<std::size_t> cyclic_penalized_ridge(const Matrix& field, double penalty,
+                                                int passes);
+
+double rossby_integration_time(double zonal_wavenumber, double beta);
+
 std::pair<double, double> jet_axis(double t0, double tau, double x_min, double x_max,
                                    double y_min, double y_max, std::size_t nx,
                                    std::size_t ny, const VelocityField& velocity, int steps);

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <stdexcept>
 
 namespace climate {
@@ -180,6 +181,308 @@ bool has_closed_contour(const Matrix& field, std::size_t row, std::size_t column
         if (closed) return true;
     }
     return false;
+}
+
+std::vector<std::pair<std::size_t, std::size_t>> longest_path_ridge(
+    const Matrix& field, std::size_t max_step, double max_difference) {
+    require(!field.empty() && !field[0].empty() && max_step > 0,
+            "longest_path_ridge: inputs");
+    const std::size_t rows = field.size(), columns = field[0].size();
+    struct Vertex {
+        std::size_t row;
+        std::size_t column;
+        double value;
+    };
+    std::vector<Vertex> vertices;
+    for (std::size_t r = 0; r < rows; ++r)
+        for (std::size_t c = 0; c < columns; ++c) {
+            bool maximum = true;
+            for (int dr = -1; dr <= 1 && maximum; ++dr)
+                for (int dc = -1; dc <= 1; ++dc) {
+                    if (dr == 0 && dc == 0) continue;
+                    const long rr = static_cast<long>(r) + dr;
+                    const long cc = static_cast<long>(c) + dc;
+                    if (rr < 0 || cc < 0 || rr >= static_cast<long>(rows) ||
+                        cc >= static_cast<long>(columns))
+                        continue;
+                    if (field[static_cast<std::size_t>(rr)][static_cast<std::size_t>(cc)] >
+                        field[r][c])
+                        maximum = false;
+                }
+            if (maximum) vertices.push_back({r, c, field[r][c]});
+        }
+    require(!vertices.empty(), "longest_path_ridge: no local maxima");
+    std::sort(vertices.begin(), vertices.end(),
+              [](const Vertex& a, const Vertex& b) { return a.value < b.value; });
+    std::vector<double> score(vertices.size(), 0.0);
+    std::vector<int> parent(vertices.size(), -1);
+    for (std::size_t v = 0; v < vertices.size(); ++v) {
+        score[v] = vertices[v].value;
+        for (std::size_t u = 0; u < v; ++u) {
+            const std::size_t dr = vertices[v].row > vertices[u].row
+                                       ? vertices[v].row - vertices[u].row
+                                       : vertices[u].row - vertices[v].row;
+            const std::size_t dc = vertices[v].column > vertices[u].column
+                                       ? vertices[v].column - vertices[u].column
+                                       : vertices[u].column - vertices[v].column;
+            if (std::max(dr, dc) > max_step) continue;
+            if (std::fabs(vertices[v].value - vertices[u].value) > max_difference) continue;
+            if (score[u] + vertices[v].value > score[v]) {
+                score[v] = score[u] + vertices[v].value;
+                parent[v] = static_cast<int>(u);
+            }
+        }
+    }
+    std::size_t best = 0;
+    for (std::size_t v = 1; v < vertices.size(); ++v)
+        if (score[v] > score[best]) best = v;
+    std::vector<std::pair<std::size_t, std::size_t>> path;
+    for (int v = static_cast<int>(best); v >= 0; v = parent[static_cast<std::size_t>(v)])
+        path.push_back({vertices[static_cast<std::size_t>(v)].row,
+                        vertices[static_cast<std::size_t>(v)].column});
+    std::reverse(path.begin(), path.end());
+    return path;
+}
+
+namespace {
+
+std::pair<double, double> edge_crossing(const Matrix& field, std::size_t row,
+                                        std::size_t column, int edge, double threshold) {
+    const double bl = field[row][column], br = field[row][column + 1];
+    const double tr = field[row + 1][column + 1], tl = field[row + 1][column];
+    auto interpolate = [threshold](double a, double b) {
+        const double denominator = b - a;
+        if (std::fabs(denominator) < 1e-15) return 0.5;
+        return (threshold - a) / denominator;
+    };
+    switch (edge) {
+        case 0: return {static_cast<double>(column) + interpolate(bl, br),
+                        static_cast<double>(row)};
+        case 1: return {static_cast<double>(column + 1),
+                        static_cast<double>(row) + interpolate(br, tr)};
+        case 2: return {static_cast<double>(column) + interpolate(tl, tr),
+                        static_cast<double>(row + 1)};
+        default: return {static_cast<double>(column),
+                         static_cast<double>(row) + interpolate(bl, tl)};
+    }
+}
+
+std::vector<std::pair<int, int>> case_edges(int code, bool centre_high) {
+    switch (code) {
+        case 0:
+        case 15: return {};
+        case 1: return {{3, 0}};
+        case 2: return {{0, 1}};
+        case 3: return {{3, 1}};
+        case 4: return {{1, 2}};
+        case 5: return centre_high ? std::vector<std::pair<int, int>>{{3, 2}, {0, 1}}
+                                   : std::vector<std::pair<int, int>>{{3, 0}, {1, 2}};
+        case 6: return {{0, 2}};
+        case 7: return {{3, 2}};
+        case 8: return {{2, 3}};
+        case 9: return {{2, 0}};
+        case 10: return centre_high ? std::vector<std::pair<int, int>>{{3, 0}, {2, 1}}
+                                    : std::vector<std::pair<int, int>>{{3, 2}, {0, 1}};
+        case 11: return {{2, 1}};
+        case 12: return {{3, 1}};
+        case 13: return {{0, 1}};
+        case 14: return {{0, 3}};
+        default: return {};
+    }
+}
+
+}  // namespace
+
+std::vector<ContourSegment> marching_squares_segments(const Matrix& field,
+                                                       double threshold) {
+    require(field.size() >= 2 && field[0].size() >= 2, "marching_squares_segments: grid");
+    std::vector<ContourSegment> segments;
+    for (std::size_t row = 0; row + 1 < field.size(); ++row)
+        for (std::size_t column = 0; column + 1 < field[0].size(); ++column) {
+            int code = 0;
+            if (field[row][column] >= threshold) code |= 1;
+            if (field[row][column + 1] >= threshold) code |= 2;
+            if (field[row + 1][column + 1] >= threshold) code |= 4;
+            if (field[row + 1][column] >= threshold) code |= 8;
+            const double centre = 0.25 * (field[row][column] + field[row][column + 1] +
+                                          field[row + 1][column] + field[row + 1][column + 1]);
+            for (const auto& edges : case_edges(code, centre >= threshold)) {
+                const auto first = edge_crossing(field, row, column, edges.first, threshold);
+                const auto second = edge_crossing(field, row, column, edges.second, threshold);
+                segments.push_back({first.first, first.second, second.first, second.second});
+            }
+        }
+    return segments;
+}
+
+std::vector<std::vector<std::pair<double, double>>> closed_contours(
+    const Matrix& field, double threshold) {
+    const std::vector<ContourSegment> segments = marching_squares_segments(field, threshold);
+    std::map<std::pair<long long, long long>, std::vector<std::size_t>> adjacency;
+    auto key = [](double x, double y) {
+        return std::make_pair(static_cast<long long>(std::llround(x * 1e6)),
+                              static_cast<long long>(std::llround(y * 1e6)));
+    };
+    for (std::size_t s = 0; s < segments.size(); ++s) {
+        adjacency[key(segments[s].x1, segments[s].y1)].push_back(s);
+        adjacency[key(segments[s].x2, segments[s].y2)].push_back(s);
+    }
+    std::vector<int> used(segments.size(), 0);
+    std::vector<std::vector<std::pair<double, double>>> loops;
+    for (std::size_t start = 0; start < segments.size(); ++start) {
+        if (used[start]) continue;
+        std::vector<std::pair<double, double>> loop;
+        std::size_t current = start;
+        double x = segments[start].x1, y = segments[start].y1;
+        const double start_x = x, start_y = y;
+        bool closed = false;
+        while (true) {
+            used[current] = 1;
+            loop.push_back({x, y});
+            const ContourSegment& segment = segments[current];
+            const bool at_first = key(x, y) == key(segment.x1, segment.y1);
+            x = at_first ? segment.x2 : segment.x1;
+            y = at_first ? segment.y2 : segment.y1;
+            if (key(x, y) == key(start_x, start_y)) {
+                closed = true;
+                break;
+            }
+            const auto found = adjacency.find(key(x, y));
+            if (found == adjacency.end()) break;
+            std::size_t next = segments.size();
+            for (std::size_t candidate : found->second)
+                if (!used[candidate]) {
+                    next = candidate;
+                    break;
+                }
+            if (next == segments.size()) break;
+            current = next;
+        }
+        if (closed && loop.size() >= 3) loops.push_back(loop);
+    }
+    return loops;
+}
+
+std::vector<double> non_maximum_suppression_3d(const std::vector<double>& magnitude,
+                                               const std::vector<double>& gradient_x,
+                                               const std::vector<double>& gradient_y,
+                                               const std::vector<double>& gradient_t,
+                                               std::size_t nx, std::size_t ny,
+                                               std::size_t nt, double step) {
+    const std::size_t n = nx * ny * nt;
+    require(magnitude.size() == n && gradient_x.size() == n && gradient_y.size() == n &&
+                gradient_t.size() == n && step > 0.0,
+            "non_maximum_suppression_3d: size");
+    auto sample = [&](double x, double y, double z) {
+        if (x < 0.0 || y < 0.0 || z < 0.0 || x >= static_cast<double>(nx - 1) ||
+            y >= static_cast<double>(ny - 1) || z >= static_cast<double>(nt - 1))
+            return std::numeric_limits<double>::quiet_NaN();
+        const std::size_t i = static_cast<std::size_t>(x), j = static_cast<std::size_t>(y),
+                          k = static_cast<std::size_t>(z);
+        const double fx = x - static_cast<double>(i), fy = y - static_cast<double>(j),
+                     fz = z - static_cast<double>(k);
+        double sum = 0.0;
+        for (int dz = 0; dz <= 1; ++dz)
+            for (int dy = 0; dy <= 1; ++dy)
+                for (int dx = 0; dx <= 1; ++dx) {
+                    const double weight = (dx ? fx : 1.0 - fx) * (dy ? fy : 1.0 - fy) *
+                                          (dz ? fz : 1.0 - fz);
+                    sum += weight * magnitude[(i + dx) + nx * ((j + dy) + ny * (k + dz))];
+                }
+        return sum;
+    };
+    std::vector<double> result(n, 0.0);
+    for (std::size_t k = 0; k < nt; ++k)
+        for (std::size_t j = 0; j < ny; ++j)
+            for (std::size_t i = 0; i < nx; ++i) {
+                const std::size_t index = i + nx * (j + ny * k);
+                const double gx = gradient_x[index], gy = gradient_y[index],
+                             gt = gradient_t[index];
+                const double norm = std::sqrt(gx * gx + gy * gy + gt * gt);
+                if (norm <= 1e-15) continue;
+                const double forward = sample(static_cast<double>(i) + step * gx / norm,
+                                              static_cast<double>(j) + step * gy / norm,
+                                              static_cast<double>(k) + step * gt / norm);
+                const double backward = sample(static_cast<double>(i) - step * gx / norm,
+                                               static_cast<double>(j) - step * gy / norm,
+                                               static_cast<double>(k) - step * gt / norm);
+                const double value = magnitude[index];
+                bool keep = true;
+                if (!std::isnan(forward) && value <= forward) keep = false;
+                if (!std::isnan(backward) && value <= backward) keep = false;
+                if (keep) result[index] = value;
+            }
+    return result;
+}
+
+std::vector<std::size_t> penalized_ridge_path(const Matrix& field, double penalty) {
+    require(!field.empty() && !field[0].empty() && penalty >= 0.0,
+            "penalized_ridge_path: inputs");
+    const std::size_t rows = field.size(), columns = field[0].size();
+    std::vector<std::vector<double>> cost(columns, std::vector<double>(rows, 0.0));
+    std::vector<std::vector<int>> parent(columns, std::vector<int>(rows, -1));
+    for (std::size_t row = 0; row < rows; ++row)
+        cost[0][row] = -std::log(std::max(field[row][0], 1e-300));
+    for (std::size_t column = 1; column < columns; ++column)
+        for (std::size_t row = 0; row < rows; ++row) {
+            double best = std::numeric_limits<double>::infinity();
+            int best_parent = -1;
+            for (std::size_t previous = 0; previous < rows; ++previous) {
+                const double difference = static_cast<double>(row) -
+                                          static_cast<double>(previous);
+                const double candidate = cost[column - 1][previous] +
+                                         penalty * difference * difference;
+                if (candidate < best) {
+                    best = candidate;
+                    best_parent = static_cast<int>(previous);
+                }
+            }
+            cost[column][row] = -std::log(std::max(field[row][column], 1e-300)) + best;
+            parent[column][row] = best_parent;
+        }
+    std::size_t best_row = 0;
+    for (std::size_t row = 1; row < rows; ++row)
+        if (cost[columns - 1][row] < cost[columns - 1][best_row]) best_row = row;
+    std::vector<std::size_t> path(columns, 0);
+    int row = static_cast<int>(best_row);
+    for (std::size_t column = columns; column-- > 0;) {
+        path[column] = static_cast<std::size_t>(row);
+        row = parent[column][static_cast<std::size_t>(row)];
+        if (column == 0) break;
+    }
+    return path;
+}
+
+std::vector<std::size_t> cyclic_penalized_ridge(const Matrix& field, double penalty,
+                                                int passes) {
+    require(!field.empty() && !field[0].empty() && passes > 0,
+            "cyclic_penalized_ridge: inputs");
+    const std::size_t rows = field.size(), columns = field[0].size();
+    std::vector<std::vector<std::size_t>> votes(columns, std::vector<std::size_t>(rows, 0));
+    for (int pass = 0; pass < passes; ++pass) {
+        const std::size_t offset = static_cast<std::size_t>(
+            (static_cast<long>(pass) * static_cast<long>(columns)) / passes);
+        Matrix shifted(rows, std::vector<double>(columns, 0.0));
+        for (std::size_t row = 0; row < rows; ++row)
+            for (std::size_t column = 0; column < columns; ++column)
+                shifted[row][column] = field[row][(column + offset) % columns];
+        const std::vector<std::size_t> path = penalized_ridge_path(shifted, penalty);
+        for (std::size_t column = 0; column < columns; ++column)
+            ++votes[(column + offset) % columns][path[column]];
+    }
+    std::vector<std::size_t> ridge(columns, 0);
+    for (std::size_t column = 0; column < columns; ++column) {
+        std::size_t best = 0;
+        for (std::size_t row = 1; row < rows; ++row)
+            if (votes[column][row] > votes[column][best]) best = row;
+        ridge[column] = best;
+    }
+    return ridge;
+}
+
+double rossby_integration_time(double zonal_wavenumber, double beta) {
+    require(beta > 0.0, "rossby_integration_time: beta");
+    return std::fabs(zonal_wavenumber) / (2.0 * beta);
 }
 
 std::pair<double, double> jet_axis(double t0, double tau, double x_min, double x_max,

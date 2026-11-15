@@ -51,6 +51,15 @@
 #include "kernel.hpp"
 #include "clustering.hpp"
 #include "ssa.hpp"
+#include "multitrend.hpp"
+#include "precip.hpp"
+#include "readers.hpp"
+#include "tempac.hpp"
+#include "attrib2.hpp"
+#include "causal2.hpp"
+#include "restrand.hpp"
+#include "maturity.hpp"
+#include "relevance.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -2174,6 +2183,186 @@ void test_ocean_profiles() {
     CHECK_NEAR(apriori[1], 0.5, 1e-12);
 }
 
+void test_algorithmic_gaps_and_trends() {
+    CHECK_NEAR(mann_kendall_score({1.0, 2.0, 3.0}), 3.0, 1e-12);
+    CHECK_NEAR(mann_kendall_variance(3), 66.0 / 18.0, 1e-12);
+    CHECK_NEAR(mann_kendall_cross_covariance({1.0, 2.0, 3.0}, {1.0, 2.0, 3.0}),
+               66.0 / 18.0, 1e-12);
+    CHECK_NEAR(multivariate_mann_kendall({1.0, 1.0}, {{2.0, 0.0}, {0.0, 2.0}}),
+               1.0, 1e-12);
+    CHECK_NEAR(multivariate_mann_kendall_quadratic({1.0, 0.0},
+                                                   {{4.0, 0.0}, {0.0, 4.0}}),
+               0.25, 1e-12);
+    CHECK_NEAR(partial_mann_kendall({1.0, 2.0, 3.0}, {1.0, 2.0, 3.0}), 0.0, 1e-12);
+    CHECK_NEAR(dependence_trend({1, 2, 3, 4, 5}, {1, 2, 3, 4, 5}, 3), 0.0, 1e-12);
+    CHECK(overall_multivariate_trend({1, 2, 3, 4, 5}, {2, 3, 4, 5, 6}, 3) > 0.0);
+    const double mdt_p = dependence_trend_p_value({1, 2, 3, 4, 5}, {1, 2, 3, 4, 5}, 3, 20, 4);
+    CHECK(mdt_p >= 0.0 && mdt_p <= 1.0);
+
+    CHECK_NEAR(wet_day_probability(0.2, 0.4), 0.25, 1e-12);
+    const Matrix wet = markov_occurrence_field(2, 2, 3, 1.0, 1.0, 0.5, 7);
+    CHECK_NEAR(wet[2][3], 1.0, 1e-12);
+    const Matrix dry = markov_occurrence_field(2, 2, 3, 0.0, 0.0, 0.5, 7);
+    CHECK_NEAR(dry[1][2], 0.0, 1e-12);
+    const PrecipitationField precipitation =
+        simulate_precipitation(2, 2, 5, 1.0, 1.0, 0.3, 2.0, 1.0, 11);
+    CHECK(precipitation.amount[0][0] > 0.0);
+    CHECK_NEAR(wilks_correlation_distance_derivative(2.0, -1.0, 1.0),
+               2.0 * std::exp(-2.0), 1e-12);
+    CHECK_NEAR(wilks_correlation_shape_derivative(2.0, -1.0, 1.0),
+               -2.0 * std::log(2.0) * std::exp(-2.0), 1e-12);
+    CHECK_NEAR(temperature_correlation(1.0, 2.0, 0.0, -0.1, -0.2), std::exp(-0.5), 1e-12);
+    CHECK_NEAR(locally_weighted_parameter({0.0, 1.0}, {0.0, 0.0}, {0.0, 10.0}, 0.5, 0.0,
+                                          1e6),
+               5.0, 1e-12);
+
+    CHECK_NEAR(normalize_longitude(190.0), -170.0, 1e-12);
+    CHECK_NEAR(normalize_longitude(180.0), -180.0, 1e-12);
+    const std::vector<double> weights = bilinear_weights(0.5, 0.5, 0.0, 1.0, 0.0, 1.0);
+    for (double weight : weights) CHECK_NEAR(weight, 0.25, 1e-12);
+    CHECK_NEAR(bilinear_sample({0.0, 1.0, 2.0, 3.0}, 2, 2, {0.0, 1.0}, {0.0, 1.0}, 0.5,
+                               0.5),
+               1.5, 1e-12);
+    CHECK_NEAR(cosine_latitude_mean({1.0, 2.0}, 2, 1, {0.0, 60.0}),
+               (1.0 + 2.0 * std::cos(60.0 * 3.14159265358979323846 / 180.0)) /
+                   (1.0 + std::cos(60.0 * 3.14159265358979323846 / 180.0)),
+               1e-12);
+
+    std::vector<double> monthly(12, 0.0);
+    for (std::size_t month = 0; month < 12; ++month)
+        monthly[month] = std::cos(2.0 * 3.14159265358979323846 * static_cast<double>(month + 1) /
+                                  12.0);
+    CHECK_NEAR(first_harmonic_amplitude(monthly), 1.0, 1e-12);
+    const std::vector<double> eof = first_eof({{1.0, 2.0}, {2.0, 4.0}, {3.0, 6.0}});
+    CHECK_NEAR(std::fabs(eof[1] / eof[0]), 2.0, 1e-9);
+    CHECK_NEAR(detection_p_value(3.0, {1.0, 2.0, 4.0}), 1.0 / 3.0, 1e-12);
+    CHECK_NEAR(pattern_signal_to_noise(4.0, {1.0, 3.0}), 2.0 * std::sqrt(2.0), 1e-12);
+    CHECK_NEAR(signal_to_noise_length_ratio(2.0, 1.0), 2.0, 1e-12);
+    double cseof_amplitude = 0.0, cseof_phase = 0.0;
+    const std::vector<double> loading =
+        cseof_harmonic_loading({0.0, 1.0, 0.0, -1.0}, 4.0, 1, cseof_amplitude, cseof_phase);
+    CHECK(loading.size() == 4);
+    CHECK_NEAR(cseof_amplitude, 1.0, 1e-9);
+    const std::vector<double> analysis =
+        reduced_space_analysis({0.0}, {2.0}, {{1.0}}, {{1.0}}, {{1.0}});
+    CHECK_NEAR(analysis[0], 1.0, 1e-12);
+
+    const Matrix ridge_field = {{5.0, 5.0, 5.0, 5.0, 5.0},
+                                {5.0, 8.0, 6.0, 7.0, 5.0},
+                                {5.0, 5.0, 5.0, 5.0, 5.0}};
+    CHECK(longest_path_ridge(ridge_field, 2, 1.0).size() == 2);
+    const Matrix bubble = {{0.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 0.0}};
+    CHECK(closed_contours(bubble, 0.5).size() == 1);
+    const Matrix flat_ridge = {{0.0, 0.0, 0.0, 0.0, 0.0},
+                               {5.0, 5.0, 5.0, 5.0, 5.0},
+                               {0.0, 0.0, 0.0, 0.0, 0.0}};
+    const std::vector<std::size_t> penalized = penalized_ridge_path(flat_ridge, 1.0);
+    for (std::size_t row : penalized) CHECK(row == 1);
+    CHECK_NEAR(rossby_integration_time(2.0, 2.0), 0.5, 1e-12);
+    std::vector<double> magnitude(9, 1.0), gradient_x(9, 0.0), gradient_y(9, 0.0),
+        gradient_t(9, 0.0);
+    magnitude[4] = 10.0;
+    gradient_x[4] = 1.0;
+    const std::vector<double> suppressed =
+        non_maximum_suppression_3d(magnitude, gradient_x, gradient_y, gradient_t, 3, 3, 1, 0.5);
+    CHECK_NEAR(suppressed[4], 10.0, 1e-12);
+
+    CHECK_NEAR(box_cox(2.0, 0.0), std::log(2.0), 1e-12);
+    CHECK_NEAR(box_cox(2.0, 1.0), 1.0, 1e-12);
+    CHECK_NEAR(box_cox_marginal_effect(2.0, 4.0, 1.0), 2.0, 1e-12);
+    const FingerprintFit fingerprint =
+        gls_fingerprint({4.0, 8.0}, {{2.0}, {4.0}}, {{1.0, 0.0}, {0.0, 1.0}});
+    CHECK_NEAR(fingerprint.scaling[0], 2.0, 1e-12);
+    CHECK_NEAR(detection_z(2.0, 1.0), 2.0, 1e-12);
+    CHECK(attribution_consistent(1.0, 0.1, 0.05));
+    CHECK(attribution_decision({0.95, 0.97}, 0.9) == -1);
+    CHECK(attribution_decision({0.95, 0.5}, 0.9) == 0);
+    CHECK_NEAR(fingerprint_signal_to_noise({3.0, 4.0}, {{1.0, 0.0}, {0.0, 1.0}}), 5.0,
+               1e-12);
+    CHECK_NEAR(joint_signal_to_noise({3.0}, {4.0}, {{1.0}}, {{1.0}}, {{0.0}}), 5.0, 1e-12);
+    CHECK_NEAR(joint_signal_to_noise_schur({3.0}, {4.0}, {{1.0}}, {{1.0}}, {{0.0}}), 5.0,
+               1e-12);
+    const EeFit ee = estimating_equation_fit({4.0, 8.0}, {{2.0}, {4.0}},
+                                             {{1.0, 0.0}, {0.0, 1.0}}, 0.0, 1.0, {10.0});
+    CHECK_NEAR(ee.scaling[0], 2.0, 1e-12);
+    CHECK(ee.condition_number > 0.0);
+    CHECK_NEAR(ee_bias_correction(2.0, 4.0, {8.0}, 0), 1.0, 1e-12);
+    CHECK_NEAR(ee_pseudo_residual_scale({2.0}, {4.0}, 2.0), std::sqrt(3.0), 1e-12);
+    CHECK_NEAR(confidence_interval_width(1.0, 0.05),
+               2.0 * normal_quantile(0.975), 1e-12);
+    Matrix bierens_series(30, std::vector<double>(2, 0.0));
+    for (std::size_t t = 0; t < 30; ++t) {
+        const double trend = 0.01 * static_cast<double>(t) * static_cast<double>(t);
+        bierens_series[t][0] = trend + std::sin(0.3 * static_cast<double>(t));
+        bierens_series[t][1] = trend + std::sin(0.3 * static_cast<double>(t));
+    }
+    const BierensMatrices bierens = bierens_matrices(bierens_series, 0.5);
+    CHECK(bierens.partial_sums.size() == 2);
+    CHECK(bierens_eigenvalues(bierens_series, 0.5).size() == 2);
+    CHECK(bierens_statistic(bierens_series, 0.5, 0) < 1e-6);
+
+    CHECK_NEAR(partial_correlation({1.0, 2.0, 3.0}, {1.0, 2.0, 3.0}, Matrix{}), 1.0, 1e-12);
+    CHECK_NEAR(fisher_z_p_value(0.0, 20), 1.0, 1e-12);
+    CHECK_NEAR(mci_partial_correlation(1.0, 1.0, 1.0), 1.0 / std::sqrt(2.0), 1e-12);
+    CHECK(network_mann_kendall_sum({{1.0, 2.0}, {2.0, 3.0}, {3.0, 4.0}}) > 0.0);
+    const double rcamk = rcamk_p_value(
+        {{1.0, 2.0}, {2.0, 1.0}, {3.0, 4.0}, {4.0, 3.0}, {5.0, 5.0}}, 10, 0.5, 3);
+    CHECK(rcamk >= 0.0 && rcamk <= 1.0);
+    CHECK_NEAR(gaussian_vine_full_loglik({{1.0, 0.0}, {0.0, 1.0}}, 10), 0.0, 1e-12);
+    CHECK_NEAR(higher_tree_diagnostic({{1.0, 0.0}, {0.0, 1.0}}, 10), 0.0, 1e-12);
+
+    CHECK_NEAR(restrand_residuals({1.0, 3.0, 5.0}, {{0.0}, {1.0}, {2.0}})[1], 0.0, 1e-12);
+    CHECK_NEAR(residual_trend({1.0, 2.0, 3.0}), 1.0, 1e-12);
+    std::vector<double> times(10), values(10);
+    for (std::size_t t = 0; t < 10; ++t) {
+        times[t] = static_cast<double>(t);
+        values[t] = t < 5 ? static_cast<double>(t)
+                          : 5.0 + 2.0 * (static_cast<double>(t) - 5.0);
+    }
+    const SegmentedTrend segmented = segmented_trend(times, values, 4.5);
+    CHECK_NEAR(segmented.slope, 1.0, 1e-6);
+    CHECK_NEAR(segmented.slope_change, 1.0, 1e-6);
+    const std::vector<double> unit_weights = sdid_unit_weights({{0.0, 1.0}, {0.0, 1.0}},
+                                                               {0.0, 0.0}, 0.0);
+    CHECK_NEAR(unit_weights[0] + unit_weights[1], 1.0, 1e-9);
+    CHECK_NEAR(sdid_effect({{0.0, 0.0, 1.0}, {0.0, 0.0, 1.0}, {2.0, 0.0, 1.0},
+                           {2.0, 0.0, 1.0}},
+                          {1, 0, 0}, 2, {0.0, 1.0}, {0.5, 0.5}),
+               2.0, 1e-9);
+    CHECK_NEAR(placebo_p_value({0.0, 1.0, 2.0}, 2.0), 2.0 / 4.0, 1e-12);
+    CHECK_NEAR(theil_sen_slope({0.0, 1.0, 2.0}, {0.0, 1.0, 2.0}), 1.0, 1e-12);
+    std::size_t change = 0;
+    CHECK(pettitt_statistic({0, 0, 0, 1, 1, 1}, change) > 0.0);
+    CHECK(benjamini_hochberg({0.01, 0.04, 0.2}, 0.1).size() == 2);
+    const std::vector<std::size_t> chosen = knapsack_select({3.0, 2.0, 4.0}, {2, 1, 3}, 3);
+    CHECK(chosen.size() == 2 && chosen[0] == 0 && chosen[1] == 1);
+
+    CHECK(maturity_accept({4, 3, 2}, 3, 2, 2));
+    CHECK(maturity_imbalance({4, 3, 1}) == 3);
+    CHECK(cdaf_eligible(true, 12.0, 10.0));
+    CHECK(ceos_ard_valid("optical", "SR", "5.0.1"));
+    CHECK(!ceos_ard_valid("optical", "NRB", "5.0"));
+    CHECK(!ceos_ard_valid("radar", "SR", "1.0"));
+    CdafMetrics metrics;
+    metrics.gds2_format = true;
+    metrics.record_years = 12.0;
+    CdafRequirements requirements;
+    requirements.bias = 1.0;
+    requirements.geographic = 1.0;
+    requirements.dispersion = 1.0;
+    requirements.stability = 1.0;
+    requirements.sensitivity = 1.0;
+    CHECK(cdaf_accept(metrics, requirements));
+    CHECK_NEAR(variance_explained({1.0, 2.0, 3.0}, {{1.0}, {2.0}, {3.0}}), 1.0, 1e-12);
+    CHECK_NEAR(gaussian_mutual_information(0.5), -0.5 * std::log(0.5), 1e-12);
+    CHECK_NEAR(effective_relevance_ratio(2.0, 3.0, 1.0), 6.0, 1e-12);
+    CHECK_NEAR(marginal_relevance_gain(1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0), -1.0,
+               1e-12);
+    const std::vector<std::size_t> selected = greedy_relevance_selection(
+        {0.0, 2.0, 4.0, 6.0}, {{0.0}, {1.0}, {2.0}, {3.0}}, 1000.0, 1);
+    CHECK(!selected.empty() && selected[0] == 0);
+}
+
 int main() {
     test_detectability_power();
     test_quantile_clustering();
@@ -2215,6 +2404,7 @@ int main() {
     test_atmos_ocean();
     test_closures();
     test_fetch();
+    test_algorithmic_gaps_and_trends();
 
     if (failures == 0) {
         std::cout << "all tests passed\n";
