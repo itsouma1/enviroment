@@ -127,6 +127,14 @@ double coherence_height(const std::vector<double>& pressures,
 
 double segmented_trend_difference(double second_period, double first_period);
 
+// dT/dt ~ dLW + dSW_net - dLH - dSH + storage.
+double energy_budget_trend(double longwave_down, double shortwave_net, double latent_heat,
+                           double sensible_heat, double storage);
+
+double budget_contribution(double term, double total);
+
+double contribution_sensitivity(double term, double total, bool same_term);
+
 // Point-wise Bayesian membership inference.
 double bayesian_posterior(double likelihood_inside, double likelihood_outside,
                           double prior_probability);

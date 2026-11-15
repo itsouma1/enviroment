@@ -6,6 +6,7 @@
 
 #include "lagrangian.hpp"
 #include "regional.hpp"
+#include "stats.hpp"
 
 namespace climate {
 namespace {
@@ -51,6 +52,62 @@ bool cholesky_factor(const Matrix& matrix, Matrix& factor) {
         }
     }
     return true;
+}
+
+double wilks_correlation(double distance, double d1, double d2) {
+    require(distance >= 0.0, "wilks_correlation: distance");
+    return std::exp(d1 * std::pow(distance, d2));
+}
+
+Matrix simulate_occurrence_field(std::size_t rows, std::size_t columns, std::size_t days,
+                                 double neighbour_correlation, double occurrence_probability,
+                                 unsigned seed) {
+    require(occurrence_probability >= 0.0 && occurrence_probability <= 1.0,
+            "simulate_occurrence_field: probability");
+    const Matrix correlation =
+        spatial_correlation_matrix(rows, columns, neighbour_correlation);
+    Matrix factor;
+    require(cholesky_factor(correlation, factor),
+            "simulate_occurrence_field: invalid correlation matrix");
+    const std::size_t n = correlation.size();
+    std::mt19937 generator(seed);
+    std::normal_distribution<double> normal(0.0, 1.0);
+    Matrix occurrence(days, std::vector<double>(n, 0.0));
+    const double threshold = normal_quantile(occurrence_probability);
+    std::vector<double> draw(n, 0.0), latent(n, 0.0);
+    for (std::size_t t = 0; t < days; ++t) {
+        for (double& value : draw) value = normal(generator);
+        for (std::size_t i = 0; i < n; ++i) {
+            double sum = 0.0;
+            for (std::size_t k = 0; k <= i; ++k) sum += factor[i][k] * draw[k];
+            latent[i] = sum;
+            occurrence[t][i] = latent[i] <= threshold ? 1.0 : 0.0;
+        }
+    }
+    return occurrence;
+}
+
+Matrix simulate_gamma_field(std::size_t rows, std::size_t columns, double shape,
+                            double rate, unsigned seed) {
+    require(shape > 0.0 && rate > 0.0, "simulate_gamma_field: parameters");
+    std::mt19937 generator(seed);
+    std::gamma_distribution<double> gamma(shape, 1.0 / rate);
+    Matrix field(rows, std::vector<double>(columns, 0.0));
+    for (auto& row : field)
+        for (double& value : row) value = gamma(generator);
+    return field;
+}
+
+void detrend_field(Matrix& field) {
+    require(!field.empty() && !field[0].empty(), "detrend_field: empty field");
+    const std::size_t sites = field[0].size();
+    for (std::size_t site = 0; site < sites; ++site) {
+        std::vector<double> series(field.size());
+        for (std::size_t t = 0; t < field.size(); ++t) series[t] = field[t][site];
+        const double slope = linear_trend(series);
+        for (std::size_t t = 0; t < field.size(); ++t)
+            field[t][site] -= slope * static_cast<double>(t);
+    }
 }
 
 Matrix simulate_zero_trend_field(std::size_t rows, std::size_t columns, std::size_t years,

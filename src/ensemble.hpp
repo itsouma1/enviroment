@@ -14,6 +14,18 @@ Matrix spatial_correlation_matrix(std::size_t rows, std::size_t columns,
 
 bool cholesky_factor(const Matrix& matrix, Matrix& factor);
 
+// Wilks spatial correlation: exp(d1 * distance^d2).
+double wilks_correlation(double distance, double d1, double d2);
+
+Matrix simulate_occurrence_field(std::size_t rows, std::size_t columns, std::size_t days,
+                                 double neighbour_correlation, double occurrence_probability,
+                                 unsigned seed);
+
+Matrix simulate_gamma_field(std::size_t rows, std::size_t columns, double shape,
+                            double rate, unsigned seed);
+
+void detrend_field(Matrix& field);
+
 // Trend-free AR(1) field with C0^{d(i,j)} spatial correlation; rows are times.
 Matrix simulate_zero_trend_field(std::size_t rows, std::size_t columns, std::size_t years,
                                  double neighbour_correlation, double temporal_correlation,

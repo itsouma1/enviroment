@@ -242,4 +242,104 @@ void potts_swendsen_wang_step(std::vector<int>& labels, std::size_t rows, std::s
     }
 }
 
+double quantile_influence(double time, double mean_time, double time_sum_squares,
+                          double probability, bool above_quantile, double conditional_density) {
+    require(time_sum_squares > 0.0 && conditional_density > 0.0,
+            "quantile_influence: inputs");
+    const double indicator = above_quantile ? 0.0 : 1.0;
+    return (time - mean_time) / time_sum_squares *
+           (probability - indicator) / conditional_density;
+}
+
+double fused_trend(const std::vector<double>& weights, const std::vector<double>& trends) {
+    require(!weights.empty() && weights.size() == trends.size(),
+            "fused_trend: size");
+    double weighted = 0.0, total = 0.0;
+    for (std::size_t i = 0; i < weights.size(); ++i) {
+        weighted += weights[i] * trends[i];
+        total += weights[i];
+    }
+    require(total > 0.0, "fused_trend: zero weight");
+    return weighted / total;
+}
+
+double fused_weight_sensitivity(const std::vector<double>& trends, double fused,
+                                std::size_t source) {
+    require(source < trends.size(), "fused_weight_sensitivity: source");
+    return trends[source] - fused;
+}
+
+double vertical_trend_difference(double free_troposphere, double boundary_layer) {
+    return free_troposphere - boundary_layer;
+}
+
+double trend_signal_to_noise(double trend, double standard_error) {
+    require(standard_error > 0.0, "trend_signal_to_noise: standard error");
+    return trend / standard_error;
+}
+
+double potts_energy(const std::vector<int>& labels, std::size_t rows, std::size_t cols,
+                    const std::vector<double>& alpha, const std::vector<double>& beta) {
+    require(labels.size() == rows * cols && alpha.size() == beta.size(),
+            "potts_energy: size");
+    const std::size_t clusters = alpha.size();
+    std::vector<double> counts(clusters, 0.0);
+    for (int label : labels) {
+        require(label >= 0 && static_cast<std::size_t>(label) < clusters,
+                "potts_energy: label");
+        counts[static_cast<std::size_t>(label)] += 1.0;
+    }
+    double energy = 0.0;
+    for (std::size_t k = 0; k < clusters; ++k) energy += alpha[k] * counts[k];
+    for (std::size_t row = 0; row < rows; ++row)
+        for (std::size_t column = 0; column < cols; ++column) {
+            const std::size_t index = row * cols + column;
+            const int label = labels[index];
+            if (column + 1 < cols && labels[index + 1] == label)
+                energy += beta[static_cast<std::size_t>(label)];
+            if (row + 1 < rows && labels[index + cols] == label)
+                energy += beta[static_cast<std::size_t>(label)];
+        }
+    return energy;
+}
+
+double parallel_tempering_swap_log_ratio(double energy_cold, double energy_hot,
+                                         double cold_temperature, double hot_temperature) {
+    require(cold_temperature > 0.0 && hot_temperature > 0.0,
+            "parallel_tempering_swap_log_ratio: temperatures");
+    return (1.0 / cold_temperature - 1.0 / hot_temperature) *
+           (energy_hot - energy_cold);
+}
+
+bool potts_exchange_update(
+    std::vector<int>& labels, std::size_t rows, std::size_t cols,
+    std::vector<double>& alpha, std::vector<double>& beta,
+    const std::function<double(const std::vector<int>&)>& log_likelihood,
+    double proposal_sd, std::mt19937& generator) {
+    require(labels.size() == rows * cols && alpha.size() == beta.size() && proposal_sd >= 0.0,
+            "potts_exchange_update: inputs");
+    require(alpha.size() == 1,
+            "potts_exchange_update: single cluster exchange is degenerate");
+    std::normal_distribution<double> normal(0.0, proposal_sd);
+    std::uniform_real_distribution<double> uniform(0.0, 1.0);
+    std::vector<double> proposed_alpha = alpha, proposed_beta = beta;
+    proposed_alpha[0] += normal(generator);
+    proposed_beta[0] = std::max(0.0, proposed_beta[0] + normal(generator));
+    std::vector<int> auxiliary = labels;
+    for (int sweep = 0; sweep < 10; ++sweep)
+        potts_swendsen_wang_step(auxiliary, rows, cols, proposed_alpha, proposed_beta,
+                                 generator);
+    const double log_ratio =
+        potts_energy(auxiliary, rows, cols, proposed_alpha, proposed_beta) -
+        potts_energy(labels, rows, cols, alpha, beta) +
+        log_likelihood(auxiliary) - log_likelihood(labels);
+    if (uniform(generator) < std::exp(std::min(0.0, log_ratio))) {
+        labels = auxiliary;
+        alpha = proposed_alpha;
+        beta = proposed_beta;
+        return true;
+    }
+    return false;
+}
+
 }  // namespace climate

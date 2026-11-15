@@ -293,6 +293,17 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Averaging kernels and remaining samplers.** `kernel.hpp` implements the
+retrieved trend profile `A beta`, covariance propagation
+`A Cov A^T + Cov_eps`, kernel sensitivities, a-priori sensitivity and the TOE
+ratio. `quantile.hpp` adds the quantile influence function, data-fusion
+weights, vertical trend differences, SNR, Potts energy, parallel-tempering
+swap ratios and the exchange-algorithm update. `ensemble.hpp` adds Wilks
+correlations, latent-Gaussian occurrence fields, Gamma amounts and per-member
+detrending. `flow.hpp` adds a constrained ridge path, closed-contour checks,
+Sobel/hysteresis edges and connected components. `regional.hpp` adds the
+surface energy-budget decomposition and contribution sensitivities.
+
 **Selectivity, Bayesian structure mapping and edge detection.** The regional
 module adds the percentage sign statistic, pooling standard-error ratio,
 point-wise Bayesian posterior/log-odds/prior sensitivity, probability-weighted

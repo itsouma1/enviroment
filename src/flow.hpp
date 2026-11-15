@@ -26,6 +26,14 @@ double lagrangian_descriptor(double x0, double y0, double t0, double tau,
                              const VelocityField& velocity, int steps);
 
 // Grid maximising the Lagrangian descriptor.
+// Greedy connectivity-constrained ridge path over local maxima.
+std::vector<std::pair<std::size_t, std::size_t>> constrained_ridge_path(
+    const Matrix& field, std::size_t max_step, double max_difference);
+
+// True if a full square ring around the candidate stays above field + threshold.
+bool has_closed_contour(const Matrix& field, std::size_t row, std::size_t column,
+                        double threshold, std::size_t max_radius);
+
 std::pair<double, double> jet_axis(double t0, double tau, double x_min, double x_max,
                                    double y_min, double y_max, std::size_t nx,
                                    std::size_t ny, const VelocityField& velocity, int steps);

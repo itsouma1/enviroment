@@ -518,6 +518,21 @@ double segmented_trend_difference(double second_period, double first_period) {
     return second_period - first_period;
 }
 
+double energy_budget_trend(double longwave_down, double shortwave_net, double latent_heat,
+                           double sensible_heat, double storage) {
+    return longwave_down + shortwave_net - latent_heat - sensible_heat + storage;
+}
+
+double budget_contribution(double term, double total) {
+    require(std::fabs(total) > 0.0, "budget_contribution: zero total");
+    return 100.0 * term / total;
+}
+
+double contribution_sensitivity(double term, double total, bool same_term) {
+    require(std::fabs(total) > 0.0, "contribution_sensitivity: zero total");
+    return 100.0 * ((same_term ? total : 0.0) - term) / (total * total);
+}
+
 double bayesian_posterior(double likelihood_inside, double likelihood_outside,
                           double prior_probability) {
     require(likelihood_inside >= 0.0 && likelihood_outside >= 0.0 &&

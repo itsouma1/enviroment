@@ -93,6 +93,95 @@ double lagrangian_descriptor(double x0, double y0, double t0, double tau,
     return length;
 }
 
+std::vector<std::pair<std::size_t, std::size_t>> constrained_ridge_path(
+    const Matrix& field, std::size_t max_step, double max_difference) {
+    require(!field.empty() && !field[0].empty() && max_step > 0,
+            "constrained_ridge_path: inputs");
+    const std::size_t rows = field.size(), columns = field[0].size();
+    std::size_t best_row = 0, best_column = 0;
+    double best_value = field[0][0];
+    for (std::size_t r = 0; r < rows; ++r)
+        for (std::size_t c = 0; c < columns; ++c)
+            if (field[r][c] > best_value) {
+                best_value = field[r][c];
+                best_row = r;
+                best_column = c;
+            }
+    std::vector<std::pair<std::size_t, std::size_t>> path{{best_row, best_column}};
+    std::vector<int> visited(rows * columns, 0);
+    visited[best_row * columns + best_column] = 1;
+    while (true) {
+        const std::size_t last_row = path.back().first, last_column = path.back().second;
+        int next_row = -1, next_column = -1;
+        double next_value = -1e300;
+        for (std::size_t r = 0; r < rows; ++r)
+            for (std::size_t c = 0; c < columns; ++c) {
+                if (visited[r * columns + c]) continue;
+                const std::size_t dr = r > last_row ? r - last_row : last_row - r;
+                const std::size_t dc = c > last_column ? c - last_column : last_column - c;
+                if (std::max(dr, dc) > max_step) continue;
+                if (std::fabs(field[r][c] - field[last_row][last_column]) > max_difference)
+                    continue;
+                bool local_maximum = true;
+                for (int i = -1; i <= 1 && local_maximum; ++i)
+                    for (int j = -1; j <= 1; ++j) {
+                        const long rr = static_cast<long>(r) + i;
+                        const long cc = static_cast<long>(c) + j;
+                        if (rr < 0 || cc < 0 || rr >= static_cast<long>(rows) ||
+                            cc >= static_cast<long>(columns))
+                            continue;
+                        if (field[static_cast<std::size_t>(rr)][static_cast<std::size_t>(cc)] >
+                            field[r][c])
+                            local_maximum = false;
+                    }
+                if (!local_maximum) continue;
+                if (field[r][c] > next_value) {
+                    next_value = field[r][c];
+                    next_row = static_cast<int>(r);
+                    next_column = static_cast<int>(c);
+                }
+            }
+        if (next_row < 0) break;
+        path.push_back({static_cast<std::size_t>(next_row),
+                        static_cast<std::size_t>(next_column)});
+        visited[static_cast<std::size_t>(next_row) * columns +
+                static_cast<std::size_t>(next_column)] = 1;
+    }
+    return path;
+}
+
+bool has_closed_contour(const Matrix& field, std::size_t row, std::size_t column,
+                        double threshold, std::size_t max_radius) {
+    require(!field.empty() && !field[0].empty() && row < field.size() &&
+                column < field[0].size(),
+            "has_closed_contour: index");
+    const double target = field[row][column] + threshold;
+    const std::size_t rows = field.size(), columns = field[0].size();
+    for (std::size_t radius = 1; radius <= max_radius; ++radius) {
+        if (radius > row || radius > column || row + radius >= rows ||
+            column + radius >= columns)
+            break;
+        bool closed = true;
+        for (long offset = -static_cast<long>(radius);
+             offset <= static_cast<long>(radius) && closed; ++offset) {
+            const long r1 = static_cast<long>(row) - static_cast<long>(radius);
+            const long r2 = static_cast<long>(row) + static_cast<long>(radius);
+            const long c1 = static_cast<long>(column) + offset;
+            if (field[static_cast<std::size_t>(r1)][static_cast<std::size_t>(c1)] < target ||
+                field[static_cast<std::size_t>(r2)][static_cast<std::size_t>(c1)] < target)
+                closed = false;
+            const long r3 = static_cast<long>(row) + offset;
+            const long c2 = static_cast<long>(column) - static_cast<long>(radius);
+            const long c3 = static_cast<long>(column) + static_cast<long>(radius);
+            if (field[static_cast<std::size_t>(r3)][static_cast<std::size_t>(c2)] < target ||
+                field[static_cast<std::size_t>(r3)][static_cast<std::size_t>(c3)] < target)
+                closed = false;
+        }
+        if (closed) return true;
+    }
+    return false;
+}
+
 std::pair<double, double> jet_axis(double t0, double tau, double x_min, double x_max,
                                    double y_min, double y_max, std::size_t nx,
                                    std::size_t ny, const VelocityField& velocity, int steps) {

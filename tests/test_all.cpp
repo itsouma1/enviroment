@@ -48,6 +48,7 @@
 #include "ensemble.hpp"
 #include "flow.hpp"
 #include "ocean2.hpp"
+#include "kernel.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1837,6 +1838,9 @@ void test_variable_validation() {
 void test_regional_sign_and_clustering() {
     CHECK_NEAR(sign_difference_statistic(7, 3), 0.4, 1e-12);
     CHECK_NEAR(sign_test_percentage(0, 10), -100.0, 1e-12);
+    CHECK_NEAR(energy_budget_trend(1.0, 2.0, 0.5, 0.5, 0.0), 2.0, 1e-12);
+    CHECK_NEAR(budget_contribution(1.0, 2.0), 50.0, 1e-12);
+    CHECK_NEAR(contribution_sensitivity(1.0, 2.0, true), 25.0, 1e-12);
     CHECK_NEAR(sign_test_percentage(10, 10), 0.0, 1e-12);
     CHECK_NEAR(pooling_standard_error_ratio(1.0, 3.0), 0.5, 1e-12);
     CHECK_NEAR(sign_test_binomial_p_value(7, 10), 0.171875, 1e-12);
@@ -1905,6 +1909,26 @@ void test_regional_sign_and_clustering() {
     CHECK_NEAR(centroid_probability_sensitivity(10.0, 5.0, 2.0), 2.5, 1e-12);
     CHECK_NEAR(kolmogorov_smirnov_d_plus({1.0, 2.0}, {0.0, 1.0}), 0.5, 1e-12);
     CHECK_NEAR(optical_trend_precision(0.5, {1.0, 1.0}, 1.0, 0.0), 2.5, 1e-12);
+    CHECK_NEAR(quantile_influence(2.0, 1.0, 2.0, 0.9, true, 2.0), 0.225, 1e-12);
+    CHECK_NEAR(fused_trend({0.5, 0.5}, {1.0, 3.0}), 2.0, 1e-12);
+    CHECK_NEAR(fused_weight_sensitivity({1.0, 3.0}, 2.0, 0), -1.0, 1e-12);
+    CHECK_NEAR(vertical_trend_difference(1.0, -1.0), 2.0, 1e-12);
+    CHECK_NEAR(trend_signal_to_noise(2.0, 1.0), 2.0, 1e-12);
+    CHECK_NEAR(potts_energy({0, 0, 0, 0}, 2, 2, {0.0}, {1.0}), 4.0, 1e-12);
+    CHECK_NEAR(parallel_tempering_swap_log_ratio(10.0, 8.0, 1.0, 2.0), -1.0, 1e-12);
+    std::vector<int> exchange_labels(9, 0);
+    std::vector<double> exchange_alpha{0.0}, exchange_beta{1.0};
+    std::mt19937 exchange_generator(7);
+    const bool accepted = potts_exchange_update(
+        exchange_labels, 3, 3, exchange_alpha, exchange_beta,
+        [](const std::vector<int>& values) {
+            for (int value : values)
+                if (value != 0) return -1e6;
+            return 0.0;
+        },
+        0.0, exchange_generator);
+    CHECK(accepted);
+    for (int label : exchange_labels) CHECK(label == 0);
     CHECK_NEAR(elevation_trend_slope({1.0, 2.0, 3.0}, {2.0, 3.0, 4.0}), 1.0, 1e-12);
     CHECK_NEAR(elevation_leverage(3.0, {1.0, 2.0, 3.0}), 0.5, 1e-12);
     CHECK_NEAR(latitude_corrected_edw(1.0, 0.4, 0.5), 0.8, 1e-12);
@@ -1999,6 +2023,17 @@ void test_null_ensembles_and_flow() {
     CHECK_NEAR(occurrence_percent(3, 10), 30.0, 1e-12);
     CHECK_NEAR(regime_shift_difference(2.0, 1.0), 1.0, 1e-12);
     CHECK_NEAR(year_to_year_variability({1.0, 2.0, 3.0}), 1.0, 1e-12);
+    CHECK_NEAR(wilks_correlation(2.0, -1.0, 1.0), std::exp(-2.0), 1e-12);
+    const Matrix occurrence = simulate_occurrence_field(2, 2, 3, 0.5, 1.0, 5);
+    CHECK_NEAR(occurrence[2][1], 1.0, 1e-12);
+    const Matrix no_occurrence = simulate_occurrence_field(2, 2, 3, 0.5, 0.0, 5);
+    CHECK_NEAR(no_occurrence[1][0], 0.0, 1e-12);
+    const Matrix gamma_field = simulate_gamma_field(2, 2, 2.0, 1.0, 9);
+    CHECK(gamma_field[0][0] > 0.0);
+    Matrix trended = {{0.0, 1.0}, {1.0, 3.0}, {2.0, 5.0}};
+    detrend_field(trended);
+    CHECK_NEAR(linear_trend({trended[0][0], trended[1][0], trended[2][0]}), 0.0, 1e-12);
+    CHECK_NEAR(linear_trend({trended[0][1], trended[1][1], trended[2][1]}), 0.0, 1e-12);
     const std::vector<double> smoothed = cyclic_moving_average({0.0, 10.0, 0.0}, 3);
     CHECK_NEAR(smoothed[0], 10.0 / 3.0, 1e-12);
     CHECK(can_stitch(3.0, 5.0, 4.0, 6.0));
@@ -2020,6 +2055,19 @@ void test_null_ensembles_and_flow() {
     CHECK_NEAR(cohens_d(2.0, 10.0, 2.0), 4.0, 1e-12);
     CHECK(connected_component_count({1, 1, 0, 0}, 2, 1, 2) == 1);
     CHECK(connected_component_count({1, 0, 0, 1}, 2, 1, 2) == 2);
+    const Matrix ridge_field = {{5.0, 5.0, 5.0, 5.0, 5.0},
+                                {5.0, 8.0, 6.0, 7.0, 5.0},
+                                {5.0, 5.0, 5.0, 5.0, 5.0}};
+    const auto ridge = constrained_ridge_path(ridge_field, 2, 1.0);
+    CHECK(ridge.size() == 2);
+    const Matrix closed = {{1100.0, 1100.0, 1100.0},
+                           {1100.0, 900.0, 1100.0},
+                           {1100.0, 1100.0, 1100.0}};
+    CHECK(has_closed_contour(closed, 1, 1, 200.0, 1));
+    const Matrix open = {{1000.0, 1000.0, 1000.0},
+                         {1000.0, 900.0, 1000.0},
+                         {1000.0, 1000.0, 1000.0}};
+    CHECK(!has_closed_contour(open, 1, 1, 200.0, 1));
 }
 
 void test_ocean_profiles() {
@@ -2063,6 +2111,22 @@ void test_ocean_profiles() {
     CHECK_NEAR(coefficients[1], 2.0, 1e-12);
     CHECK_NEAR(attribution_ambiguity(2.0, 2.0), 0.5, 1e-12);
     CHECK_NEAR(tracer_anomaly_decomposition(0.1, 10.0, 0.5, 2.0, 1.0), 3.0, 1e-12);
+    const std::vector<double> retrieved =
+        retrieved_trend_profile({{1.0, 0.0}, {0.5, 0.5}}, {4.0, 0.0});
+    CHECK_NEAR(retrieved[0], 4.0, 1e-12);
+    CHECK_NEAR(retrieved[1], 2.0, 1e-12);
+    const Matrix propagated = trend_covariance({{1.0, 0.0}, {0.5, 0.5}},
+                                               {{1.0, 0.0}, {0.0, 2.0}},
+                                               {{0.0, 0.0}, {0.0, 0.0}});
+    CHECK_NEAR(propagated[0][0], 1.0, 1e-12);
+    CHECK_NEAR(propagated[0][1], 0.5, 1e-12);
+    CHECK_NEAR(propagated[1][1], 0.75, 1e-12);
+    CHECK_NEAR(toe_relative_error(12.0, 10.0, 10.0), 0.2, 1e-12);
+    CHECK_NEAR(kernel_sensitivity({{1.0, 0.0}, {0.5, 0.5}}, 1, 0), 0.5, 1e-12);
+    const std::vector<double> apriori =
+        apriori_trend_sensitivity({{1.0, 0.0}, {0.5, 0.5}}, {1.0, 2.0});
+    CHECK_NEAR(apriori[0], 0.0, 1e-12);
+    CHECK_NEAR(apriori[1], 0.5, 1e-12);
 }
 
 int main() {
