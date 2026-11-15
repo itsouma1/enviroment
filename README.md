@@ -293,6 +293,20 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Detectability, quantile clustering and flow geometry.** `power.hpp` gives the
+AR(1) variance inflation, MDT at explicit power, detection time, power function,
+SNR, sensitivity derivatives and the field-significance inflation. `quantile.hpp`
+provides check loss, quantile regression, ALD density and subgradients, Potts
+conditional probabilities, Gibbs sweeps and Swendsen-Wang updates. `ensemble.hpp`
+builds C0^{d} correlation matrices, Cholesky factors, trend-free AR(1) fields,
+sign-test null ensembles and Monte Carlo power. `flow.hpp` implements FTLE and
+FTLE fields, the JetLag arc-length descriptor and ridge axis, occurrence and
+regime-shift statistics, cyclic zonal smoothing, TempestExtremes-style stitching
+and isentropic trend correction. `ocean2.hpp` adds depth warming gradients,
+Hobday MHW events, VICA, co-occurrence and independence, subsurface
+classification, GMM/PCM posteriors and gradients, K-means and cluster heat
+content, REOF-style ridge fingerprints and tracer decomposition.
+
 **Regional sign coherence and Lagrangian objects.** `regional.hpp` implements
 the Huth-Dubrovsky sign-difference statistic with binomial and empirical nulls,
 effective sample size, critical value and its autocorrelation derivative, and a

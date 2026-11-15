@@ -43,6 +43,11 @@
 #include "validation.hpp"
 #include "regional.hpp"
 #include "lagrangian.hpp"
+#include "power.hpp"
+#include "quantile.hpp"
+#include "ensemble.hpp"
+#include "flow.hpp"
+#include "ocean2.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1916,7 +1921,129 @@ void test_lagrangian_objects() {
     CHECK_NEAR(along_track_trend({5.0, 3.0, 1.0}), -2.0, 1e-12);
 }
 
+void test_detectability_power() {
+    CHECK_NEAR(variance_inflation_factor(0.5), 3.0, 1e-12);
+    CHECK_NEAR(stationary_noise_variance(1.0, 0.5), 4.0 / 3.0, 1e-12);
+    CHECK_NEAR(minimum_detectable_trend_power(1.0, 0.5, 100.0, 0.05, 0.8), 0.00485247, 1e-7);
+    CHECK_NEAR(detection_time_power(1.0, 0.5, 0.1, 0.05, 0.8), 13.304, 1e-2);
+    CHECK_NEAR(trend_power(0.2, 0.1, 0.05), 0.51601, 1e-4);
+    CHECK_NEAR(signal_to_noise_ratio(0.1, 100.0, 1.0), 10.0, 1e-12);
+    CHECK_NEAR(minimum_detectable_trend_from_snr(1.0, 0.2, 50.0), 0.004, 1e-12);
+    CHECK_NEAR(mdt_autocorrelation_derivative(1.0, 0.5, 100.0, 0.05, 0.8), 0.00646996, 1e-7);
+    CHECK_NEAR(mdt_noise_derivative(1.0, 0.5, 100.0, 0.05, 0.8), 0.00485247, 1e-7);
+    CHECK_NEAR(detection_time_trend_derivative(1.0, 0.5, 0.1, 0.05, 0.8), -88.69, 1e-1);
+    CHECK(variable_is_feasible(0.1, 0.2));
+    CHECK(!variable_is_feasible(0.3, 0.2));
+    CHECK_NEAR(effective_field_significance(0.05, 0.5, 10.0), 0.15718, 1e-4);
+}
+
+void test_quantile_clustering() {
+    CHECK_NEAR(check_loss(2.0, 0.9), 1.8, 1e-12);
+    CHECK_NEAR(check_loss(-2.0, 0.9), 0.2, 1e-12);
+    CHECK_NEAR(sample_quantile({1.0, 2.0, 3.0, 4.0}, 0.5), 2.5, 1e-12);
+    const QuantileFit fit = quantile_trend({0.0, 1.0, 2.0, 3.0}, {1.0, 3.0, 5.0, 7.0}, 0.5);
+    CHECK_NEAR(fit.slope, 2.0, 1e-6);
+    CHECK_NEAR(fit.intercept, 1.0, 1e-6);
+    CHECK_NEAR(ald_density(0.0, 0.5, 1.0), 0.25, 1e-12);
+    CHECK_NEAR(ald_subgradient(-1.0, 0.9), -0.1, 1e-12);
+    CHECK_NEAR(ald_subgradient(1.0, 0.9), 0.9, 1e-12);
+    const std::vector<double> conditional =
+        potts_conditional_probabilities({2.0, 0.0}, {0.0, 0.0}, {1.0, 1.0});
+    CHECK_NEAR(conditional[0], std::exp(2.0) / (std::exp(2.0) + 1.0), 1e-12);
+    CHECK_NEAR(potts_log_odds_neighbour_derivative(1.5), 1.5, 1e-12);
+    std::vector<int> labels(9, 0);
+    std::mt19937 generator(7);
+    potts_gibbs_sweep(labels, 3, 3, {0.0, 0.0}, {20.0, 20.0}, generator);
+    for (int label : labels) CHECK(label == 0);
+    potts_swendsen_wang_step(labels, 3, 3, {0.0, 0.0}, {20.0, 20.0}, generator);
+    for (int label : labels) CHECK(label == labels[0]);
+}
+
+void test_null_ensembles_and_flow() {
+    const Matrix correlation = spatial_correlation_matrix(2, 2, 0.5);
+    CHECK_NEAR(correlation[0][1], 0.5, 1e-12);
+    CHECK_NEAR(correlation[0][3], std::pow(0.5, std::sqrt(2.0)), 1e-12);
+    Matrix factor;
+    CHECK(cholesky_factor({{4.0, 2.0}, {2.0, 3.0}}, factor));
+    CHECK_NEAR(factor[0][0], 2.0, 1e-12);
+    CHECK_NEAR(factor[1][1], std::sqrt(2.0), 1e-12);
+    Matrix field = simulate_zero_trend_field(2, 2, 4, 0.5, 0.5, 11);
+    CHECK(field.size() == 4 && field[0].size() == 4);
+    CHECK(!std::isnan(field[3][3]));
+    Matrix zeros(5, std::vector<double>(4, 0.0));
+    inject_uniform_trend(zeros, 100.0);
+    CHECK(positive_trend_count(zeros) == 4);
+    const std::vector<std::size_t> nulls =
+        sign_test_null_ensemble(3, 3, 8, 0.4, 0.3, 5, 3);
+    CHECK(nulls.size() == 5);
+    CHECK_NEAR(central_difference([](double x) { return x * x; }, 3.0, 0.1), 6.0, 1e-12);
+
+    auto strain = [](double x, double y, double) {
+        return std::make_pair(0.1 * x, -0.1 * y);
+    };
+    CHECK_NEAR(ftle(0.0, 0.0, 0.0, 1.0, strain, 1e-4, 20), 0.1, 1e-6);
+    const Matrix ftle_values = ftle_field(0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3, 3, strain, 1e-4, 10);
+    CHECK(ftle_values.size() == 3 && ftle_values[0].size() == 3);
+    auto uniform = [](double, double, double) { return std::make_pair(1.0, 0.0); };
+    CHECK_NEAR(lagrangian_descriptor(0.0, 0.0, 0.0, 1.0, uniform, 10), 2.0, 1e-12);
+    CHECK_NEAR(occurrence_percent(3, 10), 30.0, 1e-12);
+    CHECK_NEAR(regime_shift_difference(2.0, 1.0), 1.0, 1e-12);
+    CHECK_NEAR(year_to_year_variability({1.0, 2.0, 3.0}), 1.0, 1e-12);
+    const std::vector<double> smoothed = cyclic_moving_average({0.0, 10.0, 0.0}, 3);
+    CHECK_NEAR(smoothed[0], 10.0 / 3.0, 1e-12);
+    CHECK(can_stitch(3.0, 5.0, 4.0, 6.0));
+    CHECK(!can_stitch(5.0, 5.0, 4.0, 6.0));
+    const auto tracks = stitch_tracks({{{{0.0, 0.0}}}, {{{1.0, 0.0}}}, {{{10.0, 10.0}}}}, 2.0, 1.0);
+    CHECK(tracks.size() == 2);
+    CHECK(tracks[0].size() == 2);
+    CHECK_NEAR(jet_trend_correction(1.0, 0.5, 2.0), 2.0, 1e-12);
+}
+
+void test_ocean_profiles() {
+    CHECK_NEAR(depth_warming_gradient(0.88, 0.64, 35.0), 0.00685714, 1e-8);
+    const auto events = marine_heatwave_events({1.0, 2.0, 2.0, 0.1, 2.0, 2.0},
+                                               {0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, 2);
+    CHECK(events.size() == 2);
+    CHECK(events[0].first == 0 && events[0].second == 2);
+    CHECK(events[1].first == 4 && events[1].second == 5);
+    CHECK_NEAR(marine_heatwave_intensity({2.0, 4.0}, {1.0, 1.0}, 0, 1), 2.0, 1e-12);
+    CHECK_NEAR(marine_heatwave_frequency(5, 2.0), 2.5, 1e-12);
+    CHECK_NEAR(mean_event_duration({{0, 2}, {4, 5}}), 2.5, 1e-12);
+    CHECK_NEAR(vertically_integrated_anomaly({1.0, 2.0, 3.0}, {10.0, 10.0, 10.0}), 60.0, 1e-12);
+    CHECK_NEAR(marine_heatwave_cooccurrence({1, 0, 1}, {1, 0, 0}), 1.0 / 3.0, 1e-12);
+    CHECK_NEAR(independence_delta({1, 0, 1}, {1, 0, 0}), 1.0 / 3.0, 1e-12);
+    CHECK(is_subsurface_intensified(50.0, 30.0));
+    CHECK(!is_subsurface_intensified(20.0, 30.0));
+    CHECK(depth_of_maximum_anomaly({1.0, 5.0, 3.0}) == 1);
+
+    Gaussian2D first;
+    first.mean_x = 0.0;
+    first.mean_y = 0.0;
+    Gaussian2D second;
+    second.mean_x = 2.0;
+    second.mean_y = 0.0;
+    CHECK_NEAR(gaussian_2d_density(first, 0.0, 0.0), 1.0 / (2.0 * M_PI), 1e-12);
+    CHECK_NEAR(pcm_posterior(first, second, 1.0, 1.0, 1.0, 0.0), 0.5, 1e-12);
+    const std::pair<double, double> gradient =
+        pcm_posterior_gradient(first, second, 1.0, 1.0, 1.0, 0.0);
+    CHECK_NEAR(gradient.first, -0.5, 1e-12);
+    CHECK_NEAR(cluster_weighted_mean({2.0, 4.0}, {1.0, 3.0}), 3.5, 1e-12);
+    CHECK_NEAR(kmeans_objective({{0.0}, {2.0}, {5.0}}, {0, 0, 1}, {{1.0}, {5.0}}), 2.0, 1e-12);
+    CHECK_NEAR(cluster_heat_content({1.0, 1.0}, {1.0, 0.0}, {10.0, 20.0}, 1.0), 10.0, 1e-12);
+    CHECK_NEAR(cluster_area({1.0, 2.0, 3.0}, {0, 1, 0}, 0), 4.0, 1e-12);
+    const std::vector<double> coefficients =
+        ridge_fingerprint({{1.0, 0.0}, {0.0, 1.0}, {1.0, 1.0}}, {1.0, 2.0, 3.0}, 0.0);
+    CHECK_NEAR(coefficients[0], 1.0, 1e-12);
+    CHECK_NEAR(coefficients[1], 2.0, 1e-12);
+    CHECK_NEAR(attribution_ambiguity(2.0, 2.0), 0.5, 1e-12);
+    CHECK_NEAR(tracer_anomaly_decomposition(0.1, 10.0, 0.5, 2.0, 1.0), 3.0, 1e-12);
+}
+
 int main() {
+    test_detectability_power();
+    test_quantile_clustering();
+    test_null_ensembles_and_flow();
+    test_ocean_profiles();
     test_variable_validation();
     test_regional_sign_and_clustering();
     test_lagrangian_objects();
