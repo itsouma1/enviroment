@@ -54,6 +54,50 @@ bool cholesky_factor(const Matrix& matrix, Matrix& factor) {
     return true;
 }
 
+double empirical_sign_test_p_value(std::size_t positive, std::size_t negative,
+                                   std::size_t rows, std::size_t columns,
+                                   std::size_t years, double spatial_correlation,
+                                   double temporal_correlation, std::size_t realizations,
+                                   unsigned seed) {
+    require(rows > 0 && columns > 0 && years > 2 && realizations > 0,
+            "empirical_sign_test_p_value: inputs");
+    require(positive + negative > 0, "empirical_sign_test_p_value: no sites");
+    const std::size_t observed = std::max(positive, negative);
+    const Matrix correlation = spatial_correlation_matrix(rows, columns, spatial_correlation);
+    Matrix factor;
+    require(cholesky_factor(correlation, factor),
+            "empirical_sign_test_p_value: invalid correlation");
+    const std::size_t sites = correlation.size();
+    std::mt19937 generator(seed);
+    std::normal_distribution<double> normal(0.0, 1.0);
+    std::size_t exceedances = 0;
+    Matrix field(years, std::vector<double>(sites, 0.0));
+    std::vector<double> innovation(sites, 0.0), persistent(sites, 0.0);
+    for (std::size_t realization = 0; realization < realizations; ++realization) {
+        for (std::size_t t = 0; t < years; ++t) {
+            for (double& value : innovation) value = normal(generator);
+            for (std::size_t site = 0; site < sites; ++site) {
+                double sum = 0.0;
+                for (std::size_t k = 0; k <= site; ++k) sum += factor[site][k] * innovation[k];
+                persistent[site] = t == 0 ? sum
+                                          : temporal_correlation * persistent[site] +
+                                                std::sqrt(std::max(0.0, 1.0 -
+                                                    temporal_correlation * temporal_correlation)) * sum;
+                field[t][site] = persistent[site];
+            }
+        }
+        detrend_field(field);
+        std::size_t sign_positive = 0;
+        for (std::size_t site = 0; site < sites; ++site) {
+            std::vector<double> series(years, 0.0);
+            for (std::size_t t = 0; t < years; ++t) series[t] = field[t][site];
+            if (linear_trend(series) > 0.0) ++sign_positive;
+        }
+        if (std::max(sign_positive, sites - sign_positive) >= observed) ++exceedances;
+    }
+    return static_cast<double>(exceedances) / static_cast<double>(realizations);
+}
+
 double wilks_correlation(double distance, double d1, double d2) {
     require(distance >= 0.0, "wilks_correlation: distance");
     return std::exp(d1 * std::pow(distance, d2));

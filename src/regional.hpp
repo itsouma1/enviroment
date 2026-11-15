@@ -15,6 +15,13 @@ double sign_difference_statistic(std::size_t positive, std::size_t negative);
 // Huth-Dubrovsky percentage form: S = (n_+/N - 1) * 100.
 double sign_test_percentage(std::size_t positive, std::size_t total);
 
+std::size_t sign_test_max_count(std::size_t positive, std::size_t negative);
+
+double sign_test_count_fraction(std::size_t positive, std::size_t total);
+
+// Sorted empirical null counts; nearest-rank (1 - alpha) quantile.
+double empirical_critical_value(std::vector<double> null_counts, double alpha);
+
 // Exact one-sided binomial tail P(M >= observed) with p = 0.5.
 double sign_test_binomial_p_value(std::size_t observed, std::size_t trials);
 
@@ -64,6 +71,10 @@ double pooling_standard_error_ratio(double between_site_variance, double data_pr
 
 double pooled_cluster_mean(const std::vector<double>& site_trends,
                            const std::vector<double>& precisions);
+
+// w_s / sum(w) - a station's share of its cluster trend.
+double pooled_cluster_mean_sensitivity(const std::vector<double>& precisions,
+                                       std::size_t site);
 
 // ---- REOF regionalisation ----------------------------------------------
 

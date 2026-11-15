@@ -49,6 +49,8 @@
 #include "flow.hpp"
 #include "ocean2.hpp"
 #include "kernel.hpp"
+#include "clustering.hpp"
+#include "ssa.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1838,6 +1840,9 @@ void test_variable_validation() {
 void test_regional_sign_and_clustering() {
     CHECK_NEAR(sign_difference_statistic(7, 3), 0.4, 1e-12);
     CHECK_NEAR(sign_test_percentage(0, 10), -100.0, 1e-12);
+    CHECK(sign_test_max_count(3, 7) == 7);
+    CHECK_NEAR(sign_test_count_fraction(7, 10), 0.7, 1e-12);
+    CHECK_NEAR(empirical_critical_value({1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, 0.1), 9.0, 1e-12);
     CHECK_NEAR(energy_budget_trend(1.0, 2.0, 0.5, 0.5, 0.0), 2.0, 1e-12);
     CHECK_NEAR(budget_contribution(1.0, 2.0), 50.0, 1e-12);
     CHECK_NEAR(contribution_sensitivity(1.0, 2.0, true), 25.0, 1e-12);
@@ -1871,6 +1876,7 @@ void test_regional_sign_and_clustering() {
     CHECK_NEAR(shrinkage_derivative(1.0, 0.0, 2.0), -0.5, 1e-12);
     CHECK_NEAR(pooled_posterior_variance(0.4, 0.6), 0.24, 1e-12);
     CHECK_NEAR(pooled_cluster_mean({1.0, 3.0}, {4.0, 1.0}), 1.4, 1e-12);
+    CHECK_NEAR(pooled_cluster_mean_sensitivity({4.0, 1.0}, 0), 0.8, 1e-12);
 
     const EigenSystem eigen = symmetric_eigen({{2.0, 1.0}, {1.0, 2.0}});
     CHECK_NEAR(eigen.values[0], 3.0, 1e-12);
@@ -2024,6 +2030,9 @@ void test_null_ensembles_and_flow() {
     CHECK_NEAR(regime_shift_difference(2.0, 1.0), 1.0, 1e-12);
     CHECK_NEAR(year_to_year_variability({1.0, 2.0, 3.0}), 1.0, 1e-12);
     CHECK_NEAR(wilks_correlation(2.0, -1.0, 1.0), std::exp(-2.0), 1e-12);
+    const double empirical_p =
+        empirical_sign_test_p_value(9, 0, 2, 2, 20, 0.5, 0.5, 20, 3);
+    CHECK(empirical_p >= 0.0 && empirical_p <= 1.0);
     const Matrix occurrence = simulate_occurrence_field(2, 2, 3, 0.5, 1.0, 5);
     CHECK_NEAR(occurrence[2][1], 1.0, 1e-12);
     const Matrix no_occurrence = simulate_occurrence_field(2, 2, 3, 0.5, 0.0, 5);
@@ -2111,6 +2120,42 @@ void test_ocean_profiles() {
     CHECK_NEAR(coefficients[1], 2.0, 1e-12);
     CHECK_NEAR(attribution_ambiguity(2.0, 2.0), 0.5, 1e-12);
     CHECK_NEAR(tracer_anomaly_decomposition(0.1, 10.0, 0.5, 2.0, 1.0), 3.0, 1e-12);
+    const FuzzyCMeansResult fuzzy = fuzzy_c_means({{0.0}, {1.0}, {9.0}, {10.0}}, 2, 2.0, 1e-9, 200);
+    CHECK(fuzzy.membership.size() == 4);
+    CHECK_NEAR(fuzzy.membership[0][0], 1.0, 0.2);
+    CHECK_NEAR(fuzzy.membership[3][1], 1.0, 0.2);
+    CHECK(fuzzy.objective >= 0.0);
+    CHECK_NEAR(fuzzy_centroid_trend({1.0, 3.0}, {1.0, 0.0}, 2.0), 1.0, 1e-12);
+    const std::vector<double> sensitivity =
+        fuzzy_membership_sensitivity({0.0}, {{1.0}, {10.0}}, {0.9, 0.1});
+    CHECK(sensitivity.size() == 2);
+    CHECK_NEAR(attribute_distance({0.0, 0.0, 1.0}, {0.0, 0.0, 3.0}, 2.0), 2.0 * std::sqrt(2.0), 1e-12);
+    const std::vector<int> labels = dbscan({{0.0}, {0.1}, {5.0}}, 0.5, 2);
+    CHECK(labels[0] == 0 && labels[1] == 0 && labels[2] == -1);
+    const std::vector<int> attribute_labels =
+        dbscan_attribute({{0.0, 0.0, 1.0}, {0.0, 0.1, 1.0}, {0.0, 0.2, 9.0}}, 1.0, 0.5, 2);
+    CHECK(attribute_labels[0] == 0 && attribute_labels[1] == 0);
+    CHECK(attribute_labels[2] == -1);
+    CHECK_NEAR(dbscan_critical_weight(1.0, 0.0, 1.0), 1.0, 1e-12);
+    CHECK_NEAR(cluster_mean_slope({1.0, 2.0, 9.0}, {0, 0, -1}, 0), 1.5, 1e-12);
+    CHECK_NEAR(varimax_criterion({{1.0, 0.0}, {0.0, 1.0}}), 0.5, 1e-12);
+    const std::vector<int> partition = reof_partition({{0.5, 0.1}, {0.2, 0.1}}, 0.4);
+    CHECK(partition[0] == 0 && partition[1] == -1);
+    const Matrix rpc_sensitivity =
+        rpc_trend_sensitivity({0.0, 1.0, 2.0}, {{1.0}}, {{1.0}}, 0);
+    CHECK_NEAR(rpc_sensitivity[0][0], -0.5, 1e-12);
+    CHECK_NEAR(rpc_sensitivity[2][0], 0.5, 1e-12);
+    CHECK_NEAR(trend_sign_flip_probability(0.0, 1.0, 0.05), 0.95, 1e-12);
+    const std::vector<double> assignment = categorical_assignment_probabilities({0.0, 1.0, 2.0});
+    CHECK_NEAR(assignment[2], 0.6652409557748218, 1e-10);
+    std::vector<double> linear_series(10);
+    for (std::size_t t = 0; t < linear_series.size(); ++t)
+        linear_series[t] = static_cast<double>(t);
+    const std::vector<double> ssa_component = ssa_trend(linear_series, 4);
+    CHECK(ssa_component.size() == linear_series.size());
+    CHECK(linear_trend(ssa_component) > 0.8 && linear_trend(ssa_component) < 1.6);
+    const SsaFeatures ssa = ssa_features(linear_series, 4, 4.0);
+    CHECK(ssa.trend > 0.8 && ssa.trend < 1.6);
     const std::vector<double> retrieved =
         retrieved_trend_profile({{1.0, 0.0}, {0.5, 0.5}}, {4.0, 0.0});
     CHECK_NEAR(retrieved[0], 4.0, 1e-12);

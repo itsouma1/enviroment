@@ -293,6 +293,19 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Regional sign partitioning and clustering.** `clustering.hpp` implements fuzzy
+C-means with its membership/centroid updates and objective, membership
+sensitivities and fractal centroid trends; attribute-weighted DBSCAN with an
+attribute weight embedded as `sqrt(w_a) * a`, critical weight and cluster-mean
+slopes; the varimax criterion, REOF threshold partitions, RPC trend
+sensitivities and sign-flip probabilities; and categorical cluster assignment
+from cluster log-likelihoods. `ssa.hpp` provides SSA trajectory matrices,
+rank-one trend reconstruction, sinusoid fitting and the four-feature vector
+`(slope, amplitude, phase, residual sd)`. The sign test now exposes the maximum
+count, count fraction and nearest-rank empirical critical value, and the
+ensemble adds a detrended Monte Carlo p-value. Hierarchical GEV pooling adds
+the precision-weighted cluster-mean sensitivity.
+
 **Averaging kernels and remaining samplers.** `kernel.hpp` implements the
 retrieved trend profile `A beta`, covariance propagation
 `A Cov A^T + Cov_eps`, kernel sensitivities, a-priori sensitivity and the TOE

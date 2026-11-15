@@ -17,6 +17,13 @@ bool cholesky_factor(const Matrix& matrix, Matrix& factor);
 // Wilks spatial correlation: exp(d1 * distance^d2).
 double wilks_correlation(double distance, double d1, double d2);
 
+// Empirical null for the sign count with detrended members.
+double empirical_sign_test_p_value(std::size_t positive, std::size_t negative,
+                                   std::size_t rows, std::size_t columns,
+                                   std::size_t years, double spatial_correlation,
+                                   double temporal_correlation, std::size_t realizations,
+                                   unsigned seed);
+
 Matrix simulate_occurrence_field(std::size_t rows, std::size_t columns, std::size_t days,
                                  double neighbour_correlation, double occurrence_probability,
                                  unsigned seed);

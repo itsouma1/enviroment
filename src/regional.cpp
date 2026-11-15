@@ -285,6 +285,15 @@ double pooling_standard_error_ratio(double between_site_variance, double data_pr
     return 1.0 / std::sqrt(1.0 + between_site_variance * data_precision);
 }
 
+double pooled_cluster_mean_sensitivity(const std::vector<double>& precisions,
+                                       std::size_t site) {
+    require(site < precisions.size(), "pooled_cluster_mean_sensitivity: site");
+    double total = 0.0;
+    for (double precision : precisions) total += precision;
+    require(total > 0.0, "pooled_cluster_mean_sensitivity: zero precision");
+    return precisions[site] / total;
+}
+
 double pooled_cluster_mean(const std::vector<double>& site_trends,
                            const std::vector<double>& precisions) {
     require(!site_trends.empty() && site_trends.size() == precisions.size(),
@@ -516,6 +525,26 @@ double coherence_height(const std::vector<double>& pressures,
 
 double segmented_trend_difference(double second_period, double first_period) {
     return second_period - first_period;
+}
+
+std::size_t sign_test_max_count(std::size_t positive_sites, std::size_t negative_sites) {
+    return std::max(positive_sites, negative_sites);
+}
+
+double sign_test_count_fraction(std::size_t positive_sites, std::size_t total_sites) {
+    require(total_sites > 0, "sign_test_count_fraction: total");
+    return static_cast<double>(positive_sites) / static_cast<double>(total_sites);
+}
+
+double empirical_critical_value(std::vector<double> null_counts, double alpha) {
+    require(!null_counts.empty() && alpha > 0.0 && alpha < 1.0,
+            "empirical_critical_value: inputs");
+    std::sort(null_counts.begin(), null_counts.end());
+    const std::size_t n = null_counts.size();
+    std::size_t rank = static_cast<std::size_t>(std::ceil((1.0 - alpha) * static_cast<double>(n)));
+    if (rank < 1) rank = 1;
+    if (rank > n) rank = n;
+    return null_counts[rank - 1];
 }
 
 double energy_budget_trend(double longwave_down, double shortwave_net, double latent_heat,
