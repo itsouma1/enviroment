@@ -126,12 +126,16 @@ directory, Node runtime or front-end build step. The page embeds its CSS and
 JavaScript and calls the same C++ functions as the command line through a small
 JSON API. Its visual language is a beige/brown CRT console: solid panels, square
 controls, scanlines and phosphor charts, with no gradients or external assets.
+Chart series use the high-combinability blue (200-240 deg) and orange/yellow
+(40-60 deg) hues from the attached color-harmony study, rendered as solid
+phosphor lines rather than gradients.
 
 The landing page is the **Trend Detective** workflow: variable and region
 selection, an explicit data-acquisition gate (coverage, gaps, missing values and
 artifacts are disclosed before testing), STL seasonality removal, Mann-Kendall /
-Sen inference, a spatial-readiness check that refuses to invent a map for a
-scalar series, and a final report with export. The NASA Data page lists the CMR
+Sen inference, a spatial step, and a final report with export. A labelled
+24 x 12 synthetic grid demonstrates per-cell Sen slopes and Getis-Ord Gi*
+hotspots; it is explicitly not the selected series. The NASA Data page lists the CMR
 product routes and generates reproducible `nasa_fetch.py fetch --dry-run` plans;
 live downloads use the same wrapper and require Earthdata Login plus
 `earthaccess`. The Formula Registry indexes every public function declaration
