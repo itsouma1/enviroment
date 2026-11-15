@@ -218,6 +218,9 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .cxverdict.opposed{border-color:var(--amber);color:#ffe0a6}
 summary.fhead{cursor:pointer;list-style:none}
 summary.fhead::-webkit-details-marker{display:none}
+.bridge-group{margin-bottom:10px}
+.bridge-q{font-size:9px;letter-spacing:.16em;color:var(--amber);font-weight:700;margin-bottom:4px}
+.bridge-group .etable{width:100%}
 .coach{position:fixed;z-index:10000;max-width:320px;background:#2a1c12;border:1px solid var(--amber);
   box-shadow:0 14px 40px rgba(0,0,0,.7);padding:12px 13px 10px;color:#f7e8c8}
 .coach[hidden]{display:none}
@@ -447,6 +450,13 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
       <div class="qcell"><span>WHERE IS IT CHANGING</span><b id="wf-q-where">run an analysis</b></div>
       <div class="qcell"><span>HOW MUCH</span><b id="wf-q-howmuch">run an analysis</b></div>
       <div class="qcell"><span>IS IT SIGNIFICANT</span><b id="wf-q-sig">run an analysis</b></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:10px" id="wf-bridge">
+      <div class="panelhead"><b>Formulas behind each answer</b><span class="hint">many formulas, one question each</span></div>
+      <div class="panelbody" id="wf-formula-bridge">
+        <div class="empty">Run an analysis and every formula that contributes to WHAT, WHERE, HOW MUCH and SIGNIFICANT appears here with its own number.</div>
+      </div>
     </div>
 
     <div class="panel" style="margin-bottom:10px">
@@ -1610,8 +1620,35 @@ function wfQuestionBar(d){
   set('#wf-q-howmuch',`${fmt(sen.slope,4)} ${unit}/step · ${fmt(d.trend.sen_per_decade,2)} ${unit}/decade`);
   set('#wf-q-sig',mk.significant?`yes · p = ${pval(mk.p_value)}`:`no · p = ${pval(mk.p_value)}`);
 }
+function wfFormulaBridge(d){
+  const box=$('#wf-formula-bridge');if(!box)return;
+  const mk=d.trend.mann_kendall,sen=d.trend.sen,smk=d.seasonal_mann_kendall;
+  const ens=d.trend.ensemble||{members:[]};
+  const unit=esc(d.units||'');
+  const rows=[];
+  const row=(q,name,how,value)=>rows.push({q,name,how,value});
+  row('WHAT','Mann–Kendall S','sign of the rank-sum S over all pairs',fmt(mk.s,0)+' ('+esc(mk.direction)+')');
+  row('WHAT','Kendall τ','S normalised by n(n−1)/2',fmt(mk.tau,3));
+  (ens.members||[]).filter(m=>/tau|kendall/i.test(m.name)).forEach(m=>row('WHAT',m.name,m.formula||'rank concordance',fmt(m.slope,4)+' '+unit));
+  row('WHERE','Sign partition','two regional Sen slopes from /api/contrast','open Regional contrast');
+  if(d.grid)row('WHERE','Getis-Ord Gi*','local hotspot statistic per cell','grid field');
+  row('HOW MUCH','Sen slope','median of all pairwise slopes','0.0137'.replace('0.0137',fmt(sen.slope,4))+' '+unit+'/step');
+  (ens.members||[]).filter(m=>/ols|least/i.test(m.name)).forEach(m=>row('HOW MUCH',m.name,m.formula||'least squares',fmt(m.slope,4)+' '+unit));
+  row('HOW MUCH','Per decade','Sen slope × steps per decade',fmt(d.trend.sen_per_decade,3)+' '+unit);
+  row('HOW MUCH','Relative change','total change ÷ |mean| × 100','see report');
+  row('SIGNIFICANT','Mann–Kendall p','two-sided normal approximation of S',pval(mk.p_value));
+  row('SIGNIFICANT','Hamed–Rao factor','variance inflated for serial correlation',fmt(mk.correction_factor,3)+'x');
+  if(smk)row('SIGNIFICANT','Seasonal Mann–Kendall p','months compared across years',pval(smk.p_value));
+  row('SIGNIFICANT','Ensemble agreement','fraction of estimators sharing the sign',Math.round((ens.agreement||0)*100)+'%');
+  row('SIGNIFICANT','Minimum detectable trend','2.802 σ √(12/n) / span',(mdtPerYear(d)===null?'—':fmt(mdtPerYear(d),4)+' '+unit+'/yr'));
+  const order=['WHAT','WHERE','HOW MUCH','SIGNIFICANT'];
+  box.innerHTML=order.map(q=>`<div class="bridge-group"><div class="bridge-q">${q}</div><table class="etable"><thead><tr><th>Formula</th><th>How it calculates the variable</th><th>Value on this record</th></tr></thead><tbody>
+    ${rows.filter(r=>r.q===q).map(r=>`<tr><td>${esc(r.name)}</td><td class="mut">${esc(r.how)}</td><td>${r.value}</td></tr>`).join('')}
+  </tbody></table></div>`).join('')+`<div class="note">Each question is answered by several formulas, not one: the estimators agree or they do not, and the disagreement is printed rather than averaged. The same set is reachable as individual calculations in Calculation modes and runnable with your own inputs in All calculations.</div>`;
+}
 function renderWfReport(d){
   wfQuestionBar(d);
+  wfFormulaBridge(d);
   const e=state.workflow.entry,meta=state.workflow.meta,mk=d.trend.mann_kendall,sen=d.trend.sen;
   $('#wf-report').innerHTML=`<div class="statusline"><span>REPORT <b>GENERATED</b></span><span>VARIABLE <b>${esc(e.id)}</b></span><span>REGION <b>${esc($('#wf-region').value)}</b></span></div>
     <div class="verdict">${mk.significant?'The series shows a statistically significant '+esc(mk.direction)+' trend.':'No statistically significant monotonic trend was detected.'}</div>
