@@ -17,3 +17,6 @@ data/ndvi_output.csv
 .build/
 .tools/
 artifacts/
+
+# Windows build output (the exe and bundle are committed; the copied demo data is not)
+dist/windows/data/
