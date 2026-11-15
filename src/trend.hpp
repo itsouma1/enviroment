@@ -54,4 +54,35 @@ std::vector<double> trend_free_prewhitening(const std::vector<double>& time,
 MKResult seasonal_mann_kendall(const std::vector<double>& values, int period,
                                const MKSettings& settings = {});
 
+// A single trend estimator in the accuracy-weighted ensemble. Different
+// estimators answer the same question with different assumptions; showing all
+// of them makes the choice auditable instead of hidden.
+struct TrendEstimator {
+    std::string name;
+    std::string formula;
+    double slope = 0.0;
+    double intercept = 0.0;
+    double rmse = 0.0;
+    double p_value = 1.0;
+    double score = 0.0;
+    bool significant = false;
+    bool computed = false;
+    bool selected = false;
+};
+
+struct TrendEnsemble {
+    std::vector<TrendEstimator> members;
+    std::size_t selected = 0;
+    double agreement = 0.0;  // fraction of members sharing the selected sign
+    double robust_slope = 0.0;
+    double robust_p_value = 1.0;
+    std::string consensus = "no trend";
+};
+
+// Runs Sen, OLS, Kendall, Spearman, Cox-Stuart and endpoint-difference
+// estimators. Scores each on residual accuracy, significance and sign
+// agreement; the highest score is primary and the rest are fallbacks.
+TrendEnsemble trend_ensemble(const std::vector<double>& time, const std::vector<double>& values,
+                             double alpha = 0.05);
+
 }  // namespace climate

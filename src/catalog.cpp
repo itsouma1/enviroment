@@ -129,6 +129,46 @@ const std::vector<CatalogEntry> kEntries = {
      "Monthly anomalies by calendar month; Mann-Kendall and Sen's slope.",
      "Seasonal snow extent; an albedo-feedback indicator and a freshwater storage term."},
 
+    {"ozone",
+     "Total column ozone",
+     "DU",
+     {"ozone", "atmosphere"},
+     {"global", "arctic", "antarctic", "midlatitudes"},
+     "OMI total column ozone from backscattered ultraviolet radiance, with cloud and surface "
+     "albedo corrections.",
+     "Monthly anomalies; STL decomposition and Mann-Kendall/Sen's slope.",
+     "Stratospheric ozone protects the biosphere from ultraviolet radiation; its recovery is a "
+     "direct test of the Montreal Protocol."},
+
+    {"aerosol_optical_depth",
+     "Aerosol optical depth",
+     "unitless",
+     {"aerosol", "atmosphere"},
+     {"global", "tropics", "midlatitudes", "sahel", "amazon"},
+     "OMI UV aerosol index and optical depth from near-UV radiances.",
+     "Monthly anomalies; STL decomposition and Mann-Kendall/Sen's slope.",
+     "Aerosol loading affects radiation, clouds and air quality; trends mix emissions, transport "
+     "and humidity."},
+
+    {"soil_moisture",
+     "Surface soil moisture",
+     "m3/m3",
+     {"hydrology", "drought"},
+     {"global", "tropics", "midlatitudes", "sahel", "amazon"},
+     "SMAP L-band brightness-temperature retrieval of surface soil moisture.",
+     "Monthly anomalies; STL decomposition and Mann-Kendall/Sen's slope.",
+     "Root-zone water availability; a drought and land-atmosphere coupling indicator."},
+
+    {"ocean_color",
+     "Ocean chlorophyll-a",
+     "mg/m3",
+     {"ocean", "biosphere"},
+     {"global", "tropics", "north_atlantic", "midlatitudes", "arctic"},
+     "MODIS ocean-colour chlorophyll-a from blue/green reflectance ratios.",
+     "Monthly anomalies; STL decomposition and Mann-Kendall/Sen's slope.",
+     "Phytoplankton biomass at the base of the marine food web and a component of the ocean "
+     "carbon cycle."},
+
     {"sea_level",
      "Global mean sea level",
      "mm",
@@ -143,7 +183,8 @@ const std::vector<CatalogEntry> kEntries = {
 const std::vector<std::string> kProcesses = {"temperature", "warming",  "sea_ice",  "cryosphere",
                                              "vegetation",  "drought",  "precipitation",
                                              "carbon",      "greenhouse", "ocean",
-                                             "energy_balance", "climate_change"};
+                                             "energy_balance", "climate_change", "ozone",
+                                             "aerosol", "hydrology", "biosphere"};
 
 const std::vector<std::string> kRegions = {"global", "arctic", "antarctic", "tropics",
                                            "north_atlantic", "midlatitudes", "amazon", "sahel"};

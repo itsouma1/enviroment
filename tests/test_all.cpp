@@ -289,6 +289,21 @@ void test_trend() {
     const MKResult mk_prewhitened = mann_kendall(prewhitened);
     CHECK(mk_prewhitened.significant);
     CHECK(mk_prewhitened.z > 0.0);
+
+    const TrendEnsemble ensemble = trend_ensemble(time, linear);
+    CHECK(ensemble.members.size() == 6);
+    CHECK(ensemble.members[ensemble.selected].selected);
+    CHECK_NEAR(ensemble.robust_slope, 2.0, 1e-9);
+    CHECK_NEAR(ensemble.agreement, 1.0, 1e-12);
+    CHECK(ensemble.consensus == "increasing");
+
+    std::vector<double> flat_series(120, 5.0);
+    std::vector<double> flat_time(120);
+    for (std::size_t i = 0; i < flat_time.size(); ++i) flat_time[i] = static_cast<double>(i);
+    const TrendEnsemble flat_ensemble = trend_ensemble(flat_time, flat_series);
+    CHECK(!flat_ensemble.members[flat_ensemble.selected].significant);
+    CHECK(flat_ensemble.consensus == "no significant trend");
+    CHECK_NEAR(flat_ensemble.robust_slope, 0.0, 1e-12);
 }
 
 void test_retrieval() {
@@ -406,6 +421,8 @@ void test_series_and_analysis() {
 
 void test_catalog_and_intent() {
     CHECK(find_catalog_entry("sst") != nullptr);
+    CHECK(find_catalog_entry("ozone") != nullptr);
+    CHECK(find_catalog_entry("soil_moisture") != nullptr);
     CHECK(find_catalog_entry("not_a_variable") == nullptr);
     CHECK(canonical_process("sea ice") == "");
     CHECK(canonical_process("sea_ice") == "sea_ice");

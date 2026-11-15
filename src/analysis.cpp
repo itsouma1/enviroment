@@ -167,6 +167,7 @@ SeriesAnalysis analyze_series(const std::vector<double>& time_in, const std::vec
                                     : 0.0;
 
     if (period >= 2) result.mk_seasonal = seasonal_mann_kendall(values, period, settings);
+    result.ensemble = trend_ensemble(time, test_series, options.alpha);
 
     if (options.hamed_rao && result.mk.correction_factor > 1.5)
         result.warnings.push_back(

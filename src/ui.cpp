@@ -204,6 +204,32 @@ json::Value sen_json(const SenResult& sen) {
     return value;
 }
 
+json::Value ensemble_json(const TrendEnsemble& ensemble) {
+    json::Value value = json::Value::object();
+    json::Value members = json::Value::array();
+    for (const auto& member : ensemble.members) {
+        json::Value item = json::Value::object();
+        item.set("name", json::Value::from_string(member.name));
+        item.set("formula", json::Value::from_string(member.formula));
+        item.set("slope", json::Value::from_number(member.slope));
+        item.set("intercept", json::Value::from_number(member.intercept));
+        item.set("rmse", json::Value::from_number(member.rmse));
+        item.set("p_value", json::Value::from_number(member.p_value));
+        item.set("score", json::Value::from_number(member.score));
+        item.set("significant", json::Value::from_bool(member.significant));
+        item.set("computed", json::Value::from_bool(member.computed));
+        item.set("selected", json::Value::from_bool(member.selected));
+        members.push(item);
+    }
+    value.set("members", members);
+    value.set("selected", json::Value::from_number(static_cast<double>(ensemble.selected)));
+    value.set("agreement", json::Value::from_number(ensemble.agreement));
+    value.set("robust_slope", json::Value::from_number(ensemble.robust_slope));
+    value.set("robust_p_value", json::Value::from_number(ensemble.robust_p_value));
+    value.set("consensus", json::Value::from_string(ensemble.consensus));
+    return value;
+}
+
 struct SeriesInput {
     std::vector<double> time;
     std::vector<double> values;
@@ -330,6 +356,7 @@ Response analyze_series_request(const json::Value& body) {
     trend.set("mann_kendall", mk_json(analysis.mk));
     trend.set("sen", sen_json(analysis.sen));
     trend.set("sen_per_decade", json::Value::from_number(analysis.sen_per_decade));
+    trend.set("ensemble", ensemble_json(analysis.ensemble));
     root.set("trend", trend);
 
     json::Value raw = json::Value::object();

@@ -56,6 +56,7 @@ struct SeriesAnalysis {
     SenResult sen_raw;
     double sen_raw_per_decade = 0.0;
     MKResult mk_seasonal;
+    TrendEnsemble ensemble;
 
     double latest_anomaly = 0.0;
     double minimum_anomaly = 0.0;

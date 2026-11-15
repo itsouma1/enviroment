@@ -126,15 +126,21 @@ directory, Node runtime or front-end build step. The page embeds its CSS and
 JavaScript and calls the same C++ functions as the command line through a small
 JSON API. Its visual language is a beige/brown CRT console: solid panels, square
 controls, scanlines and phosphor charts, with no gradients or external assets.
-Chart series stay inside the beige/brown family: cream observed data, neon
-brown/amber trend lines, and dim brown cooling cells. There is no blue accent.
-Lines are smoothed with a Catmull-Rom path and rendered as solid phosphor
-strokes rather than gradients or MATLAB-style markers.
+Chart series use the paper's high-combinability accents against the beige/brown
+frame: cream observed data, orange trend, teal seasonal and rose remainder; the
+spatial grid uses teal for cooling and orange for warming. Lines are smoothed
+with a monotone cubic path (no overshoot) and rendered as solid phosphor strokes
+rather than gradients or MATLAB-style markers.
 
 The landing page is the **Trend Detective** workflow: variable and region
 selection, an explicit data-acquisition gate (coverage, gaps, missing values and
 artifacts are disclosed before testing), STL seasonality removal, Mann-Kendall /
-Sen inference, a spatial step, and a final report with export. A labelled
+Sen inference, a spatial step, and a final report with export. The catalog now
+covers 16 mission/model variables, including ozone, aerosol optical depth, soil
+moisture and ocean colour, each with a synthetic demo series and a NASA route.
+The trend step runs a six-member estimator ensemble (Sen, OLS, Kendall,
+Spearman, Cox-Stuart and endpoint difference), scores each on residual accuracy,
+significance and sign agreement, and keeps the rest as auditable fallbacks. A labelled
 24 x 12 synthetic grid demonstrates per-cell Sen slopes and Getis-Ord Gi*
 hotspots; it is explicitly not the selected series. The NASA Data page lists 14
 CMR product routes covering SST, air temperature, CO2, methane, NDVI, sea ice,

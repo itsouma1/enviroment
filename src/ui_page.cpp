@@ -15,7 +15,8 @@ const char* climate_ui_html() {
   --line:#4a3524; --line2:#6b4a30; --text:#e8d6b8; --muted:#a68b6c;
   --teal:#d8a657; --sky:#c98b4b; --amber:#e0b15f; --rose:#c96a4a;
   --green:#a9b87a; --violet:#b58a6a; --bezel:#b7a184;
-  --blue:#e2b184; --cyan:#c98a5a; --orange:#ff9a4d; --yellow:#e8c07a; --red:#a4633c;
+  --series-obs:#f0d9b5; --series-trend:#ff9a4d; --series-season:#5fc2c2; --series-rem:#d98a8a;
+  --series-alt:#b8c97a; --series-violet:#c3a6e0;
   --mono:"Courier New",Courier,"Liberation Mono",Menlo,monospace;
   --sans:"Courier New",Courier,"Liberation Mono",Menlo,monospace;
 }
@@ -149,6 +150,12 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .chart .line{fill:none;stroke-width:1.15;stroke-linejoin:round;stroke-linecap:round;stroke-opacity:.92}
 .chart .area{stroke:none;fill:rgba(255,154,77,.06)}
 .chart .legend{font-family:var(--mono);font-size:9px;fill:#b39570}
+.etable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:9px}
+.etable th{text-align:left;color:#8f7052;font-weight:400;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid #3c2b1d;padding:4px 5px}
+.etable td{padding:5px;border-bottom:1px dashed #2f2218;color:#cbb18d}
+.etable tr.primary td{color:#ffe2b0;background:#24180e}
+.etable .pick{color:#ffb168;font-weight:700}
+.etable .fallback{color:#8f7052}
 .minicharts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .minicharts .chartwrap{margin:0}
 .tagrow{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
@@ -316,7 +323,7 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 
   <!-- TREND DETECTIVE WORKFLOW -->
   <section class="page active" id="page-workflow">
-    <div class="sectionhead" style="margin-top:0"><div><h2>Trend detective</h2><p>Data acquisition → seasonality → trend → spatial → report. Nothing is tested until you confirm the data.</p></div><div class="telemetry">NASA / EARTH OBSERVATION / LOCAL</div></div>
+    <div class="sectionhead" style="margin-top:0"><div><h2>Trend detective</h2><p>Change is always occurring in Earth's interconnected system, and a measured variable can trend one way in one region and the opposite way in another. Select a mission or model variable, see its time evolution, then read what is changing, where, how much, and whether it is significant. Nothing is tested until you confirm the data.</p></div><div class="telemetry">NASA / EARTH OBSERVATION / LOCAL</div></div>
     <div class="workflow">
       <aside class="wleft">
         <div class="panel"><div class="panelhead"><b>Variable selection</b><span class="hint">Step 0</span></div><div class="panelbody">
@@ -746,10 +753,10 @@ function chart(series,opts={}){
         d+=`C${(seg[i].x+dx).toFixed(1)} ${(seg[i].y+dx*m1).toFixed(1)} ${(seg[i+1].x-dx).toFixed(1)} ${(seg[i+1].y-dx*m2).toFixed(1)} ${seg[i+1].x.toFixed(1)} ${seg[i+1].y.toFixed(1)} `;
       }
     });
-    g+=`<path class="line" d="${d}" stroke="${s.color||'#e2b184'}"/>`;
+    g+=`<path class="line" d="${d}" stroke="${s.color||'#f0d9b5'}"/>`;
   });
   let legend='';let lx=L;
-  series.forEach(s=>{legend+=`<line x1="${lx}" y1="8" x2="${lx+10}" y2="8" stroke="${s.color||'#e2b184'}" stroke-width="2"/><text class="legend" x="${lx+14}" y="11">${esc(s.name)}</text>`;lx+=s.name.length*6+34;});
+  series.forEach(s=>{legend+=`<line x1="${lx}" y1="8" x2="${lx+10}" y2="8" stroke="${s.color||'#f0d9b5'}" stroke-width="2"/><text class="legend" x="${lx+14}" y="11">${esc(s.name)}</text>`;lx+=s.name.length*6+34;});
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img"><g>${g}</g><g>${legend}</g></svg>`;
 }
 function chartCard(title,series,opts={}){return `<div class="chartwrap"><div style="font-size:9.5px;color:#a38562;padding:2px 8px 0;text-transform:uppercase;letter-spacing:.08em">${esc(title)}</div>${chart(series,opts)}</div>`;}
@@ -833,10 +840,10 @@ function renderAnalysis(d){
       ${metric('Seasonal strength',d.decomposition.seasonal_strength?fmt(d.decomposition.seasonal_strength*100,1)+'%':'—','variance explained')}
       ${metric('Trend strength',d.decomposition.trend_strength?fmt(d.decomposition.trend_strength*100,1)+'%':'—','of variance')}
     </div>
-    ${chartCard('Observed series and STL trend',[{name:'observed',values:d.series.observed,color:'#e2b184'},{name:'trend',values:d.components.trend,color:'#ff9a4d'}],{xlabels:labels,height:300})}
+    ${chartCard('Observed series and STL trend',[{name:'observed',values:d.series.observed,color:'#f0d9b5'},{name:'trend',values:d.components.trend,color:'#ff9a4d'}],{xlabels:labels,height:300})}
     <div class="minicharts">
-      ${chartCard('Seasonal component',[{name:'seasonal',values:d.components.seasonal,color:'#c98a5a'}],{xlabels:labels,height:210})}
-      ${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#a4633c'}],{xlabels:labels,height:210})}
+      ${chartCard('Seasonal component',[{name:'seasonal',values:d.components.seasonal,color:'#5fc2c2'}],{xlabels:labels,height:210})}
+      ${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#d98a8a'}],{xlabels:labels,height:210})}
     </div>
     <div class="cards" style="margin-top:12px">${mkBlock(mk)}</div>
     <div class="kv">
@@ -870,7 +877,7 @@ function renderCo2(d){
       ${metric('R²',fmt(d.model.r_squared,5),'residual SD '+fmt(d.model.residual_sd,4))}
       ${metric('Seasonal amplitude',fmt(d.seasonal_amplitude,3),esc(d.units))}
     </div>
-    ${chartCard('Observed and fitted curve',[{name:'observed',values:d.series.observed,color:'#e2b184'},{name:'fitted',values:d.series.fitted,color:'#ff9a4d'}],{xlabels:d.series.time.map(t=>fmt(t,1)),height:310})}
+    ${chartCard('Observed and fitted curve',[{name:'observed',values:d.series.observed,color:'#f0d9b5'},{name:'fitted',values:d.series.fitted,color:'#ff9a4d'}],{xlabels:d.series.time.map(t=>fmt(t,1)),height:310})}
     <div class="kv">
       <span class="k">Model</span><span class="v">degree ${d.model.polynomial_order} + ${d.model.harmonic_count} harmonics</span>
       <span class="k">Growth at start</span><span class="v">${fmt(g.start_per_year,4)} ${esc(d.units)}/yr</span>
@@ -1094,6 +1101,18 @@ const WFMETA={
   sea_ice_concentration:{file:'sea_ice_extent_monthly.csv',value:'value',sphere:'CRYOSPHERE',product:'NSIDC sea ice concentration CDR',pid:'NSIDC-0051',provider:'NSIDC DAAC',res:'25 km monthly',grid:false,
     artifacts:['Concentration is a fractional coverage, not thickness.','Melt ponds and snow cover affect the brightness temperatures.','The workflow file is an extent series, not a concentration field.'],
     retrieval:'NASA Team / Bootstrap concentration',analysis:'STL decomposition + Mann-Kendall + Sen slope'},
+  ozone:{file:'ozone_monthly.csv',value:'value',sphere:'ATMOSPHERE',product:'OMI total column ozone',pid:'OMDOAO3e',provider:'GES DISC',res:'1 degree monthly',grid:false,
+    artifacts:['Total column ozone is not surface ozone.','Cloud and snow/ice surfaces bias the retrieval.','Demo series is synthetic; it is not an OMI download.'],
+    retrieval:'OMI DOAS total column ozone retrieval',analysis:'STL decomposition + Mann-Kendall + Sen slope'},
+  aerosol_optical_depth:{file:'aerosol_monthly.csv',value:'value',sphere:'ATMOSPHERE',product:'OMI aerosol optical depth',pid:'OMAERO',provider:'GES DISC',res:'1 degree monthly',grid:false,
+    artifacts:['Aerosol index and optical depth are not interchangeable.','Cloud contamination and surface albedo remain.','Demo series is synthetic; it is not an OMI download.'],
+    retrieval:'OMI near-UV aerosol retrieval',analysis:'STL decomposition + Mann-Kendall + Sen slope'},
+  soil_moisture:{file:'soil_moisture_monthly.csv',value:'value',sphere:'LAND / BIOSPHERE',product:'SMAP surface soil moisture',pid:'SPL3SMP_E',provider:'NSIDC DAAC',res:'9 km daily composite',grid:false,
+    artifacts:['Surface soil moisture is not root-zone water.','Freeze/thaw and dense vegetation degrade the retrieval.','Demo series is synthetic; it is not an SMAP download.'],
+    retrieval:'SMAP L-band brightness-temperature inversion',analysis:'STL decomposition + Mann-Kendall + Sen slope'},
+  ocean_color:{file:'ocean_color_monthly.csv',value:'value',sphere:'OCEAN',product:'MODIS Aqua chlorophyll-a',pid:'MODISA_L3m_CHL',provider:'OB.DAAC',res:'4 km monthly',grid:false,
+    artifacts:['Chlorophyll-a is a proxy for biomass, not carbon.','Clouds and coloured dissolved matter bias the blue/green ratio.','Demo series is synthetic; it is not a MODIS download.'],
+    retrieval:'MODIS ocean-colour chlorophyll-a algorithm',analysis:'STL decomposition + Mann-Kendall + Sen slope'},
   ocean_heat_content:{sphere:'OCEAN',product:'Ocean heat content (Armor/EN4)',pid:'OHC',provider:'PO.DAAC',res:'gridded monthly',grid:true,
     artifacts:['OHC depends on the mapping method and climatology.','Deep-ocean coverage is sparse.','No local demo series is bundled.'],
     retrieval:'depth-integrated temperature anomaly',analysis:'Trend and acceleration diagnostics'},
@@ -1254,15 +1273,22 @@ $('#wf-upload')&&$('#wf-upload').addEventListener('change',e=>{
 });
 function wfChart(d){
   const labels=d.series.time.map(t=>fmt(t,1));
-  return chartCard('Observed and STL trend',[{name:'observed',values:d.series.observed,color:'#e2b184'},{name:'trend',values:d.components.trend,color:'#ff9a4d'}],{xlabels:labels,height:250})+
-    `<div class="minicharts">${chartCard('Seasonal',[{name:'seasonal',values:d.components.seasonal,color:'#c98a5a'}],{xlabels:labels,height:210})}${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#a4633c'}],{xlabels:labels,height:210})}</div>`;
+  return chartCard('Observed and STL trend',[{name:'observed',values:d.series.observed,color:'#f0d9b5'},{name:'trend',values:d.components.trend,color:'#ff9a4d'}],{xlabels:labels,height:250})+
+    `<div class="minicharts">${chartCard('Seasonal',[{name:'seasonal',values:d.components.seasonal,color:'#5fc2c2'}],{xlabels:labels,height:210})}${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#d98a8a'}],{xlabels:labels,height:210})}</div>`;
 }
 function wfTrend(d){
   const mk=d.trend.mann_kendall,sen=d.trend.sen;
   const verdict=mk.significant?`<b>SIGNIFICANT ${esc(mk.direction).toUpperCase()}</b> at alpha = ${d.alpha}.`:`<b>NO SIGNIFICANT MONOTONIC TREND</b> at alpha = ${d.alpha}.`;
   const ci=sen.computed?`${fmt(sen.lower,4)} … ${fmt(sen.upper,4)}`:'not available';
+  const ens=d.trend.ensemble||{members:[],agreement:0,consensus:''};
+  const rows=(ens.members||[]).filter(m=>m.computed).map(m=>`<tr class="${m.selected?'primary':''}"><td>${esc(m.name)}${m.selected?' <span class="pick">PRIMARY</span>':' <span class="fallback">FALLBACK</span>'}</td><td>${fmt(m.slope,4)}</td><td>${pval(m.p_value)}</td><td>${fmt(m.rmse,3)}</td><td>${fmt(m.score,3)}</td></tr>`).join('');
   return `<div class="verdict">${verdict}</div>
     <div class="cards">${metric('Sen slope',fmt(sen.slope,4),esc(d.units)+' / step')}${metric('Per decade',fmt(d.trend.sen_per_decade,3),esc(d.units)+' / decade')}${metric('MK p-value',pval(mk.p_value),mk.direction,mk.significant?'good':'warn')}${metric('95% CI',ci,'Sen slope','good')}</div>
+    <div class="panel" style="margin-top:8px"><div class="panelhead"><b>Estimator ensemble</b><span class="hint">accuracy-weighted</span></div><div class="panelbody">
+      <div class="statusline"><span>PRIMARY <b>${esc((ens.members||[]).find(m=>m.selected)?.name||'—')}</b></span><span>AGREEMENT <b>${Math.round(ens.agreement*100)}%</b></span><span>CONSENSUS <b>${esc(ens.consensus)}</b></span></div>
+      <table class="etable"><thead><tr><th>Estimator</th><th>Slope</th><th>p</th><th>RMSE</th><th>Score</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="note">Every estimator sees the same data. The primary is the highest accuracy-weighted score (residual RMSE, significance, sign agreement); the rest remain as auditable fallbacks. This is why a single method is not allowed to hide disagreement.</div>
+    </div></div>
     <div class="cards">${metric('MK S',fmt(mk.s,0),'statistic')}${metric('Variance',fmt(mk.variance,0),'tie-corrected')}${metric('Z',fmt(mk.z,3),'normal score')}${metric('Correction',fmt(mk.correction_factor,3)+'x','Hamed-Rao factor')}</div>
     <div class="kv"><span class="k">SERIES TESTED</span><span class="v">deseasonalised</span><span class="k">SAMPLE / CORR</span><span class="v">${d.samples} / ${fmt(mk.correction_factor,3)}x</span><span class="k">RAW MK p</span><span class="v">${pval(d.raw_trend.mann_kendall.p_value)}</span><span class="k">SEASONAL MK p</span><span class="v">${d.seasonal_mann_kendall?pval(d.seasonal_mann_kendall.p_value):'—'}</span></div>`;
 }
@@ -1281,14 +1307,14 @@ async function loadGridDemo(){
     const cells=d.slopes.map((s,i)=>{
       const lat=d.latitudes[Math.floor(i/d.columns)],lon=d.longitudes[i%d.columns];
       const t=Math.min(1,Math.abs(s)/maxAbs);
-      const hue=s>=0?30:22;
+      const hue=s>=0?30:175;
       const light=18+38*t;
-      const sat=s>=0?78:30;
+      const sat=s>=0?78:55;
       const hot=d.hotspots[i];
       return `<div class="gridcell" title="lat ${fmt(lat,1)} · lon ${fmt(lon,1)} · Sen ${fmt(s,5)} / month${hot?' · Gi* hotspot':''}" style="background:hsl(${hue} ${sat}% ${light}%);${hot?'outline:1px solid #f3dfb5;outline-offset:-1px':''}"></div>`;
     }).join('');
     box.innerHTML=`<div class="gridmap" style="grid-template-columns:repeat(${d.columns},1fr)">${cells}</div>
-      <div class="tagrow" style="margin-top:6px"><span class="tag">COOLING / DIM BROWN</span><span class="tag amber">WARMING / NEON BROWN</span><span class="tag">${d.hotspot_count} Gi* HOTSPOTS</span></div>`;
+      <div class="tagrow" style="margin-top:6px"><span class="tag">COOLING / TEAL</span><span class="tag amber">WARMING / ORANGE</span><span class="tag">${d.hotspot_count} Gi* HOTSPOTS</span></div>`;
   }catch(e){box.innerHTML=`<div class="empty">${esc(e.message)}</div>`;}
 }
 function renderWfReport(d){
@@ -1345,7 +1371,7 @@ function drawHeroChart(text){
   try{
     const t=parseCsv(text);const vi=t.header.length>1?1:0;
     const values=t.rows.map(r=>Number(r[vi])).filter(v=>isFinite(v)).slice(-160);
-    $('#hero-chart').innerHTML=chart([{name:'sst',values,color:'#ffb06a'}],{height:210,xlabels:['start','','now']});
+    $('#hero-chart').innerHTML=chart([{name:'sst',values,color:'#ffe08a'}],{height:210,xlabels:['start','','now']});
   }catch(e){}
 }
 
