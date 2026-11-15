@@ -41,6 +41,8 @@
 #include "intercal.hpp"
 #include "homogen.hpp"
 #include "validation.hpp"
+#include "regional.hpp"
+#include "lagrangian.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1827,8 +1829,97 @@ void test_variable_validation() {
     CHECK_NEAR(partially_linear_effect({1.0, 2.0}, {1.0, 2.0}), 1.0, 1e-12);
 }
 
+void test_regional_sign_and_clustering() {
+    CHECK_NEAR(sign_difference_statistic(7, 3), 0.4, 1e-12);
+    CHECK_NEAR(sign_test_binomial_p_value(7, 10), 0.171875, 1e-12);
+    CHECK_NEAR(effective_sample_size(100.0, 0.5), 100.0 / 3.0, 1e-12);
+    CHECK_NEAR(sign_test_empirical_p_value(7, {5, 7, 8, 9}), 0.75, 1e-12);
+    CHECK_NEAR(north_test_standard_error(4.0, 100.0), 4.0 * std::sqrt(0.02), 1e-12);
+    CHECK_NEAR(normal_quantile(0.975), 1.959963984540054, 1e-9);
+    CHECK_NEAR(sign_test_critical_value(100.0, 0.5, 0.05), 1.6448536269514722 / std::sqrt(100.0 / 3.0),
+               1e-12);
+    CHECK_NEAR(sign_test_critical_value_derivative(100.0, 0.5, 0.05),
+               normal_quantile(0.95) / 10.0 / (0.3535533905932738 * 1.224744871391589),
+               1e-12);
+
+    CHECK_NEAR(zonal_mean_at_latitude({1.0, 2.0, 3.0, 4.0}, {0, 0, 1, 1}, 0), 1.5, 1e-12);
+    const std::vector<double> asymmetric =
+        zonally_asymmetric_trend({1.0, 2.0, 3.0, 4.0}, {0, 0, 1, 1});
+    CHECK_NEAR(asymmetric[0], -0.5, 1e-12);
+    CHECK_NEAR(asymmetric[3], 0.5, 1e-12);
+    CHECK_NEAR(regional_mean({1.0, 2.0, 3.0, 4.0}, {1, 0, 1, 0}), 2.0, 1e-12);
+    CHECK_NEAR(sign_agreement({1.0, -1.0, 1.0}, {1.0, 1.0, 1.0}, {1, 1, 1}), 2.0 / 3.0, 1e-12);
+
+    const double support = 1.1;
+    CHECK_NEAR(gev_location_score(1.0, 0.0, 1.0, 0.1),
+               (1.1 / support - std::pow(support, -11.0)), 1e-12);
+    CHECK_NEAR(gev_trend_score(1.0, 0.0, 1.0, 0.1, 2.0),
+               2.0 * (1.1 / support - std::pow(support, -11.0)), 1e-12);
+    CHECK_NEAR(shrinkage_log_prior(1.0, 0.0, 2.0), -0.25, 1e-12);
+    CHECK_NEAR(shrinkage_derivative(1.0, 0.0, 2.0), -0.5, 1e-12);
+    CHECK_NEAR(pooled_posterior_variance(0.4, 0.6), 0.24, 1e-12);
+    CHECK_NEAR(pooled_cluster_mean({1.0, 3.0}, {4.0, 1.0}), 1.4, 1e-12);
+
+    const EigenSystem eigen = symmetric_eigen({{2.0, 1.0}, {1.0, 2.0}});
+    CHECK_NEAR(eigen.values[0], 3.0, 1e-12);
+    CHECK_NEAR(eigen.values[1], 1.0, 1e-12);
+    const Matrix correlation = temporal_correlation_matrix({{1.0, 2.0}, {2.0, 4.0}, {3.0, 6.0}});
+    CHECK_NEAR(correlation[0][1], 1.0, 1e-12);
+    const Matrix loadings = {{0.9, 0.1}, {0.8, 0.2}, {0.1, 0.9}, {0.2, 0.8}};
+    Matrix rotation;
+    const Matrix rotated = varimax_rotation(loadings, 100, 1e-10, rotation);
+    CHECK(rotation.size() == 2);
+    CHECK_NEAR(rotation[0][0] * rotation[0][0] + rotation[1][0] * rotation[1][0], 1.0, 1e-9);
+    CHECK_NEAR(rotation[0][0] * rotation[0][1] + rotation[1][0] * rotation[1][1], 0.0, 1e-9);
+    CHECK_NEAR(rotated[0][0] * rotated[0][0] + rotated[0][1] * rotated[0][1],
+               loadings[0][0] * loadings[0][0] + loadings[0][1] * loadings[0][1], 1e-9);
+    const Matrix identity = {{1.0, 0.0}, {0.0, 1.0}};
+    const std::vector<double> rpc = reof_rpc_trends({{0.0, 0.0}, {1.0, 1.0}, {2.0, 2.0}, {3.0, 3.0}},
+                                                    identity, identity);
+    CHECK_NEAR(rpc[0], 1.0, 1e-12);
+    CHECK_NEAR(reof_back_projection({1.0, 2.0}, {{1.0, 1.0}}, identity, 0), 3.0, 1e-12);
+
+    CHECK_NEAR(weatherhead_trend_standard_error(1.0, 0.5, 100.0), std::sqrt(3.0) / 10.0, 1e-12);
+    CHECK_NEAR(detection_time(1.0, 0.5, 0.1, 0.05), 10.485, 1e-3);
+    CHECK_NEAR(detection_time_autocorrelation_derivative(1.0, 0.5, 0.1, 0.05), 9.31937, 1e-4);
+    CHECK_NEAR(weatherhead_se_autocorrelation_derivative(1.0, 0.5, 100.0), 0.23094, 1e-4);
+    CHECK_NEAR(weatherhead_se_noise_derivative(1.0, 0.5, 100.0), 0.173205, 1e-4);
+    CHECK_NEAR(detection_time_noise_derivative(1.0, 0.5, 0.1, 0.05), 6.99, 1e-2);
+    CHECK_NEAR(trend_pattern_correlation({1.0, 2.0, 3.0}, {-1.0, -2.0, -3.0}), -1.0, 1e-12);
+    CHECK_NEAR(effective_spatial_dof(100.0, 0.5), 100.0 / 3.0, 1e-12);
+    CHECK_NEAR(correlation_t_statistic(0.5, 100.0 / 3.0), 3.23179, 1e-4);
+    CHECK_NEAR(coherence_height({100.0, 70.0, 50.0}, {0.8, 0.2, 0.1}, 0.3), 70.0, 1e-12);
+    CHECK_NEAR(segmented_trend_difference(0.2, -0.75), 0.95, 1e-12);
+    CHECK_NEAR(elevation_trend_slope({1.0, 2.0, 3.0}, {2.0, 3.0, 4.0}), 1.0, 1e-12);
+    CHECK_NEAR(elevation_leverage(3.0, {1.0, 2.0, 3.0}), 0.5, 1e-12);
+    CHECK_NEAR(latitude_corrected_edw(1.0, 0.4, 0.5), 0.8, 1e-12);
+    CHECK_NEAR(lapse_rate_trend(2.0, 1.0, 10.0), 0.1, 1e-12);
+}
+
+void test_lagrangian_objects() {
+    const std::pair<double, double> eigenvalues = hessian_eigenvalues(-2.0, 0.0, -3.0);
+    CHECK_NEAR(eigenvalues.first, -2.0, 1e-12);
+    CHECK_NEAR(eigenvalues.second, -3.0, 1e-12);
+    CHECK_NEAR(shape_index(-1.0, -2.0), 0.7951672353008665, 1e-12);
+    CHECK_NEAR(shape_index(-2.0, -2.0), 1.0, 1e-12);
+    CHECK_NEAR(shape_index(2.0, 2.0), -1.0, 1e-12);
+    CHECK_NEAR(shape_index_k1_derivative(-1.0, -2.0), 0.25464790894703254, 1e-12);
+    CHECK_NEAR(shape_index_k2_derivative(-1.0, -2.0), -0.12732395447351627, 1e-12);
+    const Matrix smoothed = gaussian_smooth({{5.0, 5.0, 5.0}, {5.0, 5.0, 5.0}, {5.0, 5.0, 5.0}}, 1.0);
+    CHECK_NEAR(smoothed[1][1], 5.0, 1e-12);
+    CHECK_NEAR(linear_trend({0.0, 2.0, 4.0}), 2.0, 1e-12);
+    CHECK_NEAR(object_frequency({1, 0, 1}), 2.0, 1e-12);
+    CHECK_NEAR(mean_object_intensity({5.0, 7.0}, {1, 0}), 5.0, 1e-12);
+    CHECK_NEAR(nearest_link_distance(0.0, 0.0, 3.0, 4.0, 6.0), 5.0, 1e-12);
+    CHECK_NEAR(nearest_link_distance(0.0, 0.0, 3.0, 4.0, 4.0), -1.0, 1e-12);
+    CHECK_NEAR(object_population_trend({1.0, 2.0, 3.0}), 1.0, 1e-12);
+    CHECK_NEAR(along_track_trend({5.0, 3.0, 1.0}), -2.0, 1e-12);
+}
+
 int main() {
     test_variable_validation();
+    test_regional_sign_and_clustering();
+    test_lagrangian_objects();
     test_homogenisation();
     test_geostat_intercal();
     test_metrology();

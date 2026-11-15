@@ -293,6 +293,20 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Regional sign coherence and Lagrangian objects.** `regional.hpp` implements
+the Huth-Dubrovsky sign-difference statistic with binomial and empirical nulls,
+effective sample size, critical value and its autocorrelation derivative, and a
+normal quantile. It provides the Cai zonal-mean/zonally-asymmetric decomposition,
+regional means and sign agreement, GEV location and trend scores, hierarchical
+partial-pooling shrinkage and pooled variances, symmetric eigendecomposition,
+the North test, varimax rotation, REOF RPC trends and back-projection, the
+Weatherhead standard error, detectable trend and detection time with
+derivatives, vertical trend-pattern correlations, coherence height, segmented
+reversals, and EDW slopes, leverage, latitude correction and lapse-rate trends.
+`lagrangian.hpp` implements Hessian eigenvalues, the SCAFET shape index and its
+derivatives, grid-aware Gaussian smoothing, object frequency and mean
+intensity, nearest-centroid linking and population/along-track trends.
+
 **Variable-specific validation (notes 480-520 KB).** `validation.hpp`
 implements the standardised-difference truth test, the quadruple-collocation
 closure, LIF, the quadratic sea-ice SIC bias and derivative,
