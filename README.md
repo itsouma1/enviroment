@@ -166,6 +166,56 @@ memory and is not written to disk. The UI is deliberately local: there are no
 accounts, telemetry or external requests. The console executes only the bundled
 `climate` binary, with the `ui` subcommand blocked to avoid recursive servers.
 
+## Complete formula lab
+
+Every public function declared in `src/*.hpp` is executable from the workbench.
+`tools/gen_formula_lab.py` parses the headers and emits
+`src/formula_lab_gen.cpp`, which contains one call site per declaration: the
+argument conversions from the shared lab inputs to that function's declared
+parameter types, and a formatter for its return value. Nothing is curated by
+hand, so a new declaration in a public header becomes a lab entry as soon as the
+generator is re-run (`make formulas`).
+
+```bash
+python3 tools/gen_formula_lab.py   # or: make formulas
+```
+
+At the time of writing the registry holds **944** formulas across seven stages:
+observation and retrieval (327), time series and change (223), space,
+attribution and dynamics (255), uncertainty and validation (87), physics and
+radiative transfer (13), data, numerics and reasoning (38), plus supporting
+modules.
+
+Inputs are shared across a batch:
+
+* scalar parameters (`number`, `complex`, `seed`, `enum`) come from the per-formula
+  cards, pre-filled with physically plausible defaults;
+* `std::vector<double>` parameters receive the active time axis (`in.time`) and
+  series (`in.series`) loaded from the selected CSV;
+* `Matrix` parameters receive either a row-wise reshape of that series or, for
+  weight, covariance, correlation, Jacobian and transition arguments, a square
+  matrix;
+* string parameters receive the text field, and `<random>` parameters a seeded
+  `std::mt19937`.
+
+Two endpoints drive the page:
+
+```
+GET  /api/lab                 all formulas, their parameters, groups and counts
+POST /api/lab/run             {"calls":[{"id":"physics::evi","args":{...}}],"file":"sst_monthly.csv"}
+```
+
+`/api/lab/run` returns one entry per requested formula with either `result` or
+the exception text that rejected its inputs; a rejection never stops the batch.
+
+With default inputs and the bundled demonstration series, 750 of the 944
+formulas return a value. The remaining ones execute and reject the defaults with
+their own validation message (for example `damage must be in [0, 1)` or
+`weight matrix must be n x n`); that is the formula's documented input domain
+speaking, not a missing binding. `make test` asserts that all 944 are bound, that
+their ids are unique, and that running every one of them cannot crash the
+process.
+
 ## Implemented formulas
 
 **SST (NLSST).** `SST = a0 + a1 BT11 + a2 (BT11-BT12) T_sfc
@@ -723,7 +773,9 @@ processing: `calibrate` and `retrieve sst --file` regenerate them from data.
 
 ## Verification
 
-`make test` exercises the formulas directly: FFT round-trips, LOESS/STL recovery,
+`make test` exercises the formulas directly: it also binds and runs the entire
+formula lab (944 entries) to prove nothing is missing and nothing crashes. The
+remaining checks cover FFT round-trips, LOESS/STL recovery,
 harmonic coefficient and derivative recovery, Mann-Kendall/Sen on known series,
 NLSST coefficient recovery, NASA Team concentrations, GPCP weighting, spherical
 areas, JSON/CSV round-trips, intent parsing, the NetCDF-3 reader and exporter,

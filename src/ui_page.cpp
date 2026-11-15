@@ -1,9 +1,14 @@
 #include "ui_page.hpp"
 
+#include <string>
+
+#include "lab_page.hpp"
+
 namespace climate {
 
 const char* climate_ui_html() {
-    return R"CLIMATE_UI(<!doctype html>
+    static const std::string page = [] {
+        std::string html = R"CLIMATE_UI(<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -164,6 +169,19 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .ph-card{border:1px solid #3c2b1d;background:#120d08;padding:7px;margin-top:7px}
 .ph-card .ph-title{font-size:9px;color:#ffe2b0;letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px}
 .ph-card .ph-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.lab-group{border:1px solid #33241a;background:#0d0906;margin-bottom:6px}
+.lab-grouphead{display:flex;gap:6px;align-items:center;padding:4px 6px;background:#171009;border-bottom:1px solid #33241a;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#ffe2b0;cursor:pointer}
+.lab-grouphead .hint{margin-left:auto;color:#a38562;letter-spacing:.04em}
+.lab-row{display:flex;gap:6px;align-items:baseline;padding:2px 6px;font-size:9px;color:#cbb18d;cursor:pointer;border-bottom:1px solid #1a1209}
+.lab-row:hover{background:#1d140d}
+.lab-row .lab-name{color:#f0d9b5;min-width:170px}
+.lab-row .lab-meta{color:#8a6c4f;margin-left:auto;text-align:right}
+.lab-results{display:flex;flex-direction:column;gap:5px}
+.lab-results .lab-hit{border:1px solid #33241a;background:#120d08;padding:6px}
+.lab-results .lab-hit.bad{border-color:#6e4242}
+.lab-results .lab-hit .ph-title{display:flex;gap:8px;align-items:baseline}
+.lab-results pre{margin:3px 0 0;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;color:#f3dfbd;white-space:pre-wrap;word-break:break-word}
+.lab-results .err{color:#e08b8b}
 .fgroup{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#ffb168;border-bottom:1px solid #4a3524;margin:10px 0 4px;padding:3px 2px}
 .etable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:9px}
 .etable th{text-align:left;color:#8f7052;font-weight:400;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid #3c2b1d;padding:4px 5px}
@@ -325,6 +343,7 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
   <button class="nav" data-nav="co2"><span class="ico">CO</span>CO₂ curve fit</button>
   <button class="nav" data-nav="retrieval"><span class="ico">RS</span>Retrievals</button>
   <button class="nav" data-nav="physics"><span class="ico">PH</span>Formula lab</button>
+  <button class="nav" data-nav="alllab"><span class="ico">Σ</span>Complete formula lab</button>
   <button class="nav" data-nav="info"><span class="ico">MI</span>Information theory</button>
   <button class="nav" data-nav="uncertainty"><span class="ico">σ</span>Uncertainty</button>
   <button class="nav" data-nav="overview"><span class="ico">SY</span>System</button>
@@ -424,7 +443,7 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 
   <!-- FORMULA REGISTRY -->
   <section class="page" id="page-formulas">
-    <div class="sectionhead" style="margin-top:0"><div><h2>Formula registry</h2><p>All public C++ functions, grouped in scientific workflow order: observation → time series → space/attribution → uncertainty → physics → data/numerics. Use the Formula lab for multi-formula runs and the console for batch commands.</p></div><div class="telemetry" id="formula-count">—</div></div>
+    <div class="sectionhead" style="margin-top:0"><div><h2>Formula registry</h2><p>All public C++ functions, grouped in scientific workflow order: observation → time series → space/attribution → uncertainty → physics → data/numerics. Every one of them is executable in the Complete formula lab, where any number can be selected and run in a single batch; the console handles CLI batches.</p></div><div class="telemetry" id="formula-count">—</div></div>
     <div class="searchrow"><input id="formula-search" type="text" placeholder="Search functions, modules, symbols…"><button class="btn" id="formula-refresh">Rescan headers</button></div>
     <div class="panel"><div class="flist" id="formula-list"><div class="empty">Loading registry…</div></div></div>
     <div class="note">The registry is generated from <span class="telemetry">src/*.hpp</span> at runtime. Use the Command Console to execute any command-line implementation; the Laboratories expose the retrieval and analysis paths interactively.</div>
@@ -674,6 +693,25 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
     </div>
   </section>
 
+  <!-- COMPLETE FORMULA LAB -->
+  <section class="page" id="page-alllab">
+    <div class="sectionhead" style="margin-top:0"><div><h2>Complete formula lab</h2><p>Every public function in the engine — <span id="lab-count">—</span> of them — generated directly from the headers and executable from here. Select any number, set their inputs, and run them in one batch.</p></div><div class="telemetry" id="lab-selected">0 selected</div></div>
+    <div class="tool">
+      <div class="panel"><div class="panelhead"><b>Formulas</b><span class="hint">grouped in workflow order</span></div><div class="panelbody">
+        <div class="field"><label>Series source for series-taking formulas</label><select id="lab-file"></select></div>
+        <div class="row"><div class="field"><label>Matrix columns</label><input id="lab-cols" type="number" value="3" min="1" step="1"></div><div class="field"><label>Text argument</label><input id="lab-text" type="text" value="keyword"></div></div>
+        <div class="field"><label>Filter</label><input id="lab-search" type="text" placeholder="name, module, return type…"></div>
+        <div class="row"><button class="btn" id="lab-select-visible">Select visible</button><button class="btn" id="lab-clear">Clear</button></div>
+        <div id="lab-list" style="max-height:420px;overflow:auto;margin-top:7px"><div class="hint">Loading formula bindings…</div></div>
+      </div></div>
+      <div>
+        <div class="panel"><div class="panelhead"><b>Inputs</b><span class="hint">one card per selected formula</span></div><div class="panelbody" id="lab-inputs"><div class="hint">Nothing selected yet.</div></div></div>
+        <button class="btn primary run" id="lab-run">Run selected →</button>
+        <div class="panel" style="margin-top:10px"><div class="panelhead"><b>Results</b><span class="hint" id="lab-summary">—</span></div><div class="panelbody lab-results" id="lab-output"><div class="hint">Each formula returns its own value; failures are reported per formula and do not stop the batch.</div></div></div>
+      </div>
+    </div>
+  </section>
+
   <!-- CATALOG -->
   <section class="page" id="page-catalog">
     <div class="sectionhead" style="margin-top:0"><div><h2>Variable catalog</h2><p>Process and region tags drive the deterministic intent compiler</p></div></div>
@@ -708,7 +746,7 @@ async function api(path,body){
 function nav(name){
   $$('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+name));
   $$('.nav').forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
-  const label={workflow:'Trend detective',nasa:'NASA data',formulas:'Formula registry',console:'Command console',overview:'System',timeseries:'Time series',co2:'CO₂ curve fit',retrieval:'Retrievals',info:'Information theory',uncertainty:'Uncertainty',physics:'Formula lab',catalog:'Catalog'}[name]||name;
+  const label={workflow:'Trend detective',nasa:'NASA data',formulas:'Formula registry',console:'Command console',overview:'System',timeseries:'Time series',co2:'CO₂ curve fit',retrieval:'Retrievals',info:'Information theory',uncertainty:'Uncertainty',physics:'Formula lab',alllab:'Complete formula lab',catalog:'Catalog'}[name]||name;
   $('#crumb').textContent=label; window.scrollTo({top:0,behavior:'smooth'});
 }
 document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){nav(b.dataset.nav);}});
@@ -780,6 +818,9 @@ function loadOverview(){
     const ts=$('#ts-dataset'),co=$('#co2-dataset');
     ts.innerHTML=d.files.map(f=>`<option value="${esc(f)}">data/${esc(f)}</option>`).join('');
     co.innerHTML=d.files.map(f=>`<option value="${esc(f)}">data/${esc(f)}</option>`).join('');
+    const lf=$('#lab-file');
+    if(lf){lf.innerHTML=d.files.map(f=>`<option value="${esc(f)}">data/${esc(f)}</option>`).join('');
+      if(d.files.includes('sst_monthly.csv'))lf.value='sst_monthly.csv';}
     const sst=d.files.includes('sst_monthly.csv')?'sst_monthly.csv':d.files[0];
     const c=d.files.includes('co2_monthly.csv')?'co2_monthly.csv':d.files[0];
     if(sst){ts.value=sst;loadCsv('ts');}
@@ -1501,15 +1542,24 @@ $('#cmd-batch-run')&&$('#cmd-batch-run').addEventListener('click',runBatch);
 $('#cmd-input')&&$('#cmd-input').addEventListener('keydown',e=>{if(e.key==='Enter')runConsole();});
 $$('.quick button').forEach(b=>b.addEventListener('click',()=>{$('#cmd-input').value=b.dataset.cmd;runConsole();}));
 
+/*__LAB_JS__*/
+
 /* ---------------- BOOT ---------------- */
 renderPhysics();
 loadOverview();
 loadNasa();
 loadFormulas();
 loadHelp();
+loadLab();
 </script>
 </body>
 </html>)CLIMATE_UI";
+        const std::string marker = "/*__LAB_JS__*/";
+        const std::size_t at = html.find(marker);
+        if (at != std::string::npos) html.replace(at, marker.size(), climate_lab_js());
+        return html;
+    }();
+    return page.c_str();
 }
 
 }  // namespace climate

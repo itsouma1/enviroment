@@ -27,6 +27,7 @@
 #include "common.hpp"
 #include "csv.hpp"
 #include "fetch.hpp"
+#include "formula_lab.hpp"
 #include "infotheory.hpp"
 #include "intent.hpp"
 #include "json.hpp"
@@ -1093,6 +1094,172 @@ Response formulas_request() {
     return json_response(root);
 }
 
+Response lab_catalog_request() {
+    const std::vector<LabFormula>& formulas = lab_formulas();
+    std::vector<std::string> order;
+    std::map<std::string, json::Value> groups;
+    std::map<std::string, std::string> labels;
+    std::map<std::string, std::size_t> counts;
+    for (const LabFormula& formula : formulas) {
+        if (groups.find(formula.stage) == groups.end()) {
+            order.push_back(formula.stage);
+            groups[formula.stage] = json::Value::array();
+            labels[formula.stage] = formula.stage_label;
+            counts[formula.stage] = 0;
+        }
+        json::Value item = json::Value::object();
+        item.set("id", json::Value::from_string(formula.id));
+        item.set("name", json::Value::from_string(formula.name));
+        item.set("module", json::Value::from_string(formula.module));
+        item.set("returns", json::Value::from_string(formula.returns));
+        item.set("signature", json::Value::from_string(formula.signature));
+        json::Value params = json::Value::array();
+        for (const LabParam& param : formula.params) {
+            json::Value entry = json::Value::object();
+            entry.set("name", json::Value::from_string(param.name));
+            entry.set("type", json::Value::from_string(param.type));
+            entry.set("kind", json::Value::from_string(param.kind));
+            entry.set("default", json::Value::from_number(param.default_value));
+            params.push(entry);
+        }
+        item.set("params", params);
+        groups[formula.stage].push(item);
+        counts[formula.stage] += 1;
+    }
+
+    std::sort(order.begin(), order.end());
+    json::Value stages = json::Value::array();
+    for (const std::string& stage : order) {
+        json::Value group = json::Value::object();
+        group.set("id", json::Value::from_string(stage));
+        group.set("label", json::Value::from_string(labels[stage]));
+        group.set("count", json::Value::from_number(static_cast<double>(counts[stage])));
+        group.set("formulas", groups[stage]);
+        stages.push(group);
+    }
+
+    json::Value root = json::Value::object();
+    root.set("count", json::Value::from_number(static_cast<double>(formulas.size())));
+    root.set("groups", stages);
+    return json_response(root);
+}
+
+Response lab_run_request(const json::Value& body) {
+    std::string file = value_string(body, "file", "sst_monthly.csv");
+    if (file.empty() || file.find('/') != std::string::npos ||
+        file.find('\\') != std::string::npos || file.find("..") != std::string::npos)
+        throw BadRequest("invalid data file name");
+    const Table table = parse_csv_text(read_text_file("data/" + file));
+    if (table.rows.size() < 3) throw BadRequest("the series file has too few rows");
+
+    const std::string value_name = value_string(body, "value");
+    int value_column = value_name.empty() ? table.column("value") : table.column(value_name);
+    if (!value_name.empty() && value_column < 0)
+        throw BadRequest("value column '" + value_name + "' was not found");
+    if (value_column < 0 && table.header.size() > 1) value_column = 1;
+    if (value_column < 0) value_column = 0;
+
+    LabInputs inputs;
+    const std::size_t columns = static_cast<std::size_t>(
+        std::max(1.0, value_number(body, "matrix_columns", 3.0)));
+    for (std::size_t i = 0; i < table.rows.size(); ++i) {
+        double time = static_cast<double>(i);
+        parse_number(table.cell(i, 0), time);
+        double value = 0.0;
+        if (!parse_number(table.cell(i, value_column), value)) continue;
+        inputs.time.push_back(time);
+        inputs.series.push_back(value);
+    }
+    if (inputs.series.size() < 3) throw BadRequest("the series file has too few numeric rows");
+    for (std::size_t i = 0; i + columns <= inputs.series.size(); i += columns) {
+        inputs.matrix.emplace_back(inputs.series.begin() + static_cast<long>(i),
+                                   inputs.series.begin() + static_cast<long>(i + columns));
+    }
+    const std::size_t side = std::min<std::size_t>(
+        32, std::max<std::size_t>(2, static_cast<std::size_t>(
+                std::floor(std::sqrt(static_cast<double>(inputs.series.size()))))));
+    for (std::size_t r = 0; r < side; ++r) {
+        std::vector<double> row;
+        row.reserve(side);
+        for (std::size_t c = 0; c < side; ++c) {
+            const std::size_t index = r * side + c;
+            row.push_back(index < inputs.series.size() ? inputs.series[index] : 0.0);
+        }
+        inputs.square.push_back(row);
+    }
+    inputs.text = value_string(body, "text");
+    if (inputs.text.empty()) {
+        // Formulas that take a path should not drop files into the repository.
+        const std::filesystem::path scratch =
+            std::filesystem::temp_directory_path() / "climate-formula-lab";
+        std::error_code ignored;
+        std::filesystem::create_directories(scratch, ignored);
+        inputs.text = (scratch / "out.csv").string();
+    }
+
+    static const std::map<std::string, std::size_t> lookup = [] {
+        std::map<std::string, std::size_t> index;
+        for (const LabFormula& formula : lab_formulas()) index[formula.id] = formula.index;
+        return index;
+    }();
+
+    const json::Value* calls = body.find("calls");
+    if (calls == nullptr || !calls->is_array() || calls->items.empty())
+        throw BadRequest("select at least one formula to run");
+
+    json::Value results = json::Value::array();
+    std::size_t succeeded = 0;
+    for (const json::Value& call : calls->items) {
+        if (!call.is_object()) continue;
+        const std::string id = value_string(call, "id");
+        const auto found = lookup.find(id);
+        json::Value item = json::Value::object();
+        item.set("id", json::Value::from_string(id));
+        if (found == lookup.end()) {
+            item.set("ok", json::Value::from_bool(false));
+            item.set("error", json::Value::from_string("unknown formula id"));
+            results.push(item);
+            continue;
+        }
+        const LabFormula& formula = lab_formulas()[found->second];
+        item.set("name", json::Value::from_string(formula.name));
+        item.set("module", json::Value::from_string(formula.module));
+        item.set("signature", json::Value::from_string(formula.signature));
+
+        LabInputs call_inputs = inputs;
+        const json::Value* args = call.find("args");
+        for (const LabParam& param : formula.params) {
+            if (param.kind != "number" && param.kind != "complex" && param.kind != "seed" &&
+                param.kind != "enum")
+                continue;
+            double value = param.default_value;
+            if (args != nullptr && args->is_object()) {
+                const json::Value* supplied = args->find(param.name);
+                if (supplied != nullptr && supplied->is_number()) value = supplied->number;
+            }
+            call_inputs.numbers.push_back(value);
+        }
+
+        try {
+            item.set("ok", json::Value::from_bool(true));
+            item.set("result", json::Value::from_string(run_formula(formula.index, call_inputs)));
+            ++succeeded;
+        } catch (const std::exception& error) {
+            item.set("ok", json::Value::from_bool(false));
+            item.set("error", json::Value::from_string(error.what()));
+        }
+        results.push(item);
+    }
+
+    json::Value root = json::Value::object();
+    root.set("series", json::Value::from_string(file));
+    root.set("samples", json::Value::from_number(static_cast<double>(inputs.series.size())));
+    root.set("requested", json::Value::from_number(static_cast<double>(results.items.size())));
+    root.set("succeeded", json::Value::from_number(static_cast<double>(succeeded)));
+    root.set("results", results);
+    return json_response(root);
+}
+
 Response grid_trend_request() {
     // A small deterministic demonstration field. It exists to exercise the
     // per-cell Sen slope and Getis-Ord path without pretending to be a NASA
@@ -1355,6 +1522,7 @@ Response route(const Request& request) {
         if (request.path == "/api/catalog") return catalog_request();
         if (request.path == "/api/help") return help_request();
         if (request.path == "/api/formulas") return formulas_request();
+        if (request.path == "/api/lab") return lab_catalog_request();
         if (request.path == "/api/grid-trend") return grid_trend_request();
         if (request.path == "/api/nasa/datasets") return nasa_datasets_request();
         if (request.path == "/api/data/file") {
@@ -1388,6 +1556,7 @@ Response route(const Request& request) {
         if (request.path == "/api/info") return information_request(body);
         if (request.path == "/api/sstunc") return uncertainty_request(body);
         if (request.path == "/api/physics") return physics_request(body);
+        if (request.path == "/api/lab/run") return lab_run_request(body);
         if (request.path == "/api/query") return query_request(body);
         if (request.path == "/api/run") return run_request(body);
         if (request.path == "/api/nasa/plan") return nasa_plan_request(body);

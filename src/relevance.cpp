@@ -15,6 +15,8 @@ void require(bool condition, const char* message) {
 
 double r_squared(const std::vector<double>& response, const Matrix& predictors) {
     if (predictors.empty() || predictors[0].empty()) return 0.0;
+    require(predictors.size() == response.size(),
+            "r_squared: response and predictor rows must match");
     const std::size_t n = response.size(), columns = predictors[0].size() + 1;
     Matrix design(n, std::vector<double>(columns, 1.0));
     for (std::size_t i = 0; i < n; ++i)

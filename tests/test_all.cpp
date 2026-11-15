@@ -1,6 +1,7 @@
 // Self-checking test program for the climate analysis tool. Build and run with
 // `make test`. Any failure prints a diagnostic and the process exits non-zero.
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -22,6 +23,7 @@
 #include "csv.hpp"
 #include "earth.hpp"
 #include "fft.hpp"
+#include "formula_lab.hpp"
 #include "land.hpp"
 #include "landuse.hpp"
 #include "detect.hpp"
@@ -2202,6 +2204,65 @@ void test_ocean_profiles() {
     CHECK_NEAR(apriori[1], 0.5, 1e-12);
 }
 
+// Every public declaration in the headers must be bound in the formula lab and
+// must execute without taking the process down. Formulas that reject the
+// default inputs are allowed to throw (that is their documented validation),
+// but nothing may be missing, duplicated or crash.
+void test_formula_lab_complete() {
+    const std::vector<LabFormula>& formulas = lab_formulas();
+    check(formulas.size() >= 900, "formula lab covers the public headers", __FILE__, __LINE__);
+
+    std::vector<std::string> seen;
+    seen.reserve(formulas.size());
+    for (std::size_t i = 0; i < formulas.size(); ++i) {
+        check(formulas[i].index == i, "formula index matches its position", __FILE__, __LINE__);
+        seen.push_back(formulas[i].id);
+        check(!formulas[i].name.empty(), "formula has a name", __FILE__, __LINE__);
+        check(!formulas[i].signature.empty(), "formula has a signature", __FILE__, __LINE__);
+    }
+    std::sort(seen.begin(), seen.end());
+    check(std::adjacent_find(seen.begin(), seen.end()) == seen.end(),
+          "formula ids are unique", __FILE__, __LINE__);
+
+    LabInputs inputs;
+    for (int i = 0; i < 60; ++i) {
+        inputs.time.push_back(2000.0 + i / 12.0);
+        inputs.series.push_back(14.0 + 0.02 * i + 0.4 * std::sin(i * 0.7));
+    }
+    for (std::size_t start = 0; start + 3 <= inputs.series.size(); start += 3)
+        inputs.matrix.emplace_back(inputs.series.begin() + static_cast<long>(start),
+                                   inputs.series.begin() + static_cast<long>(start + 3));
+    for (std::size_t r = 0; r < 8; ++r) {
+        std::vector<double> row;
+        for (std::size_t c = 0; c < 8; ++c) row.push_back(inputs.series[(r * 8 + c) % inputs.series.size()]);
+        inputs.square.push_back(row);
+    }
+    inputs.text = "/tmp/climate-formula-lab-test.csv";
+
+    std::size_t executed = 0, rejected = 0;
+    for (const LabFormula& formula : formulas) {
+        // Mirror the HTTP handler: each formula receives its declared defaults.
+        LabInputs call_inputs = inputs;
+        for (const LabParam& param : formula.params) {
+            if (param.kind == "number" || param.kind == "complex" ||
+                param.kind == "seed" || param.kind == "enum")
+                call_inputs.numbers.push_back(param.default_value);
+        }
+        try {
+            run_formula(formula.index, call_inputs);
+            ++executed;
+        } catch (const std::exception&) {
+            ++rejected;
+        }
+    }
+    check(executed + rejected == formulas.size(), "every formula either runs or rejects",
+          __FILE__, __LINE__);
+    check(executed > formulas.size() / 2, "most formulas run on the default inputs",
+          __FILE__, __LINE__);
+    std::cout << "formula lab: " << formulas.size() << " bound, " << executed
+              << " executed, " << rejected << " rejected default inputs\n";
+}
+
 void test_algorithmic_gaps_and_trends() {
     CHECK_NEAR(mann_kendall_score({1.0, 2.0, 3.0}), 3.0, 1e-12);
     CHECK_NEAR(mann_kendall_variance(3), 66.0 / 18.0, 1e-12);
@@ -2471,6 +2532,7 @@ int main() {
     test_closures();
     test_fetch();
     test_algorithmic_gaps_and_trends();
+    test_formula_lab_complete();
 
     if (failures == 0) {
         std::cout << "all tests passed\n";

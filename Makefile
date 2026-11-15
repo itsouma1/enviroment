@@ -22,6 +22,9 @@ tools/generate_demo: tools/generate_demo.cpp $(OBJ_NOMAIN)
 tests/test_all: tests/test_all.cpp $(OBJ_NOMAIN)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/test_all.cpp $(OBJ_NOMAIN)
 
+formulas: tools/gen_formula_lab.py
+	python3 tools/gen_formula_lab.py
+
 test: tests/test_all
 	./tests/test_all
 
@@ -37,4 +40,4 @@ ui: $(BIN)
 clean:
 	rm -f $(OBJ) $(BIN) tools/generate_demo tests/test_all
 
-.PHONY: all test data demo ui clean
+.PHONY: all test data demo ui clean formulas
