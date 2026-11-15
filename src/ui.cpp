@@ -1568,7 +1568,7 @@ Response contrast_request(const json::Value& body) {
         points.push_back(defaults[1]);
     }
 
-    std::vector<ContrastRegion> regions;
+    std::vector<std::string> labels;
     for (std::size_t i = 0; i < points.size(); ++i) {
         const PointSpec& point = points[i];
         if (point.lat < -90.0 || point.lat > 90.0 || point.lon < -180.0 || point.lon > 180.0)
@@ -1578,8 +1578,27 @@ Response contrast_request(const json::Value& body) {
             const json::Value* name = list->items[i].find("label");
             if (name != nullptr && !name->as_string("").empty()) label = name->as_string("");
         }
-        regions.push_back(contrast_region(label, point.lat, point.lon, parameter, start, end));
+        labels.push_back(label);
     }
+
+    // The two points are independent network requests, so they are fetched at
+    // the same time instead of one after the other.
+    std::vector<ContrastRegion> regions(points.size());
+    std::vector<std::string> errors(points.size());
+    std::vector<std::thread> workers;
+    for (std::size_t i = 0; i < points.size(); ++i) {
+        workers.emplace_back([&, i]() {
+            try {
+                regions[i] = contrast_region(labels[i], points[i].lat, points[i].lon,
+                                             parameter, start, end);
+            } catch (const std::exception& error) {
+                errors[i] = error.what();
+            }
+        });
+    }
+    for (auto& worker : workers) worker.join();
+    for (const auto& error : errors)
+        if (!error.empty()) throw BadRequest(error);
 
     const ContrastRegion& first = regions[0];
     const ContrastRegion& second = regions[1];

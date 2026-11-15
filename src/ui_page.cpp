@@ -192,6 +192,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .lab-row .lab-meta{color:#d3bd98;margin-left:auto;text-align:right}
 .filebtn{display:inline-block;margin-top:7px;border:1px solid var(--line2);background:#22180f;color:#f0dfc0;padding:5px 9px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
 .filebtn:hover{background:#2b1e14;color:#fff3dc}
+.vhidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .mission{border:1px solid var(--line2);background:#1a120c;padding:16px 18px;margin-bottom:10px;
   box-shadow:inset 0 0 40px rgba(0,0,0,.5);position:relative}
 .mission .mtag{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);font-weight:700}
@@ -217,6 +218,16 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .cxverdict.opposed{border-color:var(--amber);color:#ffe0a6}
 summary.fhead{cursor:pointer;list-style:none}
 summary.fhead::-webkit-details-marker{display:none}
+.coach{position:fixed;z-index:10000;max-width:320px;background:#2a1c12;border:1px solid var(--amber);
+  box-shadow:0 14px 40px rgba(0,0,0,.7);padding:12px 13px 10px;color:#f7e8c8}
+.coach[hidden]{display:none}
+.coach-arrow{position:absolute;width:12px;height:12px;background:#2a1c12;border-left:1px solid var(--amber);
+  border-bottom:1px solid var(--amber);transform:rotate(45deg)}
+.coach-step{font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;color:#ffc37f;margin-bottom:5px}
+.coach-text{font-size:11px;line-height:1.55;color:#efdcc0}
+.coach-actions{display:flex;justify-content:space-between;gap:8px;margin-top:10px}
+.coach-actions .btn{padding:5px 9px;font-size:9px}
+.coach-focus{outline:2px solid var(--amber)!important;outline-offset:2px;box-shadow:0 0 0 4px rgba(255,195,94,.18)!important}
 .qbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}
 .qcell{border:1px solid var(--line2);background:#1a120c;padding:8px 10px}
 .qcell span{display:block;font-size:8.5px;letter-spacing:.14em;color:var(--teal);font-weight:700}
@@ -542,7 +553,8 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
   <!-- FORMULA REGISTRY -->
   <section class="page" id="page-formulas">
     <div class="sectionhead" style="margin-top:0"><div><h2>Calculation modes</h2><p>The same calculations the analysis tabs use, grouped by the question they answer: what is changing, how much, where, whether it is significant, and why. Every mode here is executable — pick one in <b>All calculations</b> to run it with your own inputs, or let the analysis tabs call it on a real series.</p></div><div class="telemetry" id="formula-count">—</div></div>
-    <div class="searchrow"><input id="formula-search" type="text" placeholder="Search functions, modules, symbols…"><button class="btn" id="formula-refresh">Rescan headers</button></div>
+    <div class="searchrow"><input id="formula-search" type="text" placeholder="Search calculations by name or symbol…"><button class="btn" id="formula-refresh">Rescan</button></div>
+    <div class="tagrow" id="formula-cats"></div>
     <div class="panel"><div class="flist" id="formula-list"><div class="empty">Loading registry…</div></div></div>
     <div class="note">The registry is generated from <span class="telemetry">src/*.hpp</span> at runtime. Use the Command Console to execute any command-line implementation; the Laboratories expose the retrieval and analysis paths interactively.</div>
   </section>
@@ -627,7 +639,7 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
           <div class="field"><label>Or paste / upload CSV</label>
             <textarea id="ts-csv" rows="7" spellcheck="false"></textarea>
             <label class="filebtn" for="ts-file">Choose CSV file</label>
-            <input type="file" id="ts-file" accept=".csv,text/csv" style="display:none">
+            <input type="file" id="ts-file" accept=".csv,text/csv" class="vhidden">
           </div>
           <div class="row">
             <div class="field"><label>Time column</label><select id="ts-time"></select></div>
@@ -659,7 +671,7 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
           <div class="field"><label>Or paste / upload CSV</label>
             <textarea id="co2-csv" rows="7" spellcheck="false"></textarea>
             <label class="filebtn" for="co2-file">Choose CSV file</label>
-            <input type="file" id="co2-file" accept=".csv,text/csv" style="display:none">
+            <input type="file" id="co2-file" accept=".csv,text/csv" class="vhidden">
           </div>
           <div class="row">
             <div class="field"><label>Time column</label><select id="co2-time"></select></div>
@@ -826,6 +838,26 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
   </div>
   </section>
 
+
+    <div class="sectionhead"><div><h2>How the retrieved variable changes over time</h2><p>A retrieval above gives one footprint. This runs the change analysis on the full record of the same quantity, so the number you retrieved and the change you report are the same variable.</p></div><div class="telemetry">SERIES → TREND</div></div>
+    <div class="tool">
+      <div class="panel"><div class="panelhead"><b>Record</b><span class="hint">real values from data/</span></div><div class="panelbody">
+        <div class="field"><label>Variable</label><select id="ret-series">
+          <option value="sst_monthly.csv|sst|degC">Sea surface temperature · NLSST record</option>
+          <option value="ndvi_monthly.csv|value|unitless">Vegetation index · NDVI record</option>
+          <option value="sea_ice_extent_monthly.csv|value|million km2">Sea ice extent · NASA Team record</option>
+          <option value="precipitation_monthly.csv|value|mm/day">Precipitation · GPI record</option>
+          <option value="live_gistemp.csv|value|degC anomaly">GISTEMP global anomaly · live pull</option>
+          <option value="live_seaice_n.csv|value|million km2">Arctic sea ice · live pull</option>
+        </select></div>
+        <div class="field"><label>Alpha</label><input id="ret-alpha" type="number" value="0.05" step="0.01" min="0.001" max="0.2"></div>
+        <button class="btn primary run" id="ret-run">Plot the record →</button>
+        <div class="note">The chart shows the raw series, the STL trend and the Sen slope. The verdict beside it is the Mann–Kendall test on the deseasonalised series, so the same number is defended in the Significance tab.</div>
+      </div></div>
+      <div id="ret-out"><div class="panel"><div class="placeholder"><div><div class="big">∿</div><p>Pick a record to see the retrieval and its change together.</p></div></div></div></div>
+    </div>
+  </section>
+
   <!-- PHYSICS -->
   <section class="page" id="page-physics">
     <div class="sectionhead" style="margin-top:0"><div><h2>Formula laboratory</h2><p>Every public physics formula, selectable in any combination. Energy balance, radiative forcing, Mie scattering, wind-driven transport, geostrophy, vegetation indices.</p></div></div>
@@ -880,6 +912,14 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
 </main>
 </div>
 <div class="toast" id="toast"></div>
+<div class="coach" id="coach" hidden>
+  <div class="coach-arrow" id="coach-arrow"></div>
+  <div class="coach-body">
+    <div class="coach-step" id="coach-step">1 / 5</div>
+    <div class="coach-text" id="coach-text"></div>
+    <div class="coach-actions"><button class="btn" id="coach-skip">Skip the tour</button><button class="btn primary" id="coach-next">Next</button></div>
+  </div>
+</div>
 <script>
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
@@ -895,7 +935,10 @@ async function api(path,body){
   const r=await fetch(path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
   const text=await r.text(); let data;
   try{data=JSON.parse(text);}catch(e){throw new Error(text.slice(0,300)||'Invalid server response');}
-  if(!r.ok)throw new Error(data.error||('HTTP '+r.status));
+  if(!r.ok){
+    const detail = typeof data.error==='string' ? data.error : JSON.stringify(data.error||data);
+    throw new Error(detail||('HTTP '+r.status));
+  }
   return data;
 }
 function nav(name){
@@ -904,7 +947,8 @@ function nav(name){
   const label={workflow:'What / where / how much',significance:'Significance',formulas:'Calculation modes',console:'Command console',overview:'System',timeseries:'Time series lab',co2:'CO₂ curve fit',retrieval:'Retrievals',info:'Information theory',uncertainty:'Uncertainty',physics:'Formula calculator',alllab:'All calculations',visual:'Visualize over time',live:'Fetch data',catalog:'Select variables'}[name]||name;
   $('#crumb').textContent=label; window.scrollTo({top:0,behavior:'smooth'});
 }
-document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){nav(b.dataset.nav);}});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){nav(b.dataset.nav);return;}
+  const g=e.target.closest('[data-goto]');if(g){nav(g.dataset.goto);window.scrollTo({top:0,behavior:'smooth'});}});
 $$('#retrieval-tabs .tab').forEach(t=>t.addEventListener('click',()=>{
   $$('#retrieval-tabs .tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');
   $$('.tabpane').forEach(p=>p.classList.remove('active'));$('#tab-'+t.dataset.tab).classList.add('active');
@@ -1672,25 +1716,44 @@ const FORMULA_GROUPS=[
   ['05 · Why it changes — physics, dynamics and transport',['physics.hpp','pde.hpp','assim.hpp','tempac.hpp','magnitude.hpp','maturity.hpp','copula.hpp','restrand.hpp']],
   ['06 · Numerics behind the answers — data, statistics and linear algebra',['json.hpp','csv.hpp','netcdf.hpp','readers.hpp','stats.hpp','linalg.hpp','ml.hpp','kernel.hpp']]
 ];
+let formulaGroup='';
+function formulaChips(){
+  const box=$('#formula-cats');if(!box)return;
+  const chip=(value,label)=>`<button class="tag ${formulaGroup===value?'amber':''}" data-fcat="${value}">${esc(label)}</button>`;
+  box.innerHTML=[chip('','All questions')].concat(
+    FORMULA_GROUPS.map(([label],i)=>chip(String(i),label.split(' · ')[0]+' · '+label.split(' — ')[1]))
+  ).join('')+chip('leftover','Supporting helpers');
+}
 function renderFormulas(){
   if(!state.formulas)return;
+  formulaChips();
   const q=($('#formula-search').value||'').toLowerCase();
   const byFile={};
   state.formulas.modules.forEach(m=>{byFile[m.file]=(m.functions||[]).filter(f=>!q||f.toLowerCase().includes(q));});
   const used=new Set();
   let html='';
-  const block=(label,files)=>{
+  const block=(label,files,index)=>{
     const names=[];
     files.forEach(f=>{if(byFile[f]&&byFile[f].length){names.push(...byFile[f]);used.add(f);}});
     if(!names.length)return '';
-    return `<details class="fitem"><summary class="fhead"><span>${esc(label)}</span><span class="cnt">${names.length} calculations</span></summary><div class="fbody">${names.map(f=>`<div class="fsig">${esc(f)}</div>`).join('')}</div></details>`;
+    const open=(q||formulaGroup===String(index)||(!q&&!formulaGroup&&index===0))?' open':'';
+    return `<details class="fitem"${open}><summary class="fhead"><span>${esc(label)}</span><span class="cnt">${names.length} calculations</span></summary><div class="fbody">${names.map(f=>`<div class="fsig">${esc(f)}</div>`).join('')}</div></details>`;
   };
-  FORMULA_GROUPS.forEach(([label,files])=>{html+=block(label,files);});
-  const leftovers=[];
-  state.formulas.modules.forEach(m=>{if(!used.has(m.file)&&byFile[m.file]&&byFile[m.file].length)leftovers.push(...byFile[m.file]);});
-  if(leftovers.length)html+=`<details class="fitem"><summary class="fhead"><span>07 · Supporting helpers</span><span class="cnt">${leftovers.length} calculations</span></summary><div class="fbody">${leftovers.map(f=>`<div class="fsig">${esc(f)}</div>`).join('')}</div></details>`;
+  FORMULA_GROUPS.forEach(([label,files],i)=>{if(formulaGroup&&formulaGroup!==String(i)&&formulaGroup!=='leftover')return;html+=block(label,files,i);});
+  if(!formulaGroup||formulaGroup==='leftover'){
+    const leftovers=[];
+    state.formulas.modules.forEach(m=>{if(!used.has(m.file)&&byFile[m.file]&&byFile[m.file].length)leftovers.push(...byFile[m.file]);});
+    if(leftovers.length)html+=`<details class="fitem" open><summary class="fhead"><span>07 · Supporting helpers</span><span class="cnt">${leftovers.length} calculations</span></summary><div class="fbody">${leftovers.map(f=>`<div class="fsig">${esc(f)}</div>`).join('')}</div></details>`;
+  }
   $('#formula-list').innerHTML=html||'<div class="empty">No calculation matches that filter.</div>';
 }
+$('#formula-cats')&&$('#formula-cats').addEventListener('click',e=>{
+  const chip=e.target.closest('[data-fcat]');
+  if(!chip)return;
+  formulaGroup=chip.dataset.fcat;
+  renderFormulas();
+  window.scrollTo({top:0,behavior:'smooth'});
+});
 $('#formula-search')&&$('#formula-search').addEventListener('input',renderFormulas);
 $('#formula-refresh')&&$('#formula-refresh').addEventListener('click',loadFormulas);
 
@@ -1741,7 +1804,9 @@ function cxSpark(values,color){
 }
 async function runContrast(){
   const out=$('#cx-out');if(!out)return;
-  out.innerHTML='<div class="empty">Calling the NASA POWER API for both regions…</div>';
+  const t0=Date.now();
+  out.innerHTML='<div class="empty">Calling the NASA POWER API for both regions… <span id="cx-tick">0s</span></div>';
+  const tick=setInterval(()=>{const el=document.getElementById('cx-tick');if(el)el.textContent=Math.round((Date.now()-t0)/1000)+'s';},500);
   const body={parameter:$('#cx-param').value,start:+$('#cx-start').value,end:+$('#cx-end').value,
     points:[{lat:+$('#cx-lat1').value,lon:+$('#cx-lon1').value,label:'Region A · lat '+$('#cx-lat1').value+', lon '+$('#cx-lon1').value},
             {lat:+$('#cx-lat2').value,lon:+$('#cx-lon2').value,label:'Region B · lat '+$('#cx-lat2').value+', lon '+$('#cx-lon2').value}]};
@@ -1769,7 +1834,18 @@ async function runContrast(){
     out.innerHTML=`<div class="cxverdict ${d.opposed?'opposed':''}">${esc(d.verdict)}</div>
       <div class="cxgrid">${cards}</div>
       <div class="note">Both regions were pulled live from the NASA POWER API for ${esc(d.parameter)}. Each verdict comes from its own seasonal Mann–Kendall test at alpha = ${d.alpha}; "significant" means a monotonic change this large is unlikely when there is no trend.</div>`;
-  }catch(e){out.innerHTML=`<div class="empty">Contrast failed: ${esc(e.message)}</div>`;}
+    clearInterval(tick);
+  }catch(e){
+    clearInterval(tick);
+    const message = typeof e==='string' ? e : (e&&e.message)||JSON.stringify(e);
+    out.innerHTML=`<div class="panel"><div class="panelhead"><b>Contrast could not run</b><span class="hint">live NASA POWER</span></div><div class="panelbody">
+      <div class="err">${esc(message)}</div>
+      <div class="note">This panel pulls two live NASA POWER series, so it needs this machine to reach <span class="telemetry">power.larc.nasa.gov</span>. POWER needs no login — only Earthdata datasets do. If the network is blocked, open Fetch data to test the connection, then come back and retry.</div>
+      <div class="row"><button class="btn primary" id="cx-retry">Retry the comparison</button><button class="btn" data-goto="live">Open Fetch data</button><button class="btn" data-goto="significance">Open Significance</button></div>
+    </div></div>`;
+    const retry=document.getElementById('cx-retry');
+    if(retry)retry.addEventListener('click',runContrast);
+  }
 }
 $('#cx-run')&&$('#cx-run').addEventListener('click',runContrast);
 
@@ -1826,6 +1902,78 @@ $('#sig-run')&&$('#sig-run').addEventListener('click',sigRun);
 /*__LAB_JS__*/
 /*__VIS_JS__*/
 /*__LIVE_JS__*/
+
+/* ---------------- RETRIEVAL RECORD ---------------- */
+async function retRun(){
+  const out=$('#ret-out');if(!out)return;
+  const [file,column,units]=$('#ret-series').value.split('|');
+  out.innerHTML='<div class="panel"><div class="panelbody"><div class="hint">Loading the record…</div></div></div>';
+  try{
+    const text=await (await fetch('/api/data/file?name='+encodeURIComponent(file))).text();
+    const alpha=Math.min(0.2,Math.max(0.001,Number($('#ret-alpha').value)||0.05));
+    const d=await api('/api/analyze',{csv:text,value:column,alpha,period:12,units});
+    const labels=d.series.time.map(t=>fmt(t,1));
+    out.innerHTML=`<div class="panel"><div class="panelhead"><b>${esc(file)}</b><span class="hint">${d.samples} samples · ${esc(units)}</span></div><div class="panelbody">
+      ${chartCard('Observed and STL trend',[{name:'observed',values:d.series.observed,color:'#f7e8c8'},{name:'trend',values:d.components.trend,color:'#ffab54'}],{xlabels:labels,height:250})}
+      <div class="cards">${metric('Sen slope',fmt(d.trend.sen.slope,4),esc(units)+' / step')}${metric('Per decade',fmt(d.trend.sen_per_decade,3),esc(units)+' / decade')}${metric('Mann–Kendall p',pval(d.trend.mann_kendall.p_value),d.trend.mann_kendall.direction,d.trend.mann_kendall.significant?'good':'warn')}${metric('Change over record',fmt(d.trend.sen.slope*(d.end_time-d.start_time),2),esc(units))}</div>
+      <div class="verdict">${d.trend.mann_kendall.significant?`<b>SIGNIFICANT ${esc(d.trend.mann_kendall.direction.toUpperCase())}</b>`:'<b>NO SIGNIFICANT MONOTONIC TREND</b>'} at alpha = ${fmt(d.alpha,3)}.</div>
+    </div></div>`;
+  }catch(e){
+    const message=typeof e==='string'?e:(e&&e.message)||JSON.stringify(e);
+    out.innerHTML=`<div class="panel"><div class="panelbody"><div class="err">${esc(message)}</div></div></div>`;
+  }
+}
+$('#ret-run')&&$('#ret-run').addEventListener('click',retRun);
+
+/* ---------------- COACH MARKS ---------------- */
+const COACH_KEY='trend-detective-tour-v1';
+const COACH_STEPS=[
+  {sel:'[data-nav="live"]',text:'Start here. Every series is pulled live from a NASA endpoint the moment you press the button — GISTEMP, POWER, NSIDC, or your own Earthdata dataset.'},
+  {sel:'[data-nav="catalog"]',text:'Each variable card states what kind of change it measures, so you can choose the variable before choosing a method.'},
+  {sel:'[data-nav="workflow"]',text:'Here the same record answers the four questions: what is changing, where, how much, and whether it is significant.'},
+  {sel:'#cx-run',text:'Compare one variable in two places. Two live POWER series, two Sen slopes, two Mann–Kendall verdicts — an opposition becomes visible instead of averaged away.'},
+  {sel:'[data-nav="significance"]',text:'Only changes that survive autocorrelation, the seasonal cycle and estimator disagreement are reported as significant.'}
+];
+let coachIndex=0,coachTarget=null;
+function coachShow(index){
+  const box=$('#coach');if(!box)return;
+  if(index>=COACH_STEPS.length){coachEnd();return;}
+  coachIndex=index;
+  const step=COACH_STEPS[index];
+  if(step.sel==='#cx-run'&&$('.page.active').id!=='page-workflow')nav('workflow');
+  const target=document.querySelector(step.sel);
+  if(!target){coachShow(index+1);return;}
+  if(coachTarget)coachTarget.classList.remove('coach-focus');
+  coachTarget=target;target.classList.add('coach-focus');
+  const rect=target.getBoundingClientRect();
+  box.hidden=false;
+  $('#coach-step').textContent=(index+1)+' / '+COACH_STEPS.length;
+  $('#coach-text').textContent=step.text;
+  const boxW=320;
+  let left=rect.right+16, arrowSide='left';
+  if(left+boxW>window.innerWidth-16){left=Math.max(16,rect.left-boxW-16);arrowSide='right';}
+  let top=Math.min(Math.max(12,rect.top-8),window.innerHeight-190);
+  box.style.left=left+'px';box.style.top=top+'px';
+  const arrow=$('#coach-arrow');
+  arrow.style.top=Math.max(10,rect.top-top+rect.height/2-6)+'px';
+  arrow.style.left=arrowSide==='left'?'-6px':'auto';
+  arrow.style.right=arrowSide==='right'?'-6px':'auto';
+  arrow.style.transform='rotate('+(arrowSide==='left'?'45deg':'-135deg')+')';
+}
+function coachEnd(){
+  const box=$('#coach');if(box)box.hidden=true;
+  if(coachTarget)coachTarget.classList.remove('coach-focus');
+  try{localStorage.setItem(COACH_KEY,'done');}catch(e){}
+}
+function coachStart(){
+  let seen=null;try{seen=localStorage.getItem(COACH_KEY);}catch(e){}
+  if(seen)return;
+  setTimeout(()=>coachShow(0),900);
+}
+$('#coach-next')&&$('#coach-next').addEventListener('click',()=>coachShow(coachIndex+1));
+$('#coach-skip')&&$('#coach-skip').addEventListener('click',coachEnd);
+window.addEventListener('resize',()=>{if(!$('#coach').hidden)coachShow(coachIndex);});
+coachStart();
 
 /* ---------------- BOOT ---------------- */
 renderPhysics();
