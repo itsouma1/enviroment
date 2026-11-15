@@ -802,3 +802,5 @@ credentials, which are not stored in this repository.
   calendar-phase climatology and the report says so.
 * The Mann-Kendall p-value uses the normal approximation with continuity
   correction, appropriate for the series lengths this tool targets.
+
+SI
