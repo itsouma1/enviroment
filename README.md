@@ -126,19 +126,23 @@ directory, Node runtime or front-end build step. The page embeds its CSS and
 JavaScript and calls the same C++ functions as the command line through a small
 JSON API. Its visual language is a beige/brown CRT console: solid panels, square
 controls, scanlines and phosphor charts, with no gradients or external assets.
-Chart series use the high-combinability blue (200-240 deg) and orange/yellow
-(40-60 deg) hues from the attached color-harmony study, rendered as solid
-phosphor lines rather than gradients.
+Chart series stay inside the beige/brown family: cream observed data, neon
+brown/amber trend lines, and dim brown cooling cells. There is no blue accent.
+Lines are smoothed with a Catmull-Rom path and rendered as solid phosphor
+strokes rather than gradients or MATLAB-style markers.
 
 The landing page is the **Trend Detective** workflow: variable and region
 selection, an explicit data-acquisition gate (coverage, gaps, missing values and
 artifacts are disclosed before testing), STL seasonality removal, Mann-Kendall /
 Sen inference, a spatial step, and a final report with export. A labelled
 24 x 12 synthetic grid demonstrates per-cell Sen slopes and Getis-Ord Gi*
-hotspots; it is explicitly not the selected series. The NASA Data page lists the CMR
-product routes and generates reproducible `nasa_fetch.py fetch --dry-run` plans;
-live downloads use the same wrapper and require Earthdata Login plus
-`earthaccess`. The Formula Registry indexes every public function declaration
+hotspots; it is explicitly not the selected series. The NASA Data page lists 14
+CMR product routes covering SST, air temperature, CO2, methane, NDVI, sea ice,
+precipitation, ozone, aerosol, soil moisture, snow, sea level and ocean colour.
+Its CMR button performs a live granule-metadata API query through
+`tools/nasa_cmr.py` and downloads nothing; reproducible acquisition plans use
+`nasa_fetch.py`, with live arrays requiring Earthdata Login plus `earthaccess`.
+The Formula Registry indexes every public function declaration
 from `src/*.hpp` (over 900 in the current tree), and the Command Console runs any
 non-UI subcommand in the binary. The remaining laboratories expose the CO2
 polyharmonic fit, NLSST/NDVI-EVI-SAVI/NASA Team/GPI retrievals, information

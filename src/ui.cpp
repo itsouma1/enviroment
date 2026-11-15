@@ -735,6 +735,91 @@ Response physics_request(const json::Value& body) {
         primary.set("unit", json::Value::from_string("AOD"));
         detail("Cross section", PI * radius * radius * qext, "m2");
         detail("Column density", n * path, "m-2");
+    } else if (formula == "equilibrium") {
+        const double forcing = value_number(body, "F", 3.7);
+        const double feedback = value_number(body, "lambda", -1.25);
+        root.set("title", json::Value::from_string("Equilibrium temperature change"));
+        root.set("formula", json::Value::from_string("dT = -F / lambda"));
+        primary.set("value", json::Value::from_number(equilibrium_temperature_change(forcing, feedback)));
+        primary.set("unit", json::Value::from_string("K"));
+        detail("Forcing", forcing, "W/m2");
+        detail("Feedback", feedback, "W/m2/K");
+    } else if (formula == "coriolis") {
+        const double latitude = value_number(body, "latitude", 30.0);
+        const double f = coriolis_parameter(latitude);
+        root.set("title", json::Value::from_string("Coriolis parameter"));
+        root.set("formula", json::Value::from_string("f = 2 Omega sin(phi)"));
+        primary.set("value", json::Value::from_number(f));
+        primary.set("unit", json::Value::from_string("1/s"));
+        detail("Latitude", latitude, "deg");
+        detail("Inertial period", f != 0.0 ? 2.0 * PI / std::fabs(f) : 0.0, "s");
+    } else if (formula == "ekman-pumping") {
+        const double dtau_y_dx = value_number(body, "dtau_y_dx", 1e-8);
+        const double dtau_x_dy = value_number(body, "dtau_x_dy", 0.0);
+        const double rho = value_number(body, "rho", 1025.0);
+        const double f = coriolis_parameter(value_number(body, "latitude", 30.0));
+        const double value = ekman_pumping(dtau_y_dx, dtau_x_dy, rho, f);
+        root.set("title", json::Value::from_string("Ekman pumping"));
+        root.set("formula", json::Value::from_string("w = curl(tau)/(rho f)"));
+        primary.set("value", json::Value::from_number(value));
+        primary.set("unit", json::Value::from_string("m/s"));
+        detail("Coriolis f", f, "1/s");
+        detail("Stress curl", dtau_y_dx - dtau_x_dy, "N/m2/m");
+    } else if (formula == "geostrophic") {
+        const double rho = value_number(body, "rho", 1025.0);
+        const double dp_dx = value_number(body, "dp_dx", 1e-5);
+        const double dp_dy = value_number(body, "dp_dy", 0.0);
+        const double latitude = value_number(body, "latitude", 30.0);
+        const GeostrophicVelocity velocity = geostrophic_velocity(rho, dp_dx, dp_dy, latitude);
+        root.set("title", json::Value::from_string("Geostrophic velocity"));
+        root.set("formula", json::Value::from_string("u = -dp/dy/(rho f), v = dp/dx/(rho f)"));
+        primary.set("value", json::Value::from_number(std::sqrt(velocity.u * velocity.u +
+                                                                 velocity.v * velocity.v)));
+        primary.set("unit", json::Value::from_string("m/s"));
+        detail("u", velocity.u, "m/s");
+        detail("v", velocity.v, "m/s");
+        detail("Coriolis f", coriolis_parameter(latitude), "1/s");
+    } else if (formula == "thermal-wind") {
+        const double rho = value_number(body, "rho", 1025.0);
+        const double drho_dx = value_number(body, "drho_dx", 1e-5);
+        const double drho_dy = value_number(body, "drho_dy", 0.0);
+        const double latitude = value_number(body, "latitude", 30.0);
+        const ThermalWind shear = thermal_wind(rho, drho_dx, drho_dy, latitude);
+        root.set("title", json::Value::from_string("Thermal wind shear"));
+        root.set("formula", json::Value::from_string("du/dz = g drho/dy/(f rho)"));
+        primary.set("value", json::Value::from_number(
+                                  std::sqrt(shear.du_dz * shear.du_dz + shear.dv_dz * shear.dv_dz)));
+        primary.set("unit", json::Value::from_string("1/s"));
+        detail("du/dz", shear.du_dz, "1/s");
+        detail("dv/dz", shear.dv_dz, "1/s");
+    } else if (formula == "savi") {
+        const double red = value_number(body, "red", 0.08);
+        const double nir = value_number(body, "nir", 0.45);
+        const double soil = value_number(body, "soil", 0.5);
+        const double value = savi(red, nir, soil);
+        root.set("title", json::Value::from_string("Soil-adjusted vegetation index"));
+        root.set("formula", json::Value::from_string("SAVI = (NIR-RED)/(NIR+RED+L)(1+L)"));
+        primary.set("value", json::Value::from_number(value));
+        primary.set("unit", json::Value::from_string("index"));
+        detail("RED", red, "reflectance");
+        detail("NIR", nir, "reflectance");
+        detail("L", soil, "");
+    } else if (formula == "evi") {
+        const double red = value_number(body, "red", 0.08);
+        const double nir = value_number(body, "nir", 0.45);
+        const double blue = value_number(body, "blue", 0.04);
+        const double gain = value_number(body, "gain", 2.5);
+        const double c1 = value_number(body, "c1", 6.0);
+        const double c2 = value_number(body, "c2", 7.5);
+        const double canopy = value_number(body, "canopy", 1.0);
+        const double value = evi(red, nir, blue, gain, c1, c2, canopy);
+        root.set("title", json::Value::from_string("Enhanced vegetation index"));
+        root.set("formula", json::Value::from_string("EVI = G(NIR-RED)/(NIR+C1 RED-C2 BLUE+L)"));
+        primary.set("value", json::Value::from_number(value));
+        primary.set("unit", json::Value::from_string("index"));
+        detail("RED", red, "reflectance");
+        detail("NIR", nir, "reflectance");
+        detail("BLUE", blue, "reflectance");
     } else {
         throw BadRequest("unknown physics formula");
     }
@@ -1157,6 +1242,40 @@ Response nasa_plan_request(const json::Value& body) {
     return json_response(root);
 }
 
+Response nasa_search_request(const json::Value& body) {
+    const std::string key = value_string(body, "key");
+    const RemoteDataset* dataset = find_remote_dataset(key);
+    if (dataset == nullptr) throw BadRequest("unknown NASA dataset key");
+    const std::string start = value_string(body, "start", "2024-01-01");
+    const std::string end = value_string(body, "end", "2024-12-31");
+    const int maximum = std::max(1, static_cast<int>(value_number(body, "max", 5.0)));
+
+    std::vector<std::string> arguments = {resolve_python_interpreter(),
+                                          "tools/nasa_cmr.py",
+                                          "--short-name",
+                                          dataset->short_name,
+                                          "--start",
+                                          start,
+                                          "--end",
+                                          end,
+                                          "--max",
+                                          std::to_string(maximum)};
+    if (!dataset->version.empty()) {
+        arguments.push_back("--version");
+        arguments.push_back(dataset->version);
+    }
+    const std::string command = build_command(arguments);
+    const CommandResult result = run_command(command);
+
+    json::Value root = json::Value::object();
+    root.set("key", json::Value::from_string(dataset->key));
+    root.set("short_name", json::Value::from_string(dataset->short_name));
+    root.set("command", json::Value::from_string(command));
+    root.set("exit_code", json::Value::from_number(result.exit_code));
+    root.set("output", json::Value::from_string(result.output));
+    return json_response(root);
+}
+
 Response query_request(const json::Value& body) {
     const std::string text = value_string(body, "text");
     if (text.empty()) throw BadRequest("query text is required");
@@ -1245,6 +1364,7 @@ Response route(const Request& request) {
         if (request.path == "/api/query") return query_request(body);
         if (request.path == "/api/run") return run_request(body);
         if (request.path == "/api/nasa/plan") return nasa_plan_request(body);
+        if (request.path == "/api/nasa/search") return nasa_search_request(body);
         throw BadRequest("unknown endpoint");
     }
 

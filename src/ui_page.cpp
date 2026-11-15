@@ -15,7 +15,7 @@ const char* climate_ui_html() {
   --line:#4a3524; --line2:#6b4a30; --text:#e8d6b8; --muted:#a68b6c;
   --teal:#d8a657; --sky:#c98b4b; --amber:#e0b15f; --rose:#c96a4a;
   --green:#a9b87a; --violet:#b58a6a; --bezel:#b7a184;
-  --blue:#4f9fd8; --cyan:#58b3b5; --orange:#d98a2b; --yellow:#d9b44a; --red:#b5523a;
+  --blue:#e2b184; --cyan:#c98a5a; --orange:#ff9a4d; --yellow:#e8c07a; --red:#a4633c;
   --mono:"Courier New",Courier,"Liberation Mono",Menlo,monospace;
   --sans:"Courier New",Courier,"Liberation Mono",Menlo,monospace;
 }
@@ -144,13 +144,13 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .chartwrap{border:1px solid var(--line);background:#0d0906;padding:5px 4px 2px;margin-bottom:8px}
 .chart{width:100%;height:auto;display:block;overflow:visible}
 .chart text{fill:#947554;font-family:var(--mono);font-size:9px}
-.chart .gridline{stroke:#2a1e14;stroke-width:1}
+.chart .gridline{stroke:#3a2a1d;stroke-width:1;stroke-dasharray:2 5}
 .chart .axis{stroke:#4a3524;stroke-width:1}
-.chart .line{fill:none;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.chart .line{fill:none;stroke-width:1.15;stroke-linejoin:round;stroke-linecap:round;stroke-opacity:.92}
+.chart .area{stroke:none;fill:rgba(255,154,77,.06)}
 .chart .legend{font-family:var(--mono);font-size:9px;fill:#b39570}
 .minicharts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .minicharts .chartwrap{margin:0}
-.minicharts .chart{height:150px}
 .tagrow{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
 .tag{display:inline-flex;align-items:center;border:1px solid var(--line2);background:#22180f;color:#c7ab87;
   padding:2px 6px;font-size:9px;letter-spacing:.04em;text-transform:uppercase}
@@ -162,7 +162,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 details{margin-top:8px;border-top:1px dashed #3c2b1d;padding-top:7px}
 summary{cursor:pointer;color:#a38562;font-size:10px;letter-spacing:.06em}
 pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;border:1px solid #3c2b1d;
-  padding:9px;overflow:auto;max-height:300px;color:#cdb18a;white-space:pre-wrap}
+  padding:9px;overflow:auto;max-height:300px;color:#cdb18a;white-space:pre-wrap;overflow-wrap:anywhere}
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line2);padding:0 2px;margin-bottom:12px;flex-wrap:wrap}
 .tab{background:transparent;border:1px solid transparent;border-bottom:0;color:#a38562;padding:7px 10px;
   font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
@@ -276,6 +276,7 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 ::-webkit-scrollbar-thumb:hover{background:#6b4a30}
 @media(max-width:1450px){.workflow{grid-template-columns:240px minmax(0,1fr) 260px}}
 @media(max-width:1200px){.workflow{grid-template-columns:250px minmax(0,1fr)}.wright{grid-column:1/-1;position:static;display:grid;grid-template-columns:1fr 1fr 1fr}.hero{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.g4{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1100px){.workflow{grid-template-columns:1fr}.wleft,.wright{position:static}.wleft{display:grid;grid-template-columns:1fr 1fr;align-items:start}}
 @media(max-width:900px){.app{grid-template-columns:1fr;border-width:6px}.sidebar{position:static;height:auto;
   flex-direction:row;flex-wrap:wrap;padding:8px;border-right:0;border-bottom:2px solid var(--line)}
   .brand{width:100%;padding-bottom:8px;margin-bottom:2px}.navlabel,.sidefoot{display:none}.nav{width:auto;padding:5px 6px;font-size:10px}
@@ -381,8 +382,8 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 
   <!-- NASA DATA -->
   <section class="page" id="page-nasa">
-    <div class="sectionhead" style="margin-top:0"><div><h2>NASA Earthdata uplink</h2><p>Product registry and reproducible fetch plans for the C++ + Python wrapper.</p></div><div class="telemetry">EARTHDATA / CMR / DAAC</div></div>
-    <div class="statusline"><span>PIPELINE <b>C++ UI → nasa_fetch.py → earthaccess → DAAC</b></span><span>LIVE FETCH <b>REQUIRES LOGIN</b></span></div>
+    <div class="sectionhead" style="margin-top:0"><div><h2>NASA Earthdata uplink</h2><p>Product registry, live CMR metadata, and API-backed acquisition routes for every variable class.</p></div><div class="telemetry">EARTHDATA / CMR / DAAC</div></div>
+    <div class="statusline"><span>CMR API <b>LIVE / NO DOWNLOAD</b></span><span>DATA ACCESS <b>EARTHDATA LOGIN</b></span></div>
     <div class="dsgrid" id="nasa-ds"><div class="empty">Loading NASA product registry…</div></div>
     <div class="sectionhead"><div><h2>Fetch planner</h2><p>Dry run: validates the request without downloading or requiring credentials.</p></div></div>
     <div class="tool">
@@ -390,8 +391,8 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
         <div class="field"><label>Dataset key</label><select id="nasa-key"></select></div>
         <div class="row"><div class="field"><label>Start</label><input id="nasa-start" type="text" value="2024-01-01"></div><div class="field"><label>End</label><input id="nasa-end" type="text" value="2024-12-31"></div></div>
         <div class="field"><label>Maximum granules</label><input id="nasa-max" type="number" value="4" min="1" max="100"></div>
-        <button class="btn primary run" id="nasa-plan">Generate fetch plan →</button>
-        <div class="note">Live download needs a free NASA Earthdata Login, <span class="telemetry">earthaccess</span>, <span class="telemetry">xarray</span> and <span class="telemetry">netCDF4</span>. No credentials are stored by this application.</div>
+        <div class="row"><button class="btn primary run" id="nasa-plan">Generate fetch plan →</button><button class="btn" id="nasa-search">Query CMR API →</button></div>
+        <div class="note">CMR search is a live API call and downloads no data. Live arrays need a free NASA Earthdata Login, <span class="telemetry">earthaccess</span>, <span class="telemetry">xarray</span> and <span class="telemetry">netCDF4</span>. No credentials are stored by this application.</div>
       </div></div>
       <div class="panel"><div class="panelhead"><b>Plan / command output</b><span class="hint">JSON</span></div><div class="panelbody"><pre id="nasa-output">Generate a plan to see the exact fetch command and dry-run manifest.</pre></div></div>
     </div>
@@ -645,6 +646,13 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
           <option value="wind">Bulk wind stress</option>
           <option value="ekman">Ekman transport</option>
           <option value="aod">Aerosol optical depth</option>
+          <option value="equilibrium">Equilibrium temperature change</option>
+          <option value="coriolis">Coriolis parameter</option>
+          <option value="ekman-pumping">Ekman pumping</option>
+          <option value="geostrophic">Geostrophic velocity</option>
+          <option value="thermal-wind">Thermal wind shear</option>
+          <option value="savi">SAVI vegetation index</option>
+          <option value="evi">EVI vegetation index</option>
         </select></div>
         <div id="ph-fields"></div>
         <button class="btn primary run" id="ph-run">Calculate →</button>
@@ -716,13 +724,32 @@ function chart(series,opts={}){
   if(xl.length>=2){for(const p of [0,Math.floor((xl.length-1)/2),xl.length-1]){
     g+=`<text x="${x(p)}" y="${H-8}" text-anchor="${p===0?'start':(p===xl.length-1?'end':'middle')}">${esc(xl[p])}</text>`;}}
   series.forEach(s=>{
-    let d='',open=false;
-    s.values.forEach((v,i)=>{if(v===null||!isFinite(v)){open=false;return;}
-      d+=(open?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)+' ';open=true;});
-    g+=`<path class="line" d="${d}" stroke="${s.color||'#d8a657'}"/>`;
+    let points=[],segments=[];
+    s.values.forEach((v,i)=>{if(v===null||!isFinite(v)){if(points.length)segments.push(points);points=[];return;}points.push({x:x(i),y:y(v)});});
+    if(points.length)segments.push(points);
+    let d='';
+    segments.forEach(seg=>{
+      if(seg.length===1){d+=`M${seg[0].x.toFixed(1)} ${seg[0].y.toFixed(1)} `;return;}
+      d+=`M${seg[0].x.toFixed(1)} ${seg[0].y.toFixed(1)} `;
+      const deltas=[],slopes=[];
+      for(let i=0;i<seg.length-1;i++)deltas.push((seg[i+1].y-seg[i].y)/(seg[i+1].x-seg[i].x));
+      for(let i=0;i<seg.length;i++){
+        if(i===0)slopes.push(deltas[0]);
+        else if(i===seg.length-1)slopes.push(deltas[deltas.length-1]);
+        else if(deltas[i-1]*deltas[i]<=0)slopes.push(0);
+        else slopes.push((deltas[i-1]+deltas[i])/2);
+      }
+      for(let i=0;i<seg.length-1;i++){
+        const dx=(seg[i+1].x-seg[i].x)/3;
+        const m1=Math.min(Math.abs(slopes[i]),3*Math.abs(deltas[i]))*Math.sign(slopes[i]);
+        const m2=Math.min(Math.abs(slopes[i+1]),3*Math.abs(deltas[i]))*Math.sign(slopes[i+1]);
+        d+=`C${(seg[i].x+dx).toFixed(1)} ${(seg[i].y+dx*m1).toFixed(1)} ${(seg[i+1].x-dx).toFixed(1)} ${(seg[i+1].y-dx*m2).toFixed(1)} ${seg[i+1].x.toFixed(1)} ${seg[i+1].y.toFixed(1)} `;
+      }
+    });
+    g+=`<path class="line" d="${d}" stroke="${s.color||'#e2b184'}"/>`;
   });
   let legend='';let lx=L;
-  series.forEach(s=>{legend+=`<rect x="${lx}" y="7" width="9" height="3" fill="${s.color||'#d8a657'}"/><text class="legend" x="${lx+13}" y="11">${esc(s.name)}</text>`;lx+=s.name.length*6+30;});
+  series.forEach(s=>{legend+=`<line x1="${lx}" y1="8" x2="${lx+10}" y2="8" stroke="${s.color||'#e2b184'}" stroke-width="2"/><text class="legend" x="${lx+14}" y="11">${esc(s.name)}</text>`;lx+=s.name.length*6+34;});
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img"><g>${g}</g><g>${legend}</g></svg>`;
 }
 function chartCard(title,series,opts={}){return `<div class="chartwrap"><div style="font-size:9.5px;color:#a38562;padding:2px 8px 0;text-transform:uppercase;letter-spacing:.08em">${esc(title)}</div>${chart(series,opts)}</div>`;}
@@ -806,10 +833,10 @@ function renderAnalysis(d){
       ${metric('Seasonal strength',d.decomposition.seasonal_strength?fmt(d.decomposition.seasonal_strength*100,1)+'%':'—','variance explained')}
       ${metric('Trend strength',d.decomposition.trend_strength?fmt(d.decomposition.trend_strength*100,1)+'%':'—','of variance')}
     </div>
-    ${chartCard('Observed series and STL trend',[{name:'observed',values:d.series.observed,color:'#6aa6d8'},{name:'trend',values:d.components.trend,color:'#d9973f'}],{xlabels:labels,height:300})}
+    ${chartCard('Observed series and STL trend',[{name:'observed',values:d.series.observed,color:'#e2b184'},{name:'trend',values:d.components.trend,color:'#ff9a4d'}],{xlabels:labels,height:300})}
     <div class="minicharts">
-      ${chartCard('Seasonal component',[{name:'seasonal',values:d.components.seasonal,color:'#58b3b5'}],{xlabels:labels,height:150})}
-      ${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#b5523a'}],{xlabels:labels,height:150})}
+      ${chartCard('Seasonal component',[{name:'seasonal',values:d.components.seasonal,color:'#c98a5a'}],{xlabels:labels,height:210})}
+      ${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#a4633c'}],{xlabels:labels,height:210})}
     </div>
     <div class="cards" style="margin-top:12px">${mkBlock(mk)}</div>
     <div class="kv">
@@ -843,7 +870,7 @@ function renderCo2(d){
       ${metric('R²',fmt(d.model.r_squared,5),'residual SD '+fmt(d.model.residual_sd,4))}
       ${metric('Seasonal amplitude',fmt(d.seasonal_amplitude,3),esc(d.units))}
     </div>
-    ${chartCard('Observed and fitted curve',[{name:'observed',values:d.series.observed,color:'#6aa6d8'},{name:'fitted',values:d.series.fitted,color:'#d9973f'}],{xlabels:d.series.time.map(t=>fmt(t,1)),height:310})}
+    ${chartCard('Observed and fitted curve',[{name:'observed',values:d.series.observed,color:'#e2b184'},{name:'fitted',values:d.series.fitted,color:'#ff9a4d'}],{xlabels:d.series.time.map(t=>fmt(t,1)),height:310})}
     <div class="kv">
       <span class="k">Model</span><span class="v">degree ${d.model.polynomial_order} + ${d.model.harmonic_count} harmonics</span>
       <span class="k">Growth at start</span><span class="v">${fmt(g.start_per_year,4)} ${esc(d.units)}/yr</span>
@@ -979,7 +1006,14 @@ const physics={
   'mie':{desc:'Qext, Qsca and g from the Mie series',fields:[['size','Size parameter x',5],['real','Real refractive index',1.33],['imag','Imaginary index k',0.01]]},
   'wind':{desc:'τ = ρₐ C_d |U| U',fields:[['u','u₁₀ (m/s)',10],['v','v₁₀ (m/s)',0],['rho','Air density (kg/m³)',1.225],['cd','Drag coefficient',0.0013]]},
   'ekman':{desc:'M = (τy, −τx) / (ρ f)',fields:[['tau_x','τx (N/m²)',0.1],['tau_y','τy (N/m²)',0],['latitude','Latitude (°)',30],['rho','Water density (kg/m³)',1025]]},
-  'aod':{desc:'τ = N π r² Qext L',fields:[['n','Number concentration (m⁻³)',1e8],['radius','Radius (µm)',0.1],['qext','Qext',2],['path','Path length (m)',1000]]}
+  'aod':{desc:'τ = N π r² Qext L',fields:[['n','Number concentration (m⁻³)',1e8],['radius','Radius (µm)',0.1],['qext','Qext',2],['path','Path length (m)',1000]]},
+  'equilibrium':{desc:'ΔT = −F / λ',fields:[['F','Forcing (W/m²)',3.7],['lambda','Feedback λ (W/m²/K)',-1.25]]},
+  'coriolis':{desc:'f = 2 Ω sin φ',fields:[['latitude','Latitude (°)',30]]},
+  'ekman-pumping':{desc:'w = (∂τy/∂x − ∂τx/∂y) / (ρ f)',fields:[['dtau_y_dx','∂τy/∂x (N/m²/m)',1e-8],['dtau_x_dy','∂τx/∂y (N/m²/m)',0],['rho','Water density (kg/m³)',1025],['latitude','Latitude (°)',30]]},
+  'geostrophic':{desc:'u = −∂p/∂y/(ρf), v = ∂p/∂x/(ρf)',fields:[['rho','Density (kg/m³)',1025],['dp_dx','∂p/∂x (Pa/m)',1e-5],['dp_dy','∂p/∂y (Pa/m)',0],['latitude','Latitude (°)',30]]},
+  'thermal-wind':{desc:'∂u/∂z = g ∂ρ/∂y/(fρ)',fields:[['rho','Density (kg/m³)',1025],['drho_dx','∂ρ/∂x (kg/m⁴)',1e-5],['drho_dy','∂ρ/∂y (kg/m⁴)',0],['latitude','Latitude (°)',30]]},
+  'savi':{desc:'SAVI = (NIR−RED)/(NIR+RED+L)(1+L)',fields:[['red','RED reflectance',0.08],['nir','NIR reflectance',0.45],['soil','Soil factor L',0.5]]},
+  'evi':{desc:'EVI = G(NIR−RED)/(NIR+C1 RED−C2 BLUE+L)',fields:[['red','RED reflectance',0.08],['nir','NIR reflectance',0.45],['blue','BLUE reflectance',0.04],['gain','Gain G',2.5],['c1','C1',6],['c2','C2',7.5],['canopy','Canopy L',1]]}
 };
 function renderPhysics(){
   const def=physics[$('#ph-formula').value];state.physics=def;
@@ -1220,8 +1254,8 @@ $('#wf-upload')&&$('#wf-upload').addEventListener('change',e=>{
 });
 function wfChart(d){
   const labels=d.series.time.map(t=>fmt(t,1));
-  return chartCard('Observed and STL trend',[{name:'observed',values:d.series.observed,color:'#6aa6d8'},{name:'trend',values:d.components.trend,color:'#d9973f'}],{xlabels:labels,height:250})+
-    `<div class="minicharts">${chartCard('Seasonal',[{name:'seasonal',values:d.components.seasonal,color:'#58b3b5'}],{xlabels:labels,height:140})}${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#b5523a'}],{xlabels:labels,height:140})}</div>`;
+  return chartCard('Observed and STL trend',[{name:'observed',values:d.series.observed,color:'#e2b184'},{name:'trend',values:d.components.trend,color:'#ff9a4d'}],{xlabels:labels,height:250})+
+    `<div class="minicharts">${chartCard('Seasonal',[{name:'seasonal',values:d.components.seasonal,color:'#c98a5a'}],{xlabels:labels,height:210})}${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#a4633c'}],{xlabels:labels,height:210})}</div>`;
 }
 function wfTrend(d){
   const mk=d.trend.mann_kendall,sen=d.trend.sen;
@@ -1247,14 +1281,14 @@ async function loadGridDemo(){
     const cells=d.slopes.map((s,i)=>{
       const lat=d.latitudes[Math.floor(i/d.columns)],lon=d.longitudes[i%d.columns];
       const t=Math.min(1,Math.abs(s)/maxAbs);
-      const hue=s>=0?38:210;
+      const hue=s>=0?30:22;
       const light=18+38*t;
-      const sat=s>=0?62:55;
+      const sat=s>=0?78:30;
       const hot=d.hotspots[i];
       return `<div class="gridcell" title="lat ${fmt(lat,1)} · lon ${fmt(lon,1)} · Sen ${fmt(s,5)} / month${hot?' · Gi* hotspot':''}" style="background:hsl(${hue} ${sat}% ${light}%);${hot?'outline:1px solid #f3dfb5;outline-offset:-1px':''}"></div>`;
     }).join('');
     box.innerHTML=`<div class="gridmap" style="grid-template-columns:repeat(${d.columns},1fr)">${cells}</div>
-      <div class="tagrow" style="margin-top:6px"><span class="tag">COOLING / BLUE</span><span class="tag amber">WARMING / ORANGE</span><span class="tag">${d.hotspot_count} Gi* HOTSPOTS</span></div>`;
+      <div class="tagrow" style="margin-top:6px"><span class="tag">COOLING / DIM BROWN</span><span class="tag amber">WARMING / NEON BROWN</span><span class="tag">${d.hotspot_count} Gi* HOTSPOTS</span></div>`;
   }catch(e){box.innerHTML=`<div class="empty">${esc(e.message)}</div>`;}
 }
 function renderWfReport(d){
@@ -1293,7 +1327,7 @@ async function runWorkflow(){
     wfLog(`Mann-Kendall p=${pval(d.trend.mann_kendall.p_value)}; Sen=${fmt(d.trend.sen.slope,4)} ${e.units||''}/step.`);
     if(!d.decomposed)wfLog('STL skipped: fewer than two seasonal cycles. Climatology fallback used.','warn');
     if(d.warnings.length)d.warnings.forEach(w=>wfLog(w,'warn'));
-    wfLog('Report assembled. Spatial map withheld: scalar acquisition.','warn');
+    wfLog('Report assembled. Scalar map withheld; synthetic grid demo shown separately.','warn');
   }catch(err){toast(err.message);wfLog(err.message,'err');b.disabled=false;b.textContent='Retry data confirmation';}
   b.disabled=false;b.innerHTML='Data confirmed → remove seasonality';
 }
@@ -1311,7 +1345,7 @@ function drawHeroChart(text){
   try{
     const t=parseCsv(text);const vi=t.header.length>1?1:0;
     const values=t.rows.map(r=>Number(r[vi])).filter(v=>isFinite(v)).slice(-160);
-    $('#hero-chart').innerHTML=chart([{name:'sst',values,color:'#6aa6d8'}],{height:210,xlabels:['start','','now']});
+    $('#hero-chart').innerHTML=chart([{name:'sst',values,color:'#ffb06a'}],{height:210,xlabels:['start','','now']});
   }catch(e){}
 }
 
@@ -1334,6 +1368,14 @@ async function planNasa(){
   }catch(e){out.textContent='ERROR: '+e.message;}
 }
 $('#nasa-plan')&&$('#nasa-plan').addEventListener('click',planNasa);
+async function searchNasa(){
+  const out=$('#nasa-output');out.textContent='Querying CMR API…';
+  try{
+    const d=await api('/api/nasa/search',{key:$('#nasa-key').value,start:$('#nasa-start').value,end:$('#nasa-end').value,max:+$('#nasa-max').value});
+    out.textContent=d.output;
+  }catch(e){out.textContent='CMR query failed: '+e.message;}
+}
+$('#nasa-search')&&$('#nasa-search').addEventListener('click',searchNasa);
 
 /* ---------------- FORMULA REGISTRY ---------------- */
 async function loadFormulas(){
