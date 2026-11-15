@@ -1724,10 +1724,87 @@ bool safe_token(const std::string& text, const std::string& extra) {
     return true;
 }
 
+// The source table lives here, not in the Python helper, so the page works in a
+// build that ships no Python at all.
 Response live_status_request() {
-    const CommandResult result = run_command(live_interpreter() + " tools/nasa_live.py status < /dev/null");
-    if (result.exit_code != 0) throw BadRequest("the live-data helper failed: " + result.output);
-    return json_response(json::parse(result.output));
+    struct Spec {
+        const char* key;
+        const char* label;
+        const char* provider;
+        const char* url;
+        const char* variable;
+        const char* units;
+        const char* cadence;
+        bool needs_auth;
+    };
+    const Spec specs[] = {
+        {"gistemp", "GISTEMP v4 global mean anomaly",
+         "NASA Goddard Institute for Space Studies",
+         "https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.csv", "temperature anomaly",
+         "degC vs 1951-1980", "monthly, 1880-present", false},
+        {"power", "NASA POWER surface meteorology",
+         "NASA Langley Research Center POWER project",
+         "https://power.larc.nasa.gov/api/temporal/monthly/point", "T2M", "degC",
+         "monthly, 1981-present", false},
+        {"seaice", "Sea Ice Index monthly extent", "NASA NSIDC DAAC (G02135)",
+         "https://noaadata.apps.nsidc.org/NOAA/G02135/{hemisphere}/monthly/data/",
+         "sea ice extent", "million km^2", "monthly, 1978-present", false},
+        {"earthaccess", "Earthdata Login granules", "NASA Earthdata (any DAAC)",
+         "https://cmr.earthdata.nasa.gov/search", "dataset dependent", "dataset dependent",
+         "dataset dependent", true},
+    };
+
+    // Anything already on disk is reported back as a cached series.
+    std::vector<std::pair<std::string, json::Value>> cached;
+    std::error_code ignored;
+    for (const auto& entry : std::filesystem::directory_iterator("data", ignored)) {
+        const std::string name = entry.path().filename().string();
+        if (name.rfind("live_", 0) != 0 || entry.path().extension() != ".json") continue;
+        try {
+            json::Value meta = json::parse(read_text_file(entry.path().string()));
+            const json::Value* source = meta.find("source");
+            if (source != nullptr) cached.emplace_back(source->as_string(std::string()), meta);
+        } catch (const std::exception&) {
+            continue;
+        }
+    }
+
+    json::Value sources = json::Value::array();
+    for (const Spec& spec : specs) {
+        json::Value item = json::Value::object();
+        item.set("key", json::Value::from_string(spec.key));
+        item.set("label", json::Value::from_string(spec.label));
+        item.set("provider", json::Value::from_string(spec.provider));
+        item.set("url", json::Value::from_string(spec.url));
+        item.set("variable", json::Value::from_string(spec.variable));
+        item.set("units", json::Value::from_string(spec.units));
+        item.set("cadence", json::Value::from_string(spec.cadence));
+        item.set("needs_auth", json::Value::from_bool(spec.needs_auth));
+        json::Value series = json::Value::array();
+        json::Value newest;
+        std::string newest_at;
+        for (const auto& entry : cached) {
+            if (entry.first != spec.key) continue;
+            series.items.push_back(entry.second);
+            const json::Value* at = entry.second.find("retrieved_at");
+            const std::string stamp = at != nullptr ? at->as_string(std::string()) : std::string();
+            if (newest.is_object() == false || stamp > newest_at) {
+                newest = entry.second;
+                newest_at = stamp;
+            }
+        }
+        item.set("series", series);
+        if (newest.is_object()) item.set("cached", newest);
+        sources.items.push_back(item);
+    }
+
+    json::Value root = json::Value::object();
+    root.set("sources", sources);
+    const bool credentials =
+        std::getenv("EARTHDATA_TOKEN") != nullptr || std::getenv("EARTHDATA_USERNAME") != nullptr;
+    root.set("earthaccess_credentials", json::Value::from_bool(credentials));
+    root.set("native", json::Value::from_bool(true));
+    return json_response(root);
 }
 
 // Per-request Earthdata credentials: they are handed to the helper through its
@@ -1824,6 +1901,11 @@ Response live_pull_request(const json::Value& body) {
         command << " --region " << region;
     }
     if (source == "earthaccess") {
+        if (!std::filesystem::exists("tools/nasa_live.py"))
+            throw BadRequest(
+                "Earthdata granule downloads need the optional Python helper (tools/nasa_live.py "
+                "plus earthaccess), which this build does not ship. GISTEMP, POWER and the Sea "
+                "Ice Index download here with no account and no Python.");
         const std::string short_name = value_string(body, "short_name");
         if (!safe_token(short_name, "_-.")) throw BadRequest("invalid CMR short name");
         command << " --short-name " << short_name;
@@ -1831,8 +1913,8 @@ Response live_pull_request(const json::Value& body) {
 
     const std::vector<std::pair<std::string, std::string>> env = credential_env(body);
     const CommandResult result = env.empty()
-        ? run_command(command.str() + " < /dev/null")
-        : run_command_with_env(command.str() + " < /dev/null", env);
+        ? run_command(command.str())
+        : run_command_with_env(command.str(), env);
     // A library can print warnings on stderr before its JSON verdict, so the
     // payload is taken from the last line that actually is JSON.
     std::string payload = result.output;
@@ -1903,7 +1985,7 @@ ContrastRegion contrast_region(const std::string& label, double lat, double lon,
     std::ostringstream command;
     command << live_interpreter() << " tools/nasa_live.py pull --source power"
             << " --lat " << lat << " --lon " << lon << " --parameter " << parameter
-            << " --start " << start << " --end " << end << " < /dev/null";
+            << " --start " << start << " --end " << end;
     const CommandResult result = run_command(command.str());
     json::Value payload;
     try {
@@ -1983,20 +2065,55 @@ ContrastRegion contrast_region(const std::string& label, double lat, double lon,
     return region;
 }
 
+// A bearer token can be checked here with no Python and no extra package; a
+// username and password only work through the optional helper, so that path
+// says so instead of failing with an unreadable helper message.
 Response earthdata_check_request(const json::Value& body) {
-    const std::vector<std::pair<std::string, std::string>> env = credential_env(body);
-    const std::string command = live_interpreter() + " tools/nasa_live.py whoami < /dev/null";
-    const CommandResult result = env.empty() ? run_command(command)
-                                             : run_command_with_env(command, env);
-    std::string payload = result.output;
-    const std::size_t at = payload.rfind("{\n  \"ok\"");
-    if (at != std::string::npos) payload = payload.substr(at);
-    try {
-        return json_response(json::parse(payload));
-    } catch (const std::exception&) {
-        throw BadRequest("the Earthdata check returned something unreadable: " +
-                         payload.substr(0, 300));
+    const std::string token = value_string(body, "earthdata_token");
+    json::Value root = json::Value::object();
+    if (!token.empty()) {
+        std::string username;
+        std::string detail;
+        const bool accepted = verify_earthdata_token(token, &username, &detail);
+        root.set("ok", json::Value::from_bool(true));
+        root.set("authenticated", json::Value::from_bool(accepted));
+        root.set("method", json::Value::from_string("bearer token"));
+        if (!username.empty()) root.set("username", json::Value::from_string(username));
+        root.set(accepted ? "note" : "error", json::Value::from_string(detail));
+        return json_response(root);
     }
+
+    const std::string username = value_string(body, "earthdata_username");
+    const std::string password = value_string(body, "earthdata_password");
+    if (!username.empty() || !password.empty()) {
+        const CommandResult result = run_command_with_env(
+            live_interpreter() + " tools/nasa_live.py whoami", credential_env(body));
+        std::string payload = result.output;
+        const std::size_t marker = payload.rfind("{\n  \"ok\"");
+        if (marker != std::string::npos) payload = payload.substr(marker);
+        try {
+            return json_response(json::parse(payload));
+        } catch (const std::exception&) {
+            root.set("ok", json::Value::from_bool(true));
+            root.set("authenticated", json::Value::from_bool(false));
+            root.set("method", json::Value::from_string("password"));
+            root.set("error", json::Value::from_string(
+                                   "password sign-in needs the optional Python helper with "
+                                   "earthaccess installed, which this build does not include; "
+                                   "paste an Earthdata bearer token instead"));
+            return json_response(root);
+        }
+    }
+
+    root.set("ok", json::Value::from_bool(false));
+    root.set("authenticated", json::Value::from_bool(false));
+    root.set("method", json::Value::from_string("none"));
+    root.set("error", json::Value::from_string("no credential was given"));
+    root.set("hint", json::Value::from_string(
+                           "GISTEMP, POWER and the Sea Ice Index are open and never need a "
+                           "login. Only Earthdata granule downloads do, and those accept a "
+                           "bearer token without any Python."));
+    return json_response(root);
 }
 
 Response contrast_request(const json::Value& body) {

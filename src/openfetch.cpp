@@ -105,6 +105,27 @@ bool http_get(const std::string& url, std::string* body, std::string* error) {
     return false;
 }
 
+// Pulls the first string value for a key out of a small JSON document. The EDL
+// profile answer is flat, so a full parser is not needed here.
+std::string json_string_field(const std::string& body, const std::string& key) {
+    const std::string needle = "\"" + key + "\"";
+    std::size_t at = body.find(needle);
+    if (at == std::string::npos) return std::string();
+    at = body.find(':', at + needle.size());
+    if (at == std::string::npos) return std::string();
+    ++at;
+    while (at < body.size() && std::isspace(static_cast<unsigned char>(body[at]))) ++at;
+    if (at >= body.size() || body[at] != '"') return std::string();
+    ++at;
+    std::string value;
+    while (at < body.size() && body[at] != '"') {
+        if (body[at] == '\\' && at + 1 < body.size()) ++at;
+        value.push_back(body[at]);
+        ++at;
+    }
+    return value;
+}
+
 bool parse_gistemp(const std::string& text, OpenSeries* series, std::string* error) {
     std::istringstream stream(text);
     std::string line;
@@ -315,6 +336,53 @@ bool fetch_open_series(const std::string& source, double latitude, double longit
     return true;
 }
 
+bool verify_earthdata_token(const std::string& token, std::string* username,
+                            std::string* detail) {
+    // This endpoint answers JSON for a bearer token: 200 when it is valid,
+    // 401 {"error":"invalid_token"} when it is not. /profile only redirects.
+    const std::string url = "https://urs.earthdata.nasa.gov/api/users/token";
+    if (trimmed(token).empty()) {
+        *detail = "no token was given";
+        return false;
+    }
+    const CommandResult result = run_command(
+        "curl -sS --max-time 30 -H \"Authorization: Bearer " + trimmed(token) +
+        "\" -w \"\\nHTTP_STATUS:%{http_code}\" \"" + url + "\"");
+    std::string body = result.output;
+    int status = 0;
+    const std::size_t marker = body.rfind("HTTP_STATUS:");
+    if (marker != std::string::npos) {
+        status = std::atoi(body.c_str() + marker + 12);
+        body = body.substr(0, marker);
+    }
+    if (status == 0) {
+        *detail = result.exit_code == 0
+                      ? "Earthdata Login did not answer (no HTTP status)"
+                      : "could not reach Earthdata Login — check the network or that curl is installed";
+        return false;
+    }
+    if (status == 200) {
+        std::string name = json_string_field(body, "email_address");
+        if (name.empty()) name = json_string_field(body, "username");
+        if (name.empty()) name = json_string_field(body, "uid");
+        if (username != nullptr) *username = name;
+        *detail = "token accepted by Earthdata Login";
+        return true;
+    }
+    if (status == 401 || status == 403) {
+        std::string reason = json_string_field(body, "error");
+        if (reason.empty()) reason = "HTTP " + std::to_string(status);
+        *detail = "Earthdata Login rejected the token: " + reason;
+        return false;
+    }
+    if (status >= 300 && status < 400) {
+        *detail = "Earthdata Login redirected the request, so the token was not accepted";
+        return false;
+    }
+    *detail = "Earthdata Login answered HTTP " + std::to_string(status);
+    return false;
+}
+
 bool write_open_series(const OpenSeries& series, const std::string& directory,
                        std::string* csv_path, std::string* error) {
     std::error_code ignored;
@@ -349,6 +417,8 @@ bool write_open_series(const OpenSeries& series, const std::string& directory,
     root.set("last_value", json::Value::from_number(series.value.back()));
     root.set("retrieved_at", json::Value::from_string(
                                   series.retrieved_at.empty() ? utc_now() : series.retrieved_at));
+    root.set("label", json::Value::from_string(series.label));
+    root.set("provider", json::Value::from_string(series.provider));
     if (series.source == "power") {
         root.set("latitude", json::Value::from_number(series.latitude));
         root.set("longitude", json::Value::from_number(series.longitude));

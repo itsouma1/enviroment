@@ -32,6 +32,13 @@ bool fetch_open_series(const std::string& source, double latitude, double longit
                        const std::string& start, const std::string& end,
                        const std::string& region, OpenSeries* series, std::string* error);
 
+// Checks an Earthdata Login bearer token against the EDL profile endpoint. No
+// Python and no password are involved: the token is sent as a bearer header.
+// Returns true when the token was accepted; `detail` always explains what
+// happened, including a rejected or unreachable check.
+bool verify_earthdata_token(const std::string& token, std::string* username,
+                            std::string* detail);
+
 // Writes time,value CSV plus a JSON sidecar next to it, the same schema the
 // Python helper produces. Returns the CSV path.
 bool write_open_series(const OpenSeries& series, const std::string& directory,

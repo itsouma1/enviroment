@@ -831,7 +831,7 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
       </div>
       <div class="row" style="margin-top:8px"><button class="btn" id="ea-check">Verify Earthdata login</button><span class="telemetry">nothing is downloaded by this check</span></div>
       <div id="ea-status"></div>
-      <div class="note">Used only for the Earthdata pull you press: the browser keeps them in this tab's memory, the server passes them to the fetch helper as environment variables for that one child process, and nothing is written to disk, logs or the page. Leave blank to fall back to credentials already exported in your shell or a <span class="telemetry">~/.netrc</span> file. Open endpoints (GISTEMP, POWER, NSIDC sea ice) never need a login. Earthdata accounts with multi-factor authentication cannot use a password: paste a bearer token instead.</div>
+      <div class="note">Used only for the Earthdata pull you press: the browser keeps them in this tab's memory, the server passes them to the fetch helper as environment variables for that one child process, and nothing is written to disk, logs or the page. Leave blank to fall back to credentials already exported in your shell or a <span class="telemetry">~/.netrc</span> file. Open endpoints (GISTEMP, POWER, NSIDC sea ice) never need a login. A bearer token is checked directly here, with no Python and no extra package; a password check needs the optional Python helper, which the portable build does not ship. Earthdata accounts with multi-factor authentication cannot use a password at all: paste a bearer token.</div>
     </div></div>
     <div id="live-list" class="live-grid"><div class="hint">Loading sources…</div></div>
     <div id="live-output"></div>
