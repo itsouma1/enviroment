@@ -1,0 +1,16 @@
+{
+  "url": "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_mm_mlo.csv",
+  "variable": "co2",
+  "units": "ppm",
+  "source": "co2",
+  "key": "live_co2_mlo",
+  "file": "data/live_co2_mlo.csv",
+  "samples": 823,
+  "first_time": 1958.2083,
+  "last_time": 2026.7083,
+  "first_value": 315.71,
+  "last_value": 426.07,
+  "retrieved_at": "2026-11-15T23:29:11+00:00",
+  "label": "NOAA GML Mauna Loa CO2 monthly mean",
+  "provider": "NOAA Global Monitoring Laboratory"
+}

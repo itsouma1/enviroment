@@ -1,0 +1,18 @@
+{
+  "url": "https://power.larc.nasa.gov/api/temporal/monthly/point?parameters=PRECTOTCORR&community=RE&longitude=25&latitude=65&start=1990&end=2024&format=CSV",
+  "variable": "PRECTOTCORR",
+  "units": "mm/day",
+  "source": "power",
+  "key": "live_power_prectotcorr_65_25",
+  "file": "data/live_power_prectotcorr_65_25.csv",
+  "samples": 420,
+  "first_time": 1990.0417,
+  "last_time": 2024.9583,
+  "first_value": 1.57,
+  "last_value": 1.25,
+  "retrieved_at": "2026-11-15T23:29:28+00:00",
+  "label": "NASA POWER PRECTOTCORR surface meteorology",
+  "provider": "NASA Langley Research Center POWER project",
+  "latitude": 65,
+  "longitude": 25
+}

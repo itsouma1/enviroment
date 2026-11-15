@@ -126,6 +126,47 @@ std::string json_string_field(const std::string& body, const std::string& key) {
     return value;
 }
 
+// NOAA GML monthly tables: '#' comment lines, then a header with year, month and
+// a value column. 'average' is the in-situ monthly mean; negative codes are
+// missing.
+bool parse_noaa_monthly(const std::string& text, OpenSeries* series, std::string* error) {
+    std::istringstream stream(text);
+    std::string line;
+    std::vector<std::string> header;
+    std::size_t rows = 0;
+    while (std::getline(stream, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty() || line[0] == '#') continue;
+        const std::vector<std::string> cells = split_csv_line(line);
+        if (header.empty()) {
+            if (cells.size() >= 3) header = cells;
+            continue;
+        }
+        if (cells.size() < 3) continue;
+        double year_value = 0.0;
+        double month_value = 0.0;
+        double value = 0.0;
+        if (!numeric_cell(cells[0], &year_value)) continue;
+        if (!numeric_cell(cells[1], &month_value)) continue;
+        std::size_t column = 3;
+        for (std::size_t i = 0; i < header.size(); ++i) {
+            if (header[i] == "average" || header[i] == "average ") column = i;
+        }
+        if (column >= cells.size()) continue;
+        if (!numeric_cell(cells[column], &value)) continue;
+        if (value <= 0.0) continue;
+        series->time.push_back(decimal_year(static_cast<int>(year_value),
+                                            static_cast<int>(month_value)));
+        series->value.push_back(value);
+        ++rows;
+    }
+    if (rows < 12) {
+        *error = "the NOAA table had no usable monthly values";
+        return false;
+    }
+    return true;
+}
+
 bool parse_gistemp(const std::string& text, OpenSeries* series, std::string* error) {
     std::istringstream stream(text);
     std::string line;
@@ -264,7 +305,8 @@ bool parse_seaice(const std::vector<std::pair<int, std::string>>& files, OpenSer
 
 bool fetch_open_series(const std::string& source, double latitude, double longitude,
                        const std::string& start, const std::string& end,
-                       const std::string& region, OpenSeries* series, std::string* error) {
+                       const std::string& region, const std::string& parameter,
+                       OpenSeries* series, std::string* error) {
     if (series == nullptr) return false;
     OpenSeries out;
     out.source = source;
@@ -281,27 +323,47 @@ bool fetch_open_series(const std::string& source, double latitude, double longit
         out.url = "https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.csv";
         if (!http_get(out.url, &body, error)) return false;
         if (!parse_gistemp(body, &out, error)) return false;
+    } else if (source == "co2") {
+        out.key = "live_co2_mlo";
+        out.label = "NOAA GML Mauna Loa CO2 monthly mean";
+        out.provider = "NOAA Global Monitoring Laboratory";
+        out.variable = "co2";
+        out.units = "ppm";
+        out.url = "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_mm_mlo.csv";
+        if (!http_get(out.url, &body, error)) return false;
+        if (!parse_noaa_monthly(body, &out, error)) return false;
+    } else if (source == "ch4") {
+        out.key = "live_ch4_gl";
+        out.label = "NOAA GML global CH4 monthly mean";
+        out.provider = "NOAA Global Monitoring Laboratory";
+        out.variable = "ch4";
+        out.units = "ppb";
+        out.url = "https://gml.noaa.gov/webdata/ccgg/trends/ch4/ch4_mm_gl.csv";
+        if (!http_get(out.url, &body, error)) return false;
+        if (!parse_noaa_monthly(body, &out, error)) return false;
     } else if (source == "power") {
         const int start_year =
             start.size() >= 4 ? std::atoi(start.substr(0, 4).c_str()) : 1981;
         const int end_year = end.size() >= 4 ? std::atoi(end.substr(0, 4).c_str()) : 2024;
+        const std::string power_parameter = parameter.empty() ? "T2M" : parameter;
         std::ostringstream url;
         url << "https://power.larc.nasa.gov/api/temporal/monthly/point"
-            << "?parameters=T2M&community=RE"
+            << "?parameters=" << power_parameter << "&community=RE"
             << "&longitude=" << longitude << "&latitude=" << latitude
             << "&start=" << start_year << "&end=" << end_year << "&format=CSV";
         out.url = url.str();
         std::ostringstream key;
-        key << "live_power_t2m_" << (latitude < 0 ? "m" : "")
+        std::string key_parameter = lowered(power_parameter);
+        key << "live_power_" << key_parameter << "_" << (latitude < 0 ? "m" : "")
             << std::llround(std::fabs(latitude)) << "_" << (longitude < 0 ? "m" : "")
             << std::llround(std::fabs(longitude));
         out.key = key.str();
-        out.label = "NASA POWER surface meteorology";
+        out.label = "NASA POWER " + power_parameter + " surface meteorology";
         out.provider = "NASA Langley Research Center POWER project";
-        out.variable = "T2M";
-        out.units = "degC";
+        out.variable = power_parameter;
+        out.units = power_parameter == "PRECTOTCORR" ? "mm/day" : "degC";
         if (!http_get(out.url, &body, error)) return false;
-        if (!parse_power(body, "T2M", &out, error)) return false;
+        if (!parse_power(body, power_parameter, &out, error)) return false;
     } else if (source == "seaice") {
         const bool north = lowered(region) != "s";
         const std::string hemisphere = north ? "north" : "south";
@@ -321,6 +383,9 @@ bool fetch_open_series(const std::string& source, double latitude, double longit
         out.variable = std::string("extent_") + (north ? "N" : "S");
         out.units = "million km^2";
         if (!parse_seaice(files, &out, error)) return false;
+    } else if (source == "earthaccess") {
+        *error = "Earthdata granules need a granule converter, which this build does not ship";
+        return false;
     } else {
         *error = "unknown open source '" + source +
                  "' — this path covers gistemp, power and seaice";
@@ -334,6 +399,52 @@ bool fetch_open_series(const std::string& source, double latitude, double longit
     out.retrieved_at = utc_now();
     *series = out;
     return true;
+}
+
+bool verify_earthdata_password(const std::vector<std::pair<std::string, std::string>>& env,
+                               std::vector<std::string>* usernames, std::string* detail) {
+#if defined(_WIN32)
+    const std::string credential = "\"%EARTHDATA_USERNAME%:%EARTHDATA_PASSWORD%\"";
+#else
+    const std::string credential = "\"$EARTHDATA_USERNAME:$EARTHDATA_PASSWORD\"";
+#endif
+    const std::string url = "https://urs.earthdata.nasa.gov/api/users/tokens";
+    const std::string command = "curl -sS --max-time 40 -u " + credential +
+                                " -w \"\\nHTTP_STATUS:%{http_code}\" \"" + url + "\"";
+    const CommandResult result =
+        env.empty() ? run_command(command) : run_command_with_env(command, env);
+    std::string body = result.output;
+    int status = 0;
+    const std::size_t marker = body.rfind("HTTP_STATUS:");
+    if (marker != std::string::npos) {
+        status = std::atoi(body.c_str() + marker + 12);
+        body = body.substr(0, marker);
+    }
+    if (status == 0) {
+        *detail = "could not reach Earthdata Login — check the network or that curl is installed";
+        return false;
+    }
+    if (status == 200 || status == 201) {
+        if (usernames != nullptr) {
+            for (const char* field : {"username", "uid", "email_address"}) {
+                const std::string value = json_string_field(body, field);
+                if (!value.empty() &&
+                    std::find(usernames->begin(), usernames->end(), value) == usernames->end())
+                    usernames->push_back(value);
+            }
+        }
+        *detail = "username and password accepted by Earthdata Login";
+        return true;
+    }
+    if (status == 401 || status == 403) {
+        std::string reason = json_string_field(body, "error_description");
+        if (reason.empty()) reason = json_string_field(body, "error");
+        if (reason.empty()) reason = "HTTP " + std::to_string(status);
+        *detail = "Earthdata Login rejected the username and password: " + reason;
+        return false;
+    }
+    *detail = "Earthdata Login answered HTTP " + std::to_string(status);
+    return false;
 }
 
 bool verify_earthdata_token(const std::string& token, std::string* username,

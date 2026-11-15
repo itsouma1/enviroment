@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace climate {
@@ -30,7 +31,14 @@ struct OpenSeries {
 // sources.
 bool fetch_open_series(const std::string& source, double latitude, double longitude,
                        const std::string& start, const std::string& end,
-                       const std::string& region, OpenSeries* series, std::string* error);
+                       const std::string& region, const std::string& parameter,
+                       OpenSeries* series, std::string* error);
+
+// Signs in to Earthdata Login with a username and password. The credentials are
+// read from the child environment through variable references, so they never
+// appear on a command line, in a file or in a log.
+bool verify_earthdata_password(const std::vector<std::pair<std::string, std::string>>& env,
+                               std::vector<std::string>* usernames, std::string* detail);
 
 // Checks an Earthdata Login bearer token against the EDL profile endpoint. No
 // Python and no password are involved: the token is sent as a bearer header.

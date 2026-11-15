@@ -1,0 +1,16 @@
+{
+  "url": "https://gml.noaa.gov/webdata/ccgg/trends/ch4/ch4_mm_gl.csv",
+  "variable": "ch4",
+  "units": "ppb",
+  "source": "ch4",
+  "key": "live_ch4_gl",
+  "file": "data/live_ch4_gl.csv",
+  "samples": 516,
+  "first_time": 1983.5417,
+  "last_time": 2026.4583,
+  "first_value": 1625.96,
+  "last_value": 1934.57,
+  "retrieved_at": "2026-11-15T23:29:12+00:00",
+  "label": "NOAA GML global CH4 monthly mean",
+  "provider": "NOAA Global Monitoring Laboratory"
+}

@@ -1749,6 +1749,12 @@ Response live_status_request() {
         {"seaice", "Sea Ice Index monthly extent", "NASA NSIDC DAAC (G02135)",
          "https://noaadata.apps.nsidc.org/NOAA/G02135/{hemisphere}/monthly/data/",
          "sea ice extent", "million km^2", "monthly, 1978-present", false},
+        {"co2", "NOAA GML Mauna Loa CO2 monthly mean", "NOAA Global Monitoring Laboratory",
+         "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_mm_mlo.csv", "co2", "ppm",
+         "monthly, 1958-present", false},
+        {"ch4", "NOAA GML global CH4 monthly mean", "NOAA Global Monitoring Laboratory",
+         "https://gml.noaa.gov/webdata/ccgg/trends/ch4/ch4_mm_gl.csv", "ch4", "ppb",
+         "monthly, 1983-present", false},
         {"earthaccess", "Earthdata Login granules", "NASA Earthdata (any DAAC)",
          "https://cmr.earthdata.nasa.gov/search", "dataset dependent", "dataset dependent",
          "dataset dependent", true},
@@ -1827,20 +1833,25 @@ std::vector<std::pair<std::string, std::string>> credential_env(const json::Valu
 
 Response live_pull_request(const json::Value& body) {
     const std::string source = value_string(body, "source");
-    static const char* allowed[] = {"gistemp", "power", "seaice", "earthaccess"};
+    static const char* allowed[] = {"gistemp", "power", "seaice", "earthaccess", "co2", "ch4"};
     if (std::find(std::begin(allowed), std::end(allowed), source) == std::end(allowed))
         throw BadRequest("unknown live source");
 
     // The open sources need no account and no Python: they are fetched here, and
     // the Python helper is kept only for Earthdata granules.
-    if (source == "gistemp" || source == "power" || source == "seaice") {
+    if (source == "gistemp" || source == "power" || source == "seaice" || source == "co2" ||
+        source == "ch4") {
         OpenSeries native_series;
         std::string native_error;
-        if (fetch_open_series(source, value_number(body, "lat", 72.0),
-                              value_number(body, "lon", -40.0),
+        const std::string native_parameter = value_string(body, "parameter", "T2M");
+        const double native_lat = value_number(body, "lat", 72.0);
+        const double native_lon = value_number(body, "lon", -40.0);
+        if (native_lat < -90.0 || native_lat > 90.0 || native_lon < -180.0 || native_lon > 180.0)
+            throw BadRequest("latitude or longitude is out of range");
+        if (fetch_open_series(source, native_lat, native_lon,
                               value_string(body, "start", "2000-01-01"),
                               value_string(body, "end"), value_string(body, "region", "N"),
-                              &native_series, &native_error)) {
+                              native_parameter, &native_series, &native_error)) {
             std::string csv_path;
             std::string write_error;
             if (write_open_series(native_series, "data", &csv_path, &write_error)) {
@@ -2083,26 +2094,19 @@ Response earthdata_check_request(const json::Value& body) {
         return json_response(root);
     }
 
-    const std::string username = value_string(body, "earthdata_username");
-    const std::string password = value_string(body, "earthdata_password");
-    if (!username.empty() || !password.empty()) {
-        const CommandResult result = run_command_with_env(
-            live_interpreter() + " tools/nasa_live.py whoami", credential_env(body));
-        std::string payload = result.output;
-        const std::size_t marker = payload.rfind("{\n  \"ok\"");
-        if (marker != std::string::npos) payload = payload.substr(marker);
-        try {
-            return json_response(json::parse(payload));
-        } catch (const std::exception&) {
-            root.set("ok", json::Value::from_bool(true));
-            root.set("authenticated", json::Value::from_bool(false));
-            root.set("method", json::Value::from_string("password"));
-            root.set("error", json::Value::from_string(
-                                   "password sign-in needs the optional Python helper with "
-                                   "earthaccess installed, which this build does not include; "
-                                   "paste an Earthdata bearer token instead"));
-            return json_response(root);
-        }
+    const std::vector<std::pair<std::string, std::string>> env = credential_env(body);
+    const bool have_credentials = !env.empty() ||
+                                  std::getenv("EARTHDATA_USERNAME") != nullptr;
+    if (have_credentials) {
+        std::vector<std::string> names;
+        std::string detail;
+        const bool accepted = verify_earthdata_password(env, &names, &detail);
+        root.set("ok", json::Value::from_bool(true));
+        root.set("authenticated", json::Value::from_bool(accepted));
+        root.set("method", json::Value::from_string("username and password"));
+        if (!names.empty()) root.set("username", json::Value::from_string(names.front()));
+        root.set(accepted ? "note" : "error", json::Value::from_string(detail));
+        return json_response(root);
     }
 
     root.set("ok", json::Value::from_bool(false));
