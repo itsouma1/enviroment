@@ -60,6 +60,8 @@
 #include "restrand.hpp"
 #include "maturity.hpp"
 #include "relevance.hpp"
+#include "infotheory.hpp"
+#include "sstunc.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -2361,6 +2363,53 @@ void test_algorithmic_gaps_and_trends() {
     const std::vector<std::size_t> selected = greedy_relevance_selection(
         {0.0, 2.0, 4.0, 6.0}, {{0.0}, {1.0}, {2.0}, {3.0}}, 1000.0, 1);
     CHECK(!selected.empty() && selected[0] == 0);
+
+    const std::vector<double> repeated = {0.0, 1.0, 2.0, 0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
+    CHECK_NEAR(mutual_information_plugin(repeated, repeated, 3), std::log(3.0), 1e-9);
+    CHECK(miller_madow_correction(3, 3, 9) > 0.0);
+    CHECK_NEAR(partial_mutual_information_plugin(repeated, repeated, {{0.0}, {1.0}, {2.0},
+                                                                     {0.0}, {1.0}, {2.0},
+                                                                     {0.0}, {1.0}, {2.0}},
+                                                3),
+               0.0, 1e-9);
+    CHECK(ksg_mutual_information(repeated, repeated, 2) > 0.0);
+    CHECK(pmi_threshold(0.05, 1, 3, 3, 100) > 0.0);
+    CHECK_NEAR(chi_square_quantile(0.95, 1.0), 3.841458820694124, 1e-6);
+    CHECK(optimal_bin_width(100, 5, 1.0, 1.0) > 0.0);
+    CHECK_NEAR(mutual_information_influence(2.0, 2.0), 0.0, 1e-12);
+    CHECK_NEAR(mutual_information_influence_variance({0.0, 1.0, 2.0}), 1.0 / 3.0, 1e-12);
+    CHECK_NEAR(gaussian_partial_mutual_information(0.5), -0.5 * std::log(0.5), 1e-12);
+    CHECK_NEAR(information_redundancy({1.0, 1.0}, 1.5), 0.5, 1e-12);
+    const std::vector<std::size_t> pmi_selected = pmi_forward_selection(
+        {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0},
+        {{0.0, 1.0}, {1.0, 0.0}, {2.0, 1.0}, {3.0, 0.0},
+         {4.0, 1.0}, {5.0, 0.0}, {6.0, 1.0}, {7.0, 0.0}},
+        0.2, 4);
+    CHECK(!pmi_selected.empty() && pmi_selected[0] == 0);
+
+    CHECK_NEAR(uncorrelated_variance({0.5, 0.5}, {1.0, 1.0}), 0.5, 1e-12);
+    CHECK_NEAR(annual_average_variance(std::vector<double>(12, 1.0)), 1.0 / 12.0, 1e-12);
+    CHECK_NEAR(covariance_variance({0.5, 0.5}, {{1.0, 0.0}, {0.0, 1.0}}), 0.5, 1e-12);
+    CHECK_NEAR(hemispheric_difference_variance({1.0, 0.0}, {0.0, 1.0},
+                                               {{2.0, 0.5}, {0.5, 2.0}}),
+               3.0, 1e-12);
+    CHECK_NEAR(constant_covariance_variance(1.0, 0.5, {0.5, 0.5}), 0.75, 1e-12);
+    CHECK_NEAR(constant_covariance_variance(1.0, 1.0, {0.5, 0.5}), 1.0, 1e-12);
+    CHECK_NEAR(effective_sample_size({0.25, 0.25, 0.25, 0.25}, 0.5), 1.6, 1e-12);
+    const Matrix sampled = sample_correlated_errors({{1.0, 0.0}, {0.0, 1.0}}, 400, 21);
+    std::vector<double> first_site(400), second_site(400);
+    for (std::size_t i = 0; i < 400; ++i) {
+        first_site[i] = sampled[i][0];
+        second_site[i] = sampled[i][1];
+    }
+    CHECK_NEAR(ensemble_standard_deviation(first_site), 1.0, 0.15);
+    CHECK_NEAR(ensemble_standard_deviation(second_site), 1.0, 0.15);
+    CHECK_NEAR(combine_uncertainty(1.0, 2.0, 2.0), 3.0, 1e-12);
+    CHECK_NEAR(uncorrelated_weight_sensitivity(0.5, 2.0), 4.0, 1e-12);
+    CHECK_NEAR(covariance_entry_sensitivity(0.5, 0.25, false), 0.125, 1e-12);
+    CHECK_NEAR(correlation_sensitivity(2.0, {0.5, 0.5}), 2.0, 1e-12);
+    CHECK_NEAR(total_component_sensitivity(2.0, 4.0), 0.5, 1e-12);
+    CHECK_NEAR(covariance_condition_number({{2.0, 0.0}, {0.0, 1.0}}), 2.0, 1e-12);
 }
 
 int main() {

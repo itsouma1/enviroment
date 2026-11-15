@@ -293,6 +293,16 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Information-theoretic selection and SST uncertainty.** `infotheory.hpp`
+implements histogram MI with the Miller-Madow correction, stratified partial
+MI, the KSG k-NN estimator, the chi-square PMI threshold, influence functions,
+the Gaussian PMI reduction, redundancy, and forward PMI selection with
+re-testing. `sstunc.hpp` implements the HadSST4 three-component error model:
+uncorrelated quadrature, covariance quadratic forms, the constant-covariance
+effective sample size, Cholesky sampling of correlated errors, ensemble
+standard deviation, quadrature combination, and the weight/covariance/
+correlation sensitivities.
+
 **Trend testing, attribution and algorithmic decisions.** `multitrend.hpp`
 implements the Libiseller-Grimvall MK cross-covariance, scalar and quadratic
 multivariate tests, partial MK, seasonal-score covariance, moving-window
