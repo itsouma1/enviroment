@@ -19,12 +19,15 @@ if not exist "%~dp0data" (
 )
 
 echo Starting the climate workbench on http://127.0.0.1:8080 ...
-start "Climate Workbench" /D "%~dp0" "%~dp0climate.exe" ui --port 8080
-timeout /t 3 /nobreak >nul
-start "" "http://127.0.0.1:8080"
+echo Leave this window open while you use it; closing it stops the server.
+echo.
+
+rem Open the browser a few seconds after the server starts, in the background.
+start "" /b cmd /c "timeout /t 3 /nobreak >nul & start "" http://127.0.0.1:8080"
+
+rem Run the server in this window so its messages stay readable.
+"%~dp0climate.exe" ui --port 8080
 
 echo.
-echo The workbench is open in your browser.
-echo Keep the "Climate Workbench" window open while you use it;
-echo closing that window stops the server.
-timeout /t 6 /nobreak >nul
+echo The workbench server stopped.
+pause
