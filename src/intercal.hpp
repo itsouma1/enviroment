@@ -8,6 +8,13 @@ namespace climate {
 // ---------------------------------------------------------------------------
 // GSICS linear intercalibration
 // ---------------------------------------------------------------------------
+double single_difference(double target_brightness, double reference_brightness);
+
+double double_difference_simple(double target_single_difference,
+                                double reference_single_difference);
+
+double clarero_overlap_fraction(double displacement, double footprint_radius);
+
 double gsics_leo_radiance(double geo_radiance, double offset, double slope);
 
 double gsics_uncertainty(double geo_radiance, double offset, double slope,
@@ -21,6 +28,11 @@ double msu_linear_radiance(double cold_space_radiance, double slope, double eart
                            double cold_counts);
 
 double msu_drift_term(double kappa, double mechanism_one, double mechanism_two);
+
+// Eq. A10: drift = -kappa - lambda Z
+//   + [mu - mu0 - lambda (t - t1)] dZ/dt.
+double msu_drift_budget(double kappa, double lambda, double z, double z_derivative,
+                        double mu, double mu0, double time, double reference_time);
 
 double msu_tlt_synthesis(double tmt, double tut, double tls);
 
@@ -128,6 +140,11 @@ double cycle_consistency_loss(const std::vector<double>& forward_cycle,
 
 double cyclegan_objective(double forward_adversarial, double backward_adversarial,
                           double cycle_loss, double lambda);
+
+// R = R_L - dR + mu Z, with R_L = R_c + S (C_e - C_c).
+double msu_nonlinear_radiance(double cold_space_radiance, double slope, double earth_counts,
+                              double cold_counts, double offset_correction, double mu,
+                              double z);
 
 double msu_z_counts(double slope, double earth_counts, double cold_counts, double warm_counts);
 

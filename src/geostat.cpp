@@ -103,12 +103,10 @@ double spde_matern_variance(double kappa, double tau, int alpha, int dimension) 
     require(kappa > 0.0 && tau > 0.0 && dimension > 0, "spde_matern_variance: parameters");
     require(alpha > dimension / 2.0, "spde_matern_variance: alpha must exceed d/2");
     const double nu = static_cast<double>(alpha) - 0.5 * static_cast<double>(dimension);
-    if (std::fabs(nu - 0.5) < 1e-12) return 1.0 / (4.0 * kPi * kappa * tau * tau);
-    if (std::fabs(nu - 1.5) < 1e-12)
-        return 1.0 / (8.0 * kPi * std::pow(kappa, 3.0) * tau * tau);
-    if (std::fabs(nu - 2.5) < 1e-12)
-        return 3.0 / (32.0 * kPi * std::pow(kappa, 5.0) * tau * tau);
-    throw std::runtime_error("spde_matern_variance: only nu = 1/2, 3/2, 5/2 supported");
+    return std::tgamma(nu) /
+           (std::tgamma(static_cast<double>(alpha)) *
+            std::pow(4.0 * kPi, 0.5 * static_cast<double>(dimension)) *
+            std::pow(kappa, 2.0 * nu) * tau * tau);
 }
 
 Matrix spde_precision(const Matrix& mass, const Matrix& stiffness, double kappa, double tau,
@@ -207,17 +205,54 @@ double mad_envelope_statistic(const std::vector<double>& observed,
     return maximum;
 }
 
+double mad_global_statistic(const std::vector<double>& function,
+                            const std::vector<double>& ensemble_mean,
+                            const std::vector<double>& ensemble_scale) {
+    require(function.size() == ensemble_mean.size() &&
+                function.size() == ensemble_scale.size(),
+            "mad_global_statistic: size mismatch");
+    double maximum = 0.0;
+    for (std::size_t x = 0; x < function.size(); ++x) {
+        require(ensemble_scale[x] > 0.0, "mad_global_statistic: zero ensemble scale");
+        maximum = std::max(maximum, std::fabs(function[x] - ensemble_mean[x]) /
+                                        ensemble_scale[x]);
+    }
+    return maximum;
+}
+
 double mad_envelope_p_value(const std::vector<double>& observed,
-                            const std::vector<std::vector<double>>& ensemble,
-                            const std::vector<double>& pointwise_scale) {
+                            const std::vector<std::vector<double>>& ensemble) {
     require(!ensemble.empty(), "mad_envelope_p_value: empty ensemble");
-    const double observed_statistic =
-        mad_envelope_statistic(observed, observed, pointwise_scale);
+    const std::size_t length = observed.size();
+    std::vector<double> mean(length, 0.0), variance(length, 0.0);
+    for (const auto& member : ensemble) {
+        require(member.size() == length, "mad_envelope_p_value: size mismatch");
+        for (std::size_t x = 0; x < length; ++x) mean[x] += member[x];
+    }
+    for (double& value : mean) value /= static_cast<double>(ensemble.size());
+    if (ensemble.size() > 1) {
+        for (const auto& member : ensemble)
+            for (std::size_t x = 0; x < length; ++x)
+                variance[x] += (member[x] - mean[x]) * (member[x] - mean[x]);
+        for (double& value : variance) value /= static_cast<double>(ensemble.size() - 1);
+    }
+    std::vector<double> scale(length, 0.0);
+    for (std::size_t x = 0; x < length; ++x) scale[x] = std::sqrt(variance[x]);
+    const double observed_statistic = mad_global_statistic(observed, mean, scale);
     int exceedances = 0;
     for (const auto& member : ensemble)
-        if (mad_envelope_statistic(observed, member, pointwise_scale) >= observed_statistic)
-            ++exceedances;
+        if (mad_global_statistic(member, mean, scale) >= observed_statistic) ++exceedances;
     return static_cast<double>(exceedances) / static_cast<double>(ensemble.size());
+}
+
+double circle_overlap_fraction(double separation, double radius) {
+    require(radius > 0.0 && separation >= 0.0, "circle_overlap_fraction: inputs");
+    if (separation >= 2.0 * radius) return 0.0;
+    if (separation == 0.0) return 1.0;
+    const double ratio = separation / (2.0 * radius);
+    return 2.0 / kPi * std::acos(ratio) -
+           separation / (2.0 * kPi * radius * radius) *
+               std::sqrt(4.0 * radius * radius - separation * separation);
 }
 
 double gtwr_distance(double u1, double v1, double t1, double u2, double v2, double t2,

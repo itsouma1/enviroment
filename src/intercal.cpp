@@ -19,6 +19,13 @@ double gsics_leo_radiance(double geo_radiance, double offset, double slope) {
     return -offset / slope + geo_radiance / slope;
 }
 
+double msu_nonlinear_radiance(double cold_space_radiance, double slope, double earth_counts,
+                              double cold_counts, double offset_correction, double mu,
+                              double z) {
+    return cold_space_radiance + slope * (earth_counts - cold_counts) - offset_correction +
+           mu * z;
+}
+
 double gsics_uncertainty(double geo_radiance, double offset, double slope,
                          double offset_uncertainty, double slope_uncertainty,
                          double offset_slope_covariance) {
@@ -39,6 +46,34 @@ double msu_linear_radiance(double cold_space_radiance, double slope, double eart
 
 double msu_drift_term(double kappa, double mechanism_one, double mechanism_two) {
     return kappa * (mechanism_one + mechanism_two);
+}
+
+double msu_drift_budget(double kappa, double lambda, double z, double z_derivative,
+                        double mu, double mu0, double time, double reference_time) {
+    return -kappa - lambda * z +
+           (mu - mu0 - lambda * (time - reference_time)) * z_derivative;
+}
+
+constexpr double kPiIntercal = 3.14159265358979323846;
+
+double single_difference(double target_brightness, double reference_brightness) {
+    return target_brightness - reference_brightness;
+}
+
+double double_difference_simple(double target_single_difference,
+                                double reference_single_difference) {
+    return target_single_difference - reference_single_difference;
+}
+
+double clarero_overlap_fraction(double displacement, double footprint_radius) {
+    require(footprint_radius > 0.0 && displacement >= 0.0,
+            "clarero_overlap_fraction: inputs");
+    if (displacement >= 2.0 * footprint_radius) return 0.0;
+    if (displacement == 0.0) return 1.0;
+    return 2.0 / kPiIntercal * std::acos(displacement / (2.0 * footprint_radius)) -
+           displacement / (2.0 * kPiIntercal * footprint_radius * footprint_radius) *
+               std::sqrt(4.0 * footprint_radius * footprint_radius -
+                         displacement * displacement);
 }
 
 double msu_tlt_synthesis(double tmt, double tut, double tls) {

@@ -58,6 +58,12 @@ double hotelling_functional_scan(int inside_count, int outside_count,
                                  const std::vector<double>& outside_mean,
                                  const Matrix& pooled_covariance);
 
+// CRISP CUSUM contrast over a candidate region (published form).
+double crisp_cusum_statistic(double inside_sum, double outside_sum, std::size_t inside_count,
+                             std::size_t outside_count);
+
+std::size_t crisp_argmax(const std::vector<double>& statistics);
+
 // CRISP objective: within-region and outside sums of squares plus a penalty.
 double crisp_criterion(const std::vector<double>& values, const std::vector<int>& region_mask,
                        double penalty, double lambda);

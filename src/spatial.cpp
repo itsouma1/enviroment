@@ -251,6 +251,25 @@ double hotelling_functional_scan(int inside_count, int outside_count,
            static_cast<double>(inside_count + outside_count) * quadratic;
 }
 
+double crisp_cusum_statistic(double inside_sum, double outside_sum, std::size_t inside_count,
+                             std::size_t outside_count) {
+    if (inside_count == 0 || outside_count == 0) return 0.0;
+    const double n = static_cast<double>(inside_count + outside_count);
+    const double contrast = inside_sum / static_cast<double>(inside_count) -
+                            outside_sum / static_cast<double>(outside_count);
+    return std::sqrt(static_cast<double>(inside_count) *
+                     static_cast<double>(outside_count) / n) *
+           contrast;
+}
+
+std::size_t crisp_argmax(const std::vector<double>& statistics) {
+    if (statistics.empty()) throw std::runtime_error("crisp_argmax: empty");
+    std::size_t best = 0;
+    for (std::size_t i = 1; i < statistics.size(); ++i)
+        if (std::fabs(statistics[i]) > std::fabs(statistics[best])) best = i;
+    return best;
+}
+
 double crisp_criterion(const std::vector<double>& values, const std::vector<int>& region_mask,
                        double penalty, double lambda) {
     if (values.size() != region_mask.size())

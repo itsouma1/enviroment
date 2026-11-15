@@ -1671,7 +1671,10 @@ void test_metrology() {
 }
 
 void test_geostat_intercal() {
-    CHECK_NEAR(spde_matern_variance(1.0, 1.0, 1, 1), 1.0 / (4.0 * M_PI), 1e-12);
+    CHECK_NEAR(spde_matern_variance(1.0, 1.0, 1, 1), 0.5, 1e-12);
+    CHECK_NEAR(spde_matern_variance(2.0, 1.0, 2, 2), 1.0 / (16.0 * M_PI), 1e-12);
+    CHECK_NEAR(circle_overlap_fraction(0.0, 1.0), 1.0, 1e-12);
+    CHECK_NEAR(circle_overlap_fraction(2.0, 1.0), 0.0, 1e-12);
     const Matrix precision =
         spde_precision({{1.0, 0.0}, {0.0, 1.0}}, {{2.0, 0.0}, {0.0, 2.0}}, 1.0, 1.0, 1);
     CHECK_NEAR(precision[0][0], 3.0, 1e-12);
@@ -1685,8 +1688,9 @@ void test_geostat_intercal() {
     CHECK(gp_variance[0] > 0.0 && gp_variance[0] < 1.0);
 
     CHECK_NEAR(mad_envelope_statistic({0.0, 0.0}, {1.0, -1.0}, {1.0, 1.0}), 1.0, 1e-12);
-    CHECK_NEAR(mad_envelope_p_value({0.0, 0.0}, {{0.0, 0.0}, {1.0, -1.0}}, {1.0, 1.0}), 1.0,
-               1e-12);
+    CHECK_NEAR(mad_envelope_p_value({0.0, 0.0}, {{0.0, 0.0}, {1.0, -1.0}}), 1.0, 1e-12);
+    CHECK_NEAR(mad_envelope_p_value({10.0, 10.0}, {{0.0, 0.0}, {1.0, -1.0}}), 0.0, 1e-12);
+    CHECK_NEAR(mad_global_statistic({1.0}, {0.0}, {2.0}), 0.5, 1e-12);
 
     CHECK_NEAR(gtwr_distance(0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0), std::sqrt(3.0), 1e-12);
     const std::vector<double> gtwr =
@@ -1772,7 +1776,16 @@ void test_homogenisation() {
     CHECK_NEAR(variational_lower_bound(2.0, 3.0), -1.0, 1e-12);
 
     CHECK_NEAR(msu_linear_radiance(1.0, 2.0, 5.0, 1.0), 9.0, 1e-12);
+    CHECK_NEAR(msu_nonlinear_radiance(0.0, 2.0, 5.0, 1.0, 1.0, 1.0, 3.0), 10.0, 1e-12);
     CHECK_NEAR(msu_drift_term(2.0, 1.0, 3.0), 8.0, 1e-12);
+    CHECK_NEAR(msu_drift_budget(1.0, 2.0, 1.0, 0.0, 1.0, 1.0, 5.0, 5.0), -3.0, 1e-12);
+    CHECK_NEAR(single_difference(3.0, 1.0), 2.0, 1e-12);
+    CHECK_NEAR(double_difference_simple(2.0, 1.0), 1.0, 1e-12);
+    CHECK_NEAR(clarero_overlap_fraction(1.0, 1.0), 2.0 / 3.0 - std::sqrt(3.0) / (2.0 * M_PI),
+               1e-12);
+    CHECK_NEAR(crisp_cusum_statistic(6.0, 8.0, 2, 2), -1.0, 1e-12);
+    CHECK_NEAR(crisp_cusum_statistic(1.0, 1.0, 0, 2), 0.0, 1e-12);
+    CHECK(crisp_argmax({0.5, -2.0, 1.0}) == 1);
     CHECK_NEAR(msu_tlt_synthesis(1.0, 2.0, 3.0), 0.602, 1e-12);
     CHECK_NEAR(msu_z_counts(2.0, 5.0, 1.0, 3.0), 32.0, 1e-12);
     CHECK_NEAR(aci_susceptibility(0.5, 2.0), 1.0, 1e-12);

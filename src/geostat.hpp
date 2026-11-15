@@ -45,9 +45,18 @@ double mad_envelope_statistic(const std::vector<double>& observed,
                               const std::vector<double>& ensemble_member,
                               const std::vector<double>& pointwise_scale);
 
+// Scaled MAD statistic of one function against an ensemble mean and sd.
+double mad_global_statistic(const std::vector<double>& function,
+                            const std::vector<double>& ensemble_mean,
+                            const std::vector<double>& ensemble_scale);
+
+// Proper scaled MAD global envelope p-value: standardise the observed
+// function and every ensemble member with the ensemble mean and sd.
 double mad_envelope_p_value(const std::vector<double>& observed,
-                            const std::vector<std::vector<double>>& ensemble,
-                            const std::vector<double>& pointwise_scale);
+                            const std::vector<std::vector<double>>& ensemble);
+
+// Overlap of two equal circles with centre separation d and radius r.
+double circle_overlap_fraction(double separation, double radius);
 
 // ---------------------------------------------------------------------------
 // GTWR
