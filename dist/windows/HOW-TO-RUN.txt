@@ -1,0 +1,34 @@
+Climate Workbench (Windows, offline)
+====================================
+
+Everything runs on this computer. No account, no server, no internet needed
+for the bundled datasets.
+
+START THE WORKBENCH
+  1. Extract this whole folder (climate.exe, the data folder, the .bat).
+  2. Double-click  "Start Climate Workbench.bat".
+  3. Your browser opens http://127.0.0.1:8080 .
+  4. Keep the "Climate Workbench" console window open while you use it.
+     Closing that window stops the server; that is not a crash.
+
+COMMAND LINE
+  Open Command Prompt in this folder, then for example:
+
+    climate.exe ui --port 8080
+    climate.exe query "is the arctic changing?" --data data
+    climate.exe analyze --file data/sst_monthly.csv --variable sst --units degC
+    climate.exe help
+
+  Running climate.exe with no arguments prints this help and stays open.
+
+IF SOMETHING GOES WRONG
+  The program does not close silently on an error. It prints the message, or
+  the exception code and address if it fails outside C++ error handling, and
+  waits for a key press. Send that text on.
+
+WHAT IT IS
+  A single C++17 binary that serves the workbench page and does the science:
+  STL decomposition, Mann-Kendall with Hamed-Rao correction, Sen slope, the
+  accuracy-weighted estimator ensemble, the polyharmonic CO2 fit, spatial
+  hotspot statistics and a registry of 944 executable formulas. The selected
+  variable decides which of those formulas run.
