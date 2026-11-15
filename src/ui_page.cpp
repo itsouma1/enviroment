@@ -144,6 +144,9 @@ h1 em{font-style:normal;color:var(--teal)}
 .field label,.label{display:block;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#d8c2a1;margin-bottom:4px;font-weight:700}
 input[type=text],input[type=number],select,textarea{width:100%;background:#0e0a07;border:1px solid #4a3524;
   padding:7px 8px;font-size:11.5px;outline:none;color:#ead8ba}
+input[type="password"],input[type="text"],input[type="number"],select,textarea{background:#120c08;color:var(--text)}
+input[type="password"]{-webkit-text-security:disc}
+input::placeholder,textarea::placeholder{color:#a08a6c}
 input:focus,select:focus,textarea:focus{border-color:var(--teal);box-shadow:0 0 0 1px rgba(216,166,87,.25)}
 textarea{font-size:10.5px;line-height:1.5;resize:vertical;min-height:96px}
 select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6'%3E%3Cpath d='M0 0h8L4 6z' fill='%23a38562'/%3E%3C/svg%3E");

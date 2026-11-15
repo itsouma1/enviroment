@@ -11,8 +11,8 @@ async function loadLive(){
     const d=await api('/api/live/status');
     LIVE.sources=d.sources;
     $('#live-creds').textContent=d.earthaccess_credentials
-      ? 'Earthdata credentials detected — Earthdata Library pulls are available'
-      : 'No Earthdata credentials found — open endpoints work, Earthdata pulls will say so';
+      ? 'EARTHDATA LOGIN READY'
+      : 'OPEN ENDPOINTS ONLY · LOGIN BELOW';
     renderLive();
   }catch(e){
     $('#live-list').innerHTML=`<div class="err">${esc(e.message)}</div>`;
