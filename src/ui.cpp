@@ -1308,6 +1308,24 @@ Response live_status_request() {
     return json_response(json::parse(result.output));
 }
 
+// Per-request Earthdata credentials: they are handed to the helper through its
+// environment only, never written to disk, logged or echoed back.
+std::vector<std::pair<std::string, std::string>> credential_env(const json::Value& body) {
+    std::vector<std::pair<std::string, std::string>> env;
+    const std::pair<const char*, const char*> fields[] = {
+        {"earthdata_username", "EARTHDATA_USERNAME"},
+        {"earthdata_password", "EARTHDATA_PASSWORD"},
+        {"earthdata_token", "EARTHDATA_TOKEN"},
+    };
+    for (const auto& field : fields) {
+        const std::string value = value_string(body, field.first);
+        if (value.empty()) continue;
+        if (value.size() > 400) throw BadRequest(std::string(field.second) + " is implausibly long");
+        env.emplace_back(field.second, value);
+    }
+    return env;
+}
+
 Response live_pull_request(const json::Value& body) {
     const std::string source = value_string(body, "source");
     static const char* allowed[] = {"gistemp", "power", "seaice", "earthaccess"};
@@ -1344,19 +1362,7 @@ Response live_pull_request(const json::Value& body) {
         command << " --short-name " << short_name;
     }
 
-    // Per-request Earthdata credentials: they are handed to the helper through
-    // its environment only, never written to disk, logged or echoed back.
-    std::vector<std::pair<std::string, std::string>> env;
-    auto credential = [&](const char* key, const char* name) {
-        const std::string value = value_string(body, key);
-        if (value.empty()) return;
-        if (value.size() > 400) throw BadRequest(std::string(name) + " is implausibly long");
-        env.emplace_back(name, value);
-    };
-    credential("earthdata_username", "EARTHDATA_USERNAME");
-    credential("earthdata_password", "EARTHDATA_PASSWORD");
-    credential("earthdata_token", "EARTHDATA_TOKEN");
-
+    const std::vector<std::pair<std::string, std::string>> env = credential_env(body);
     const CommandResult result = env.empty()
         ? run_command(command.str() + " < /dev/null")
         : run_command_with_env(command.str() + " < /dev/null", env);
@@ -1508,6 +1514,22 @@ ContrastRegion contrast_region(const std::string& label, double lat, double lon,
     const json::Value* units = series->find("units");
     region.units = units == nullptr ? std::string() : units->as_string("");
     return region;
+}
+
+Response earthdata_check_request(const json::Value& body) {
+    const std::vector<std::pair<std::string, std::string>> env = credential_env(body);
+    const std::string command = live_interpreter() + " tools/nasa_live.py whoami < /dev/null";
+    const CommandResult result = env.empty() ? run_command(command)
+                                             : run_command_with_env(command, env);
+    std::string payload = result.output;
+    const std::size_t at = payload.rfind("{\n  \"ok\"");
+    if (at != std::string::npos) payload = payload.substr(at);
+    try {
+        return json_response(json::parse(payload));
+    } catch (const std::exception&) {
+        throw BadRequest("the Earthdata check returned something unreadable: " +
+                         payload.substr(0, 300));
+    }
 }
 
 Response contrast_request(const json::Value& body) {
@@ -1998,6 +2020,7 @@ Response route(const Request& request) {
         if (request.path == "/api/lab/run") return lab_run_request(body);
         if (request.path == "/api/live/pull") return live_pull_request(body);
         if (request.path == "/api/contrast") return contrast_request(body);
+        if (request.path == "/api/earthdata/check") return earthdata_check_request(body);
         if (request.path == "/api/query") return query_request(body);
         if (request.path == "/api/run") return run_request(body);
         if (request.path == "/api/nasa/plan") return nasa_plan_request(body);

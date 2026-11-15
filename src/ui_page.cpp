@@ -24,7 +24,7 @@ const char* climate_ui_html() {
      a triad of 28 / 140 / 258 keeps series separable; 347 deg rose is the
      accent complement of 167 deg. Neutrals stay warm so the shell reads as one
      material and every hue above carries the data. */
-  --teal:#45d6c9; --sky:#82b8ff; --amber:#ffc35e; --rose:#ff7d92;
+  --teal:#ff9f43; --sky:#e8c48a; --amber:#ffc35e; --rose:#ff8f86;
   --green:#7fe0a0; --violet:#b49cff; --bezel:#c8b294;
   --series-obs:#f7e8c8; --series-trend:#ff9e4a; --series-season:#3fd0c0; --series-rem:#ff7d92;
   --series-alt:#7fe0a0; --series-violet:#b49cff;
@@ -36,19 +36,22 @@ html,body{margin:0;padding:0}
 html{overflow-y:scroll}
 body{min-height:100%}
 .wrap{overflow-x:clip}
-body{background:#080605;color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.5;
-  padding:18px;text-shadow:0 0 7px rgba(216,166,87,.10);-webkit-font-smoothing:antialiased}
+body{background:radial-gradient(1200px 700px at 50% -10%,#241708,#0d0906 70%);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.5;
+  padding:18px;text-shadow:0 0 8px rgba(255,168,80,.10);-webkit-font-smoothing:antialiased}
 body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:9998;
-  box-shadow:inset 0 0 190px rgba(0,0,0,.86)}
-body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.16;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='1' fill='%23000'/%3E%3C/svg%3E")}
+  box-shadow:inset 0 0 150px rgba(0,0,0,.72),inset 0 0 40px rgba(255,160,70,.05)}
+body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.09;
+  background-image:repeating-linear-gradient(to bottom,rgba(0,0,0,.55) 0 1px,transparent 1px 3px)}
+@media(prefers-reduced-motion:no-preference){
+  .app{animation:phosphor 7s ease-in-out infinite}
+  @keyframes phosphor{0%,100%{filter:brightness(1)}50%{filter:brightness(1.015)}}}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
-a{color:var(--teal)}
+a{color:var(--amber)}
 ::selection{background:#6b4a30;color:#fff3dc}
 .app{display:grid;grid-template-columns:228px minmax(0,1fr);min-height:calc(100vh - 36px);
   border:10px solid var(--bezel);outline:2px solid #54402e;
-  box-shadow:inset 0 0 90px rgba(0,0,0,.78),0 0 0 1px #000;background:var(--bg)}
+  box-shadow:inset 0 0 90px rgba(0,0,0,.78),0 0 0 1px #000,0 18px 60px rgba(0,0,0,.6);background:var(--bg)}
 .sidebar{position:sticky;top:0;height:calc(100vh - 56px);max-height:calc(100vh - 36px);overflow-y:auto;align-self:start;display:flex;flex-direction:column;
   background:#1a120c;border-right:2px solid var(--line);padding:16px 12px 10px;gap:3px;z-index:5}
 .brand{display:flex;align-items:center;gap:9px;padding:0 5px 16px;border-bottom:1px dashed var(--line2);margin-bottom:8px}
@@ -63,11 +66,11 @@ a{color:var(--teal)}
   background:transparent;color:#e9d6b6;padding:7px 8px;text-align:left;font-size:11.5px;
   letter-spacing:.04em;transition:background .1s,color .1s}
 .nav:hover{background:#2a1e14;color:#f3e3c6;border-color:#3c2b1d}
-.nav.active{background:#2b1e14;border-color:var(--line2);border-left:3px solid var(--teal);color:#ffe9c2}
+.nav.active{background:#33241a;border-color:var(--line2);color:#ffe9c2}
 .nav .ico{width:22px;height:22px;display:grid;place-items:center;flex:none;
-  font-size:9px;font-weight:700;color:#c9ad86;background:#241a12;border:1px solid #4a3524}
+  font-size:9px;font-weight:700;color:#e6c79a;background:#2b1d13;
+  clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
 .nav.active .ico{color:#120d09;background:var(--teal);border-color:var(--teal)}
-.nav[data-nav="timeseries"] .ico{color:#45d6c9;border-color:#3d6e6e}
 .nav[data-nav="co2"] .ico{color:#ffab54;border-color:#7a4a25}
 .nav[data-nav="retrieval"] .ico{color:#c6a8ff;border-color:#5a4670}
 .nav[data-nav="physics"] .ico{color:#ff8f86;border-color:#6e4242}
@@ -94,7 +97,6 @@ a{color:var(--teal)}
 .hero{border:1px solid var(--line2);padding:26px 28px;position:relative;overflow:hidden;
   background:#1a120c;display:grid;grid-template-columns:1.25fr .75fr;gap:24px;align-items:center;
   box-shadow:inset 0 0 40px rgba(0,0,0,.5)}
-.hero:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--teal)}
 .eyebrow{font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--teal);font-weight:700}
 h1{font-size:clamp(24px,3vw,38px);line-height:1.1;letter-spacing:-.02em;margin:8px 0 10px;max-width:760px;font-weight:700;
   text-transform:uppercase}
@@ -161,7 +163,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .metric .v{font-size:17px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums;color:#eedcbe}
 .metric .v.good{color:var(--green)} .metric .v.warn{color:var(--amber)} .metric .v.bad{color:var(--rose)}
 .metric .s{font-size:9.5px;color:#c2ac8b;margin-top:1px}
-.verdict{border:1px solid var(--line2);border-left:3px solid var(--teal);background:#22180f;
+.verdict{border:1px solid var(--line2);background:#22180f;
   padding:8px 10px;font-size:11px;margin-bottom:10px;color:#f2e2c4}
 .verdict b{color:var(--teal)}
 .chartwrap{border:1px solid var(--line);background:#0d0906;padding:5px 4px 2px;margin-bottom:8px}
@@ -189,7 +191,6 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .filebtn:hover{background:#2b1e14;color:#fff3dc}
 .mission{border:1px solid var(--line2);background:#1a120c;padding:16px 18px;margin-bottom:10px;
   box-shadow:inset 0 0 40px rgba(0,0,0,.5);position:relative}
-.mission:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--teal)}
 .mission .mtag{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);font-weight:700}
 .mission p{margin:6px 0 10px;color:#e8d6b6;font-size:12px;max-width:1000px}
 .mission .qs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
@@ -199,8 +200,6 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .crow{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr auto;gap:8px;align-items:end}
 .cxgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
 .cxcard{border:1px solid var(--line);background:#120c08;padding:10px}
-.cxcard.rise{border-left:3px solid var(--amber)}
-.cxcard.fall{border-left:3px solid var(--teal)}
 .cxhead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px}
 .cxhead b{font-size:11px;letter-spacing:.06em;color:#f4e8d2}
 .cxsig{font-size:8.5px;letter-spacing:.12em;padding:2px 6px;border:1px solid}
@@ -225,7 +224,7 @@ summary.fhead::-webkit-details-marker{display:none}
 .varcard .vtop{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
 .varcard .vid{font-size:11.5px;font-weight:700;color:#f7e8c8;letter-spacing:.04em}
 .varcard .vname{font-size:9.5px;color:#c2ac8b}
-.varcard .vchange{font-size:11px;color:#ffd79a;border-left:3px solid var(--amber);padding-left:8px;line-height:1.4}
+.varcard .vchange{font-size:11px;color:#ffc37f;line-height:1.4}
 .varcard .vmeta{font-size:9px;color:#bda98c;letter-spacing:.04em;text-transform:uppercase}
 .varcard .vregions{font-size:9px;color:#a9917a}
 .varcard .acts{display:flex;gap:6px;margin-top:2px}
@@ -315,8 +314,9 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 .wcenter{display:flex;flex-direction:column;gap:8px;min-width:0}
 .step{border:1px solid var(--line);background:#18110c}
 .step-head{display:flex;align-items:center;gap:9px;padding:8px 10px;border-bottom:1px solid var(--line2);background:#22180f}
-.step-no{width:24px;height:24px;display:grid;place-items:center;border:1px solid var(--line2);font-size:10px;
-  font-weight:700;color:var(--teal);flex:none}
+.step-no{width:26px;height:26px;display:grid;place-items:center;font-size:10px;
+  font-weight:700;color:#ffcf8a;flex:none;background:#2b1d13;
+  clip-path:polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%)}
 .step-title{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:#f0dfc2}
 .step-status{margin-left:auto;font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:#c9b493}
 .step-body{padding:11px}
@@ -417,33 +417,22 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
   <button class="nav" data-nav="formulas"><span class="ico">FX</span>Calculation modes</button>
   <button class="nav" data-nav="alllab"><span class="ico">Σ</span>All calculations</button>
   <button class="nav" data-nav="overview"><span class="ico">SY</span>System</button>
-  <div class="sidefoot"><span class="dot"></span>LOCAL C++17 ENGINE<br><span id="foot-catalog">—</span> catalog variables<br><span id="foot-formulas">—</span> public functions</div>
+  <div class="sidefoot"><span class="dot"></span>LIVE NASA ENDPOINTS<br><span id="foot-catalog">—</span> catalog variables<br><span id="foot-formulas">—</span> public functions</div>
 </aside>
 <main class="main">
   <header class="topbar">
-    <div class="crumb"><span>TREND DETECTIVE</span><span>/</span><b id="crumb">Workflow</b></div>
-    <div class="pill"><i></i>local engine online</div>
+    <div class="crumb"><span>TREND DETECTIVE</span><span>/</span><b id="crumb">What / where / how much</b></div>
+    <div class="pill"><i></i>change engine ready</div>
   </header>
 
   <!-- TREND DETECTIVE WORKFLOW -->
   <section class="page active" id="page-workflow">
-    <div class="sectionhead" style="margin-top:0"><div><h2>What, where, how much, significant</h2><p>Change is always occurring in Earth's interconnected system, and a measured variable can trend one way in one region and the opposite way in another. Select a mission or model variable, see its time evolution, then read what is changing, where, how much, and whether it is significant. Nothing is tested until you confirm the data.</p></div><div class="telemetry">NASA / EARTH OBSERVATION / LOCAL</div></div>
+    <div class="sectionhead" style="margin-top:0"><div><h2>What, where, how much, significant</h2><p>Change is always occurring in Earth's interconnected system, and a measured variable can trend one way in one region and the opposite way in another. Select a mission or model variable, see its time evolution, then read what is changing, where, how much, and whether it is significant. Nothing is tested until you confirm the data.</p></div><div class="telemetry">NASA / EARTH OBSERVATION / LIVE</div></div>
     <div class="qbar" id="wf-qbar">
       <div class="qcell"><span>WHAT IS CHANGING</span><b id="wf-q-what">run an analysis</b></div>
       <div class="qcell"><span>WHERE IS IT CHANGING</span><b id="wf-q-where">run an analysis</b></div>
       <div class="qcell"><span>HOW MUCH</span><b id="wf-q-howmuch">run an analysis</b></div>
       <div class="qcell"><span>IS IT SIGNIFICANT</span><b id="wf-q-sig">run an analysis</b></div>
-    </div>
-
-    <div class="mission">
-      <div class="mtag">Challenge · change is always occurring</div>
-      <p>Change is always occurring in the Earth's interconnected environmental system. When it runs in a consistent direction — rising or falling, increasing or decreasing, thickening or thinning — measured variables reflect it. But a measured variable can trend one way in one region and the opposite way in another, even when the same process drives both. Pick variables from Earth science missions or models, watch them change over time, and read the four answers below.</p>
-      <div class="qs">
-        <div class="mq"><b>WHAT</b><span>is changing · which variable and which component</span></div>
-        <div class="mq"><b>WHERE</b><span>is it changing · which region or grid cell</span></div>
-        <div class="mq"><b>HOW MUCH</b><span>is it changing · per year and over the record</span></div>
-        <div class="mq"><b>SIGNIFICANT</b><span>is it changing · is it beyond noise</span></div>
-      </div>
     </div>
 
     <div class="panel" style="margin-bottom:10px">
@@ -557,7 +546,7 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 
   <!-- COMMAND CONSOLE -->
   <section class="page" id="page-console">
-    <div class="sectionhead" style="margin-top:0"><div><h2>Command console</h2><p>Every CLI formula and diagnostic, executed by the same binary.</p></div><div class="telemetry">STDIN → C++17</div></div>
+    <div class="sectionhead" style="margin-top:0"><div><h2>Command console</h2><p>Every CLI formula and diagnostic, executed by the same binary.</p></div><div class="telemetry">STDIN → ENGINE</div></div>
     <div class="tool">
       <div class="panel"><div class="panelhead"><b>Transmit</b><span class="hint">climate &lt;command&gt;</span></div><div class="panelbody">
         <div class="field"><label>Command</label><div class="cmdbar"><input id="cmd-input" type="text" value="catalog --format json"><button class="btn primary" id="cmd-run">Run</button></div></div>
@@ -586,7 +575,7 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
   <section class="page" id="page-overview">
     <div class="hero">
       <div>
-        <div class="eyebrow">NASA climate methods / dependency-free C++17</div>
+        <div class="eyebrow">NASA climate methods / live satellite and model data</div>
         <h1>Every equation, <em>open to inspection.</em></h1>
         <p class="lede">A working bench for satellite retrievals, trend detection and climate diagnostics.
           No black boxes, no numerical libraries — the formulas from the notes, compiled and traceable.</p>
@@ -595,7 +584,7 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
           <button class="btn" data-nav="formulas">Browse all formulas</button>
         </div>
       </div>
-      <div class="scope"><div class="scopehead"><span>SIGNAL MONITOR</span><span>LOCAL DEMO SST</span></div><div id="hero-chart" style="flex:1;display:grid;place-items:center;color:#5a4330;font-size:9px">AWAITING DATASET</div><div class="scopefoot">CH 01 / MONTHLY / DEG C / NO SMOOTHING</div></div>
+      <div class="scope"><div class="scopehead"><span>SIGNAL MONITOR</span><span>DEMO SERIES</span></div><div id="hero-chart" style="flex:1;display:grid;place-items:center;color:#5a4330;font-size:9px">AWAITING DATASET</div><div class="scopefoot">CH 01 / MONTHLY / DEG C / NO SMOOTHING</div></div>
     </div>
     <div class="stats" id="overview-stats">
       <div class="stat"><div class="k">Catalog variables</div><div class="v">—</div><div class="s">satellite &amp; climate products</div></div>
@@ -808,7 +797,9 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
         <div class="field"><label>Password</label><input id="ea-pass" type="password" autocomplete="off" placeholder="password"></div>
         <div class="field"><label>Or bearer token</label><input id="ea-token" type="password" autocomplete="off" placeholder="token instead of a password"></div>
       </div>
-      <div class="note">Used only for the Earthdata pull you press: the browser keeps them in this tab's memory, the server passes them to the fetch helper as environment variables for that one child process, and nothing is written to disk, logs or the page. Leave blank to fall back to credentials already exported in your shell or a <span class="telemetry">~/.netrc</span> file. Open endpoints (GISTEMP, POWER, NSIDC sea ice) never need a login.</div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="ea-check">Verify Earthdata login</button><span class="telemetry">nothing is downloaded by this check</span></div>
+      <div id="ea-status"></div>
+      <div class="note">Used only for the Earthdata pull you press: the browser keeps them in this tab's memory, the server passes them to the fetch helper as environment variables for that one child process, and nothing is written to disk, logs or the page. Leave blank to fall back to credentials already exported in your shell or a <span class="telemetry">~/.netrc</span> file. Open endpoints (GISTEMP, POWER, NSIDC sea ice) never need a login. Earthdata accounts with multi-factor authentication cannot use a password: paste a bearer token instead.</div>
     </div></div>
     <div id="live-list" class="live-grid"><div class="hint">Loading sources…</div></div>
     <div id="live-output"></div>
