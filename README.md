@@ -293,6 +293,21 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**SPDE, GTWR and sensor intercalibration (notes 384-400 KB).**
+`geostat.hpp` implements the SPDE Matern variance and precision
+`tau^2(kappa^2 C + G)^alpha`, GMRF conditional mean/covariance,
+squared-exponential GP posterior mean and variance, the scaled MAD envelope
+statistic and p-value, the GTWR space-time distance/weights/local estimator
+with AICc, the spherical/exponential/Gaussian/Matern (nu=1/2,3/2,5/2)
+variograms, and environment-weighted PCA projection. `intercal.hpp`
+implements GSICS correction and covariance-aware uncertainty, the MSU/AMSU
+nonlinear calibration and drift scaling, double differencing, diurnal and
+seasonal harmonics, CWV/SST logarithmic retrievals with state-dependent
+sensitivities, SSA hybrid recalibration, CLARREO inverse-variance weights
+and upper-bound inflation, the TRUTHS OBCS measurement function, angular
+standard deviation, bias-regression slope, and the SNO three-term variance
+budget with its t-statistic.
+
 **Metrological uncertainty and intercalibration (notes 352-384 KB).**
 `metrology.hpp` implements the covariance-aware LPU in matrix and scalar
 forms, the estimator covariance `G Q_y G^T`, the structured decomposition

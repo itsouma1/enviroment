@@ -37,6 +37,8 @@
 #include "change.hpp"
 #include "uncertainty.hpp"
 #include "metrology.hpp"
+#include "geostat.hpp"
+#include "intercal.hpp"
 #include "spatial.hpp"
 #include "harmonic.hpp"
 #include "fetch.hpp"
@@ -1666,7 +1668,88 @@ void test_metrology() {
     CHECK_NEAR(diurnal_harmonic(0.0, 10.0, 2.0, 0.0, 0.0, 0.0), 12.0, 1e-12);
 }
 
+void test_geostat_intercal() {
+    CHECK_NEAR(spde_matern_variance(1.0, 1.0, 1, 1), 1.0 / (4.0 * M_PI), 1e-12);
+    const Matrix precision =
+        spde_precision({{1.0, 0.0}, {0.0, 1.0}}, {{2.0, 0.0}, {0.0, 2.0}}, 1.0, 1.0, 1);
+    CHECK_NEAR(precision[0][0], 3.0, 1e-12);
+    CHECK_NEAR(precision[1][1], 3.0, 1e-12);
+    CHECK_NEAR(gmrf_conditional_mean({{2.0, 0.0}, {0.0, 2.0}}, {2.0, 4.0})[1], 2.0, 1e-12);
+    CHECK_NEAR(gmrf_conditional_covariance({{2.0, 0.0}, {0.0, 2.0}})[0][0], 0.5, 1e-12);
+
+    const std::vector<double> gp_mean = gp_posterior_mean({0.0, 1.0}, {0.0, 1.0}, {0.5}, 1.0, 1.0, 0.0);
+    CHECK_NEAR(gp_mean[0], 0.549318, 1e-5);
+    const std::vector<double> gp_variance = gp_posterior_variance({0.0, 1.0}, {0.5}, 1.0, 1.0, 0.01);
+    CHECK(gp_variance[0] > 0.0 && gp_variance[0] < 1.0);
+
+    CHECK_NEAR(mad_envelope_statistic({0.0, 0.0}, {1.0, -1.0}, {1.0, 1.0}), 1.0, 1e-12);
+    CHECK_NEAR(mad_envelope_p_value({0.0, 0.0}, {{0.0, 0.0}, {1.0, -1.0}}, {1.0, 1.0}), 1.0,
+               1e-12);
+
+    CHECK_NEAR(gtwr_distance(0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0), std::sqrt(3.0), 1e-12);
+    const std::vector<double> gtwr =
+        gtwr_coefficients({{1.0, 0.0}, {0.0, 1.0}, {1.0, 1.0}}, {2.0, 3.0, 5.0},
+                          {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, 0, 0.0, 0.0, 1.0);
+    CHECK_NEAR(gtwr[0], 2.0, 1e-12);
+    CHECK_NEAR(gtwr[1], 3.0, 1e-12);
+    CHECK_NEAR(gtwr_aicc(10, 1.0, 1.0), 34.093056378, 1e-6);
+
+    CHECK_NEAR(spherical_variogram(0.0, 0.5, 2.0, 1.0), 0.5, 1e-12);
+    CHECK_NEAR(spherical_variogram(1.0, 0.5, 2.0, 1.0), 2.5, 1e-12);
+    CHECK_NEAR(exponential_variogram(0.0, 0.5, 2.0, 1.0), 0.5, 1e-12);
+    CHECK_NEAR(gaussian_variogram(1.0, 0.5, 2.0, 1.0), 0.5 + 2.0 * (1.0 - std::exp(-1.0)),
+               1e-12);
+    CHECK_NEAR(matern_variogram(1.0, 0.5, 2.0, 1.0, 0.5), 0.5 + 2.0 * (1.0 - std::exp(-1.0)),
+               1e-12);
+
+    const Matrix weighted = weighted_covariance({{1.0, 0.0}, {0.0, 1.0}}, {1.0, 1.0});
+    CHECK_NEAR(weighted[0][0], 0.5, 1e-12);
+    const Matrix refined = weighted_pca_residual({{1.0, 0.0}, {-1.0, 0.0}}, {1.0, 1.0}, 1);
+    CHECK_NEAR(refined[0][0], 0.0, 1e-12);
+    CHECK_NEAR(refined[1][0], 0.0, 1e-12);
+
+    CHECK_NEAR(gsics_leo_radiance(10.0, 1.0, 2.0), 4.5, 1e-12);
+    CHECK_NEAR(gsics_uncertainty(10.0, 1.0, 2.0, 0.1, 0.2, 0.0), 0.45276925690687085, 1e-12);
+    CHECK_NEAR(msu_delta_radiance(1.0, 2.0, 3.0, 1.0), 5.0, 1e-12);
+    CHECK_NEAR(msu_nonlinearity(1.0, 0.5, 3.0, 1.0), 2.0, 1e-12);
+    CHECK_NEAR(msu_z_factor(2.0, 0.9, 0.1, 0.2), 2.24, 1e-12);
+    CHECK_NEAR(msu_calibrated_radiance(10.0, 5.0, 2.0, 2.24), 9.48, 1e-12);
+    CHECK_NEAR(diurnal_drift_correction(10.0, 0.5, 2.0), 11.0, 1e-12);
+
+    CHECK_NEAR(double_difference(10.0, 8.0, 9.0, 8.0), 1.0, 1e-12);
+    CHECK_NEAR(predicted_brightness(8.0, 9.0, 8.0), 9.0, 1e-12);
+    CHECK_NEAR(diurnal_anomaly(1.0, 2.0, 0.0, 6.0), 3.0, 1e-12);
+    CHECK_NEAR(seasonal_amplitude(1.0, 2.0, 0.0, 3), 3.0, 1e-12);
+
+    CHECK_NEAR(cwv_retrieval({200.0}, {1.0, 2.0}),
+               1.0 + 2.0 * std::log(88.0 / 288.0), 1e-12);
+    CHECK_NEAR(cwv_channel_sensitivity(200.0, 2.0), -2.0 / 88.0, 1e-12);
+    CHECK_NEAR(sst_first_step({200.0}, {1.0, 2.0}, {0.5}),
+               1.0 + 2.0 * std::log(88.0 / 288.0) +
+                   0.5 * std::log(88.0 / 288.0) * std::log(88.0 / 288.0),
+               1e-12);
+    CHECK_NEAR(sst_channel_sensitivity(200.0, 2.0, 0.5),
+               -(2.0 + std::log(88.0 / 288.0)) / 88.0, 1e-12);
+
+    CHECK_NEAR(ssa_recalibration(0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0), 3.0, 1e-12);
+    CHECK_NEAR(ssa_derivative(0.0, 1.0, 0.0, 2.0, 3.0, 0.0), 7.0, 1e-12);
+
+    CHECK_NEAR(clarreo_weight(1.0, 2.0, 3.0), 1.0 / 6.0, 1e-12);
+    CHECK_NEAR(clarreo_bias({1.0, 3.0}, {1.0, 1.0}), 2.0, 1e-12);
+    CHECK_NEAR(clarreo_uncertainty({1.0, 1.0}), 1.0 / std::sqrt(2.0), 1e-12);
+    CHECK_NEAR(clarreo_temporal_variance(0.5, 4.0, 2.0), 2.0, 1e-12);
+    CHECK_NEAR(clarreo_inflate(1.0, 3.0), 2.0, 1e-12);
+
+    CHECK_NEAR(obcs_radiance(2.0, 10.0, 1.0, 0.5), 17.5, 1e-12);
+    CHECK_NEAR(angular_standard_deviation({1.0, 3.0}), 1.0, 1e-12);
+    CHECK_NEAR(bias_regression_slope({1.0, 2.0}, {1.0, 2.0}), 1.0, 1e-12);
+    CHECK_NEAR(sno_variance_decomposition(1.0, 2.0, 3.0), 6.0, 1e-12);
+    CHECK_NEAR(sno_noise_fraction(3.0, 6.0), 50.0, 1e-12);
+    CHECK_NEAR(sno_t_statistic(1.0, 2.0, 4), 1.0, 1e-12);
+}
+
 int main() {
+    test_geostat_intercal();
     test_metrology();
     test_magnitude_hierarchy();
     test_spatial_advanced();
