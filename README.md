@@ -148,11 +148,15 @@ precipitation, ozone, aerosol, soil moisture, snow, sea level and ocean colour.
 Its CMR button performs a live granule-metadata API query through
 `tools/nasa_cmr.py` and downloads nothing; reproducible acquisition plans use
 `nasa_fetch.py`, with live arrays requiring Earthdata Login plus `earthaccess`.
-The Formula Registry indexes every public function declaration
-from `src/*.hpp` (over 900 in the current tree), and the Command Console runs any
-non-UI subcommand in the binary. The remaining laboratories expose the CO2
-polyharmonic fit, NLSST/NDVI-EVI-SAVI/NASA Team/GPI retrievals, information
-theory, SST uncertainty propagation, physics calculators, the variable catalog
+The Formula Registry indexes every public function declaration from `src/*.hpp`
+(over 900 in the current tree) and groups every module in scientific workflow
+order: observation/retrieval, time series/change, space/attribution,
+uncertainty/ensembles, physics/dynamics, then data/numerics. The Formula Lab
+exposes all 14 public physics formulas with independent multi-select inputs and
+batch results; the Command Console accepts a multi-line batch of any CLI
+commands. The remaining laboratories expose the CO2 polyharmonic fit,
+NLSST/NDVI/EVI/SAVI/NASA Team/GPI retrievals, information theory, SST
+uncertainty propagation, physics calculators, the variable catalog
 and the deterministic intent compiler.
 
 The server is a plain POSIX socket listener with one short-lived thread per

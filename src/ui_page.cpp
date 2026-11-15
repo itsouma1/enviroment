@@ -53,6 +53,14 @@ a{color:var(--teal)}
 .nav .ico{width:22px;height:22px;display:grid;place-items:center;flex:none;
   font-size:9px;font-weight:700;color:#c9ad86;background:#241a12;border:1px solid #4a3524}
 .nav.active .ico{color:#120d09;background:var(--teal);border-color:var(--teal)}
+.nav[data-nav="timeseries"] .ico{color:#5fc2c2;border-color:#3d6e6e}
+.nav[data-nav="co2"] .ico{color:#ff9a4d;border-color:#7a4a25}
+.nav[data-nav="retrieval"] .ico{color:#c3a6e0;border-color:#5a4670}
+.nav[data-nav="physics"] .ico{color:#d98a8a;border-color:#6e4242}
+.nav[data-nav="info"] .ico{color:#b8c97a;border-color:#59632f}
+.nav[data-nav="uncertainty"] .ico{color:#e8c46a;border-color:#6e5a2a}
+.nav[data-nav="catalog"] .ico{color:#8fd0a8;border-color:#3f6b50}
+.nav[data-nav="formulas"] .ico{color:#d5b3ff;border-color:#57436f}
 .sidefoot{margin-top:auto;padding:12px 5px 2px;border-top:1px dashed var(--line);font-size:9.5px;color:#8a6c4f;line-height:1.7}
 .sidefoot .dot{display:inline-block;width:6px;height:6px;background:var(--green);
   box-shadow:0 0 6px var(--green);margin-right:5px}
@@ -150,6 +158,13 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .chart .line{fill:none;stroke-width:1.15;stroke-linejoin:round;stroke-linecap:round;stroke-opacity:.92}
 .chart .area{stroke:none;fill:rgba(255,154,77,.06)}
 .chart .legend{font-family:var(--mono);font-size:9px;fill:#b39570}
+.ph-picks{display:grid;grid-template-columns:1fr 1fr;gap:4px;border:1px solid #3c2b1d;background:#0d0906;padding:5px;max-height:190px;overflow:auto}
+.ph-picks label{display:flex;gap:5px;align-items:flex-start;font-size:9px;color:#cbb18d;padding:3px;cursor:pointer}
+.ph-picks label:hover{background:#1d140d}
+.ph-card{border:1px solid #3c2b1d;background:#120d08;padding:7px;margin-top:7px}
+.ph-card .ph-title{font-size:9px;color:#ffe2b0;letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px}
+.ph-card .ph-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.fgroup{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#ffb168;border-bottom:1px solid #4a3524;margin:10px 0 4px;padding:3px 2px}
 .etable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:9px}
 .etable th{text-align:left;color:#8f7052;font-weight:400;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid #3c2b1d;padding:4px 5px}
 .etable td{padding:5px;border-bottom:1px dashed #2f2218;color:#cbb18d}
@@ -309,7 +324,7 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
   <button class="nav" data-nav="timeseries"><span class="ico">TS</span>Time series</button>
   <button class="nav" data-nav="co2"><span class="ico">CO</span>CO₂ curve fit</button>
   <button class="nav" data-nav="retrieval"><span class="ico">RS</span>Retrievals</button>
-  <button class="nav" data-nav="physics"><span class="ico">PH</span>Physics</button>
+  <button class="nav" data-nav="physics"><span class="ico">PH</span>Formula lab</button>
   <button class="nav" data-nav="info"><span class="ico">MI</span>Information theory</button>
   <button class="nav" data-nav="uncertainty"><span class="ico">σ</span>Uncertainty</button>
   <button class="nav" data-nav="overview"><span class="ico">SY</span>System</button>
@@ -409,7 +424,7 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 
   <!-- FORMULA REGISTRY -->
   <section class="page" id="page-formulas">
-    <div class="sectionhead" style="margin-top:0"><div><h2>Formula registry</h2><p>Every public C++ function declaration in the engine, indexed from the headers.</p></div><div class="telemetry" id="formula-count">—</div></div>
+    <div class="sectionhead" style="margin-top:0"><div><h2>Formula registry</h2><p>All public C++ functions, grouped in scientific workflow order: observation → time series → space/attribution → uncertainty → physics → data/numerics. Use the Formula lab for multi-formula runs and the console for batch commands.</p></div><div class="telemetry" id="formula-count">—</div></div>
     <div class="searchrow"><input id="formula-search" type="text" placeholder="Search functions, modules, symbols…"><button class="btn" id="formula-refresh">Rescan headers</button></div>
     <div class="panel"><div class="flist" id="formula-list"><div class="empty">Loading registry…</div></div></div>
     <div class="note">The registry is generated from <span class="telemetry">src/*.hpp</span> at runtime. Use the Command Console to execute any command-line implementation; the Laboratories expose the retrieval and analysis paths interactively.</div>
@@ -421,6 +436,10 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
     <div class="tool">
       <div class="panel"><div class="panelhead"><b>Transmit</b><span class="hint">climate &lt;command&gt;</span></div><div class="panelbody">
         <div class="field"><label>Command</label><div class="cmdbar"><input id="cmd-input" type="text" value="catalog --format json"><button class="btn primary" id="cmd-run">Run</button></div></div>
+        <div class="field"><label>Batch · one command per line</label><textarea id="cmd-batch" rows="4" spellcheck="false">physics toa --forcing 3.7 --feedback -1.25 --delta-t 1.2
+physics forcing-co2 --ppm 420 --reference-ppm 280
+physics wind-stress --u10 10 --v10 0</textarea></div>
+        <button class="btn" id="cmd-batch-run">Run batch →</button>
         <div class="quick">
           <button data-cmd="catalog --format json">catalog</button>
           <button data-cmd="physics mie --size-parameter 5">mie</button>
@@ -642,28 +661,14 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 
   <!-- PHYSICS -->
   <section class="page" id="page-physics">
-    <div class="sectionhead" style="margin-top:0"><div><h2>Physics calculators</h2><p>Energy balance, radiative forcing, Mie scattering and wind-driven transport</p></div></div>
+    <div class="sectionhead" style="margin-top:0"><div><h2>Formula laboratory</h2><p>Every public physics formula, selectable in any combination. Energy balance, radiative forcing, Mie scattering, wind-driven transport, geostrophy, vegetation indices.</p></div></div>
     <div class="tool">
       <div class="panel"><div class="panelhead"><b>Calculator</b><span class="hint">SI unless marked</span></div><div class="panelbody">
-        <div class="field"><label>Formula</label><select id="ph-formula">
-          <option value="toa">TOA energy imbalance</option>
-          <option value="forcing-co2">CO₂ radiative forcing</option>
-          <option value="ecs">Equilibrium climate sensitivity</option>
-          <option value="mie">Mie scattering · homogeneous sphere</option>
-          <option value="wind">Bulk wind stress</option>
-          <option value="ekman">Ekman transport</option>
-          <option value="aod">Aerosol optical depth</option>
-          <option value="equilibrium">Equilibrium temperature change</option>
-          <option value="coriolis">Coriolis parameter</option>
-          <option value="ekman-pumping">Ekman pumping</option>
-          <option value="geostrophic">Geostrophic velocity</option>
-          <option value="thermal-wind">Thermal wind shear</option>
-          <option value="savi">SAVI vegetation index</option>
-          <option value="evi">EVI vegetation index</option>
-        </select></div>
+        <div class="field"><label>Formulas · select one or many</label><div class="ph-picks" id="ph-picks"></div></div>
+        <div class="row"><button class="btn" id="ph-all">Select all</button><button class="btn" id="ph-clear">Clear</button></div>
         <div id="ph-fields"></div>
-        <button class="btn primary run" id="ph-run">Calculate →</button>
-        <div class="formula" id="ph-formula-desc"></div>
+        <button class="btn primary run" id="ph-run">Calculate selected →</button>
+        <div class="formula" id="ph-formula-desc">Each checked formula gets its own inputs and its own result. Batch runs share no hidden state.</div>
       </div></div>
       <div id="ph-output"><div class="panel"><div class="placeholder"><div><div class="big">ƒ</div><p>Pick a formula. The fields and the equation update with the selection.</p></div></div></div></div>
     </div>
@@ -703,7 +708,7 @@ async function api(path,body){
 function nav(name){
   $$('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+name));
   $$('.nav').forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
-  const label={workflow:'Trend detective',nasa:'NASA data',formulas:'Formula registry',console:'Command console',overview:'System',timeseries:'Time series',co2:'CO₂ curve fit',retrieval:'Retrievals',info:'Information theory',uncertainty:'Uncertainty',physics:'Physics',catalog:'Catalog'}[name]||name;
+  const label={workflow:'Trend detective',nasa:'NASA data',formulas:'Formula registry',console:'Command console',overview:'System',timeseries:'Time series',co2:'CO₂ curve fit',retrieval:'Retrievals',info:'Information theory',uncertainty:'Uncertainty',physics:'Formula lab',catalog:'Catalog'}[name]||name;
   $('#crumb').textContent=label; window.scrollTo({top:0,behavior:'smooth'});
 }
 document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){nav(b.dataset.nav);}});
@@ -756,7 +761,7 @@ function chart(series,opts={}){
     g+=`<path class="line" d="${d}" stroke="${s.color||'#f0d9b5'}"/>`;
   });
   let legend='';let lx=L;
-  series.forEach(s=>{legend+=`<line x1="${lx}" y1="8" x2="${lx+10}" y2="8" stroke="${s.color||'#f0d9b5'}" stroke-width="2"/><text class="legend" x="${lx+14}" y="11">${esc(s.name)}</text>`;lx+=s.name.length*6+34;});
+  series.forEach(s=>{legend+=`<line x1="${lx}" y1="8" x2="${lx+10}" y2="8" stroke="${s.color||'#f0d9b5'}" stroke-width="2"/><text class="legend" x="${lx+14}" y="11" fill="${s.color||'#f0d9b5'}">${esc(s.name)}</text>`;lx+=s.name.length*6+34;});
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img"><g>${g}</g><g>${legend}</g></svg>`;
 }
 function chartCard(title,series,opts={}){return `<div class="chartwrap"><div style="font-size:9.5px;color:#a38562;padding:2px 8px 0;text-transform:uppercase;letter-spacing:.08em">${esc(title)}</div>${chart(series,opts)}</div>`;}
@@ -1022,21 +1027,38 @@ const physics={
   'savi':{desc:'SAVI = (NIR−RED)/(NIR+RED+L)(1+L)',fields:[['red','RED reflectance',0.08],['nir','NIR reflectance',0.45],['soil','Soil factor L',0.5]]},
   'evi':{desc:'EVI = G(NIR−RED)/(NIR+C1 RED−C2 BLUE+L)',fields:[['red','RED reflectance',0.08],['nir','NIR reflectance',0.45],['blue','BLUE reflectance',0.04],['gain','Gain G',2.5],['c1','C1',6],['c2','C2',7.5],['canopy','Canopy L',1]]}
 };
-function renderPhysics(){
-  const def=physics[$('#ph-formula').value];state.physics=def;
-  $('#ph-formula-desc').textContent=def.desc;
-  $('#ph-fields').innerHTML=def.fields.map(f=>`<div class="field"><label>${esc(f[1])}</label><input data-ph="${f[0]}" type="number" value="${f[2]}" step="any"></div>`).join('');
+state.physicsSelected=new Set(['toa']);
+function renderPhysicsPicks(){
+  $('#ph-picks').innerHTML=Object.entries(physics).map(([k,v])=>`<label><input type="checkbox" data-ph-pick="${k}" ${state.physicsSelected.has(k)?'checked':''}><span>${esc(k.replace(/-/g,' '))}</span></label>`).join('');
 }
-$('#ph-formula').addEventListener('change',renderPhysics);
-$('#ph-run').addEventListener('click',async()=>{
+function renderPhysics(){
+  renderPhysicsPicks();
+  const chosen=[...state.physicsSelected];
+  $('#ph-fields').innerHTML=chosen.map(k=>{
+    const def=physics[k];
+    return `<div class="ph-card" data-ph-card="${k}"><div class="ph-title">${esc(k.replace(/-/g,' '))}</div><div class="formula">${esc(def.desc)}</div><div class="ph-grid">${def.fields.map(f=>`<div class="field"><label>${esc(f[1])}</label><input data-ph="${k}:${f[0]}" type="number" value="${f[2]}" step="any"></div>`).join('')}</div></div>`;
+  }).join('')||'<div class="empty">Select at least one formula.</div>';
+  $('#ph-formula-desc').textContent=chosen.length?`${chosen.length} formula${chosen.length===1?'':'s'} selected. Each card has independent inputs; all results are returned together.`:'Select one or more formulas.';
+}
+$('#ph-picks')&&$('#ph-picks').addEventListener('change',e=>{
+  const box=e.target.closest('[data-ph-pick]');if(!box)return;
+  if(box.checked)state.physicsSelected.add(box.dataset.phPick);else state.physicsSelected.delete(box.dataset.phPick);
+  renderPhysics();
+});
+$('#ph-all')&&$('#ph-all').addEventListener('click',()=>{state.physicsSelected=new Set(Object.keys(physics));renderPhysics();});
+$('#ph-clear')&&$('#ph-clear').addEventListener('click',()=>{state.physicsSelected=new Set();renderPhysics();});
+$('#ph-run')&&$('#ph-run').addEventListener('click',async()=>{
+  const cards=$$('[data-ph-card]');
+  if(!cards.length){toast('Select at least one formula');return;}
   try{
-    const body={formula:$('#ph-formula').value};
-    $$('[data-ph]').forEach(i=>body[i.dataset.ph]=+i.value);
-    const d=await api('/api/physics',body);
-    $('#ph-output').innerHTML=`<div class="panel"><div class="panelhead"><b>${esc(d.title)}</b><span class="hint">${esc(d.formula)}</span></div><div class="panelbody">
-      <div class="bigvalue">${fmt(d.primary.value,5)}</div><div class="unit">${esc(d.primary.unit)}</div>
-      <div class="kv">${d.details.map(x=>`<span class="k">${esc(x.label)}</span><span class="v">${fmt(x.value,5)} ${esc(x.unit||'')}</span>`).join('')}</div>
-      <div class="note">${esc(d.note||'')}</div>
+    const results=await Promise.all(cards.map(async card=>{
+      const body={formula:card.dataset.phCard};
+      card.querySelectorAll('[data-ph]').forEach(i=>{const [,name]=i.dataset.ph.split(':');body[name]=+i.value;});
+      return api('/api/physics',body);
+    }));
+    $('#ph-output').innerHTML=`<div class="panel"><div class="panelhead"><b>Batch results</b><span class="hint">${results.length} formulas</span></div><div class="panelbody">
+      <table class="etable"><thead><tr><th>Formula</th><th>Result</th><th>Equation</th></tr></thead><tbody>${results.map(d=>`<tr><td>${esc(d.title)}</td><td>${fmt(d.primary.value,5)} ${esc(d.primary.unit)}</td><td>${esc(d.formula)}</td></tr>`).join('')}</tbody></table>
+      ${results.map(d=>`<div class="ph-card"><div class="ph-title">${esc(d.title)}</div><div class="kv">${d.details.map(x=>`<span class="k">${esc(x.label)}</span><span class="v">${fmt(x.value,5)} ${esc(x.unit||'')}</span>`).join('')}</div></div>`).join('')}
     </div></div>`;
   }catch(err){toast(err.message);}
 });
@@ -1413,11 +1435,30 @@ async function loadFormulas(){
     renderFormulas();
   }catch(e){$('#formula-list').innerHTML=`<div class="empty">${esc(e.message)}</div>`;}
 }
+const FORMULA_GROUPS=[
+  ['01 · Observation, retrieval & Earth system',['retrieval.hpp','aerosol.hpp','ozone.hpp','precip.hpp','cryo.hpp','ocean.hpp','ocean2.hpp','land.hpp','atmos.hpp','earth.hpp']],
+  ['02 · Time series, cycles & change detection',['series.hpp','stl.hpp','trend.hpp','multitrend.hpp','change.hpp','detect.hpp','harmonic.hpp','fft.hpp','ssa.hpp','loess.hpp','regime.hpp','hmm.hpp']],
+  ['03 · Space, region & attribution',['spatial.hpp','geostat.hpp','regional.hpp','attrib.hpp','attrib2.hpp','causal.hpp','causal2.hpp','clustering.hpp','coherence.hpp','flow.hpp','landuse.hpp']],
+  ['04 · Uncertainty, validation & ensembles',['uncertainty.hpp','sstunc.hpp','validation.hpp','metrology.hpp','homogen.hpp','intercal.hpp','ensemble.hpp','quantile.hpp','relevance.hpp','power.hpp']],
+  ['05 · Physics, dynamics & transport',['physics.hpp','pde.hpp','assim.hpp','tempac.hpp','magnitude.hpp','maturity.hpp','copula.hpp','restrand.hpp']],
+  ['06 · Data, statistics & numerics',['json.hpp','csv.hpp','netcdf.hpp','readers.hpp','stats.hpp','linalg.hpp','ml.hpp','kernel.hpp']]
+];
 function renderFormulas(){
   const q=($('#formula-search').value||'').toLowerCase();
   if(!state.formulas)return;
-  const mods=state.formulas.modules.map(m=>({...m,functions:m.functions.filter(f=>!q||f.toLowerCase().includes(q))})).filter(m=>m.functions.length);
-  $('#formula-list').innerHTML=mods.map(m=>`<div class="fitem"><div class="fhead" data-fopen><span>${esc(m.file)}</span><span class="cnt">${m.functions.length}</span></div><div class="fbody">${m.functions.map(f=>`<div class="fsig">${esc(f)}</div>`).join('')}</div></div>`).join('')||'<div class="empty">No function signature matches that filter.</div>';
+  const byFile={};
+  state.formulas.modules.forEach(m=>{byFile[m.file]={...m,functions:m.functions.filter(f=>!q||f.toLowerCase().includes(q))};});
+  const used=new Set();
+  let html='';
+  FORMULA_GROUPS.forEach(([label,files])=>{
+    const mods=files.map(f=>byFile[f]).filter(m=>m&&m.functions.length&&!used.has(m.file));
+    mods.forEach(m=>used.add(m.file));
+    if(!mods.length)return;
+    html+=`<div class="fgroup">${esc(label)}</div>`+mods.map(m=>`<div class="fitem"><div class="fhead" data-fopen><span>${esc(m.file)}</span><span class="cnt">${m.functions.length}</span></div><div class="fbody">${m.functions.map(f=>`<div class="fsig">${esc(f)}</div>`).join('')}</div></div>`).join('');
+  });
+  const rest=state.formulas.modules.filter(m=>!used.has(m.file)&&m.functions.some(f=>!q||f.toLowerCase().includes(q)));
+  if(rest.length)html+=`<div class="fgroup">07 · Supporting modules</div>`+rest.map(m=>`<div class="fitem"><div class="fhead" data-fopen><span>${esc(m.file)}</span><span class="cnt">${m.functions.filter(f=>!q||f.toLowerCase().includes(q)).length}</span></div><div class="fbody">${m.functions.filter(f=>!q||f.toLowerCase().includes(q)).map(f=>`<div class="fsig">${esc(f)}</div>`).join('')}</div></div>`).join('');
+  $('#formula-list').innerHTML=html||'<div class="empty">No function signature matches that filter.</div>';
 }
 $('#formula-search')&&$('#formula-search').addEventListener('input',renderFormulas);
 $('#formula-refresh')&&$('#formula-refresh').addEventListener('click',loadFormulas);
@@ -1442,7 +1483,21 @@ async function runConsole(){
     consoleWrite(`<span class="cmd">$ climate ${esc(cmd)}</span>\n${esc(d.output)}\n<span class="${d.exit_code?'bad':'ok'}">[exit ${d.exit_code}]</span>`);
   }catch(e){consoleWrite(`<span class="cmd">$ climate ${esc(cmd)}</span>\n<span class="bad">${esc(e.message)}</span>`);}
 }
+async function runBatch(){
+  const lines=$('#cmd-batch').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  if(!lines.length){toast('Enter at least one command');return;}
+  let out='';
+  for(const line of lines){
+    out+=`<span class="cmd">$ climate ${esc(line)}</span>\n`;
+    try{
+      const d=await api('/api/run',{command:line});
+      out+=`${esc(d.output)}\n<span class="${d.exit_code?'bad':'ok'}">[exit ${d.exit_code}]</span>\n\n`;
+    }catch(e){out+=`<span class="bad">${esc(e.message)}</span>\n\n`;}
+  }
+  consoleWrite(out);
+}
 $('#cmd-run')&&$('#cmd-run').addEventListener('click',runConsole);
+$('#cmd-batch-run')&&$('#cmd-batch-run').addEventListener('click',runBatch);
 $('#cmd-input')&&$('#cmd-input').addEventListener('keydown',e=>{if(e.key==='Enter')runConsole();});
 $$('.quick button').forEach(b=>b.addEventListener('click',()=>{$('#cmd-input').value=b.dataset.cmd;runConsole();}));
 
