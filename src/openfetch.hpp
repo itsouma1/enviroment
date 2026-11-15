@@ -1,0 +1,40 @@
+#pragma once
+
+#include <string>
+#include <vector>
+
+namespace climate {
+
+// One fetched monthly series, ready to be written as time,value.
+struct OpenSeries {
+    std::string source;    // gistemp | power | seaice
+    std::string key;       // file stem, e.g. live_gistemp
+    std::string label;     // human description
+    std::string provider;  // who serves it
+    std::string variable;  // variable name
+    std::string units;
+    std::string url;       // the URL actually requested
+    std::string retrieved_at;  // UTC ISO 8601 timestamp of the fetch
+    double latitude = 0.0;
+    double longitude = 0.0;
+    std::vector<double> time;   // decimal years
+    std::vector<double> value;
+};
+
+// Fetches one of the open NASA series over HTTPS. None of these need an account:
+// GISTEMP v4 (GISS), POWER monthly point (LaRC) and the NSIDC Sea Ice Index.
+//
+// HTTP goes through curl when it is present, which it is on Linux and macOS and
+// on Windows 10 and later; PowerShell and Python are tried as fallbacks. No
+// Python package, credentials or extra install is required for these three
+// sources.
+bool fetch_open_series(const std::string& source, double latitude, double longitude,
+                       const std::string& start, const std::string& end,
+                       const std::string& region, OpenSeries* series, std::string* error);
+
+// Writes time,value CSV plus a JSON sidecar next to it, the same schema the
+// Python helper produces. Returns the CSV path.
+bool write_open_series(const OpenSeries& series, const std::string& directory,
+                       std::string* csv_path, std::string* error);
+
+}  // namespace climate

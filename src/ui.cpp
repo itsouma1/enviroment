@@ -32,6 +32,7 @@
 #include "infotheory.hpp"
 #include "intent.hpp"
 #include "json.hpp"
+#include "openfetch.hpp"
 #include "physics.hpp"
 #include "retrieval.hpp"
 #include "series.hpp"
@@ -1752,6 +1753,51 @@ Response live_pull_request(const json::Value& body) {
     static const char* allowed[] = {"gistemp", "power", "seaice", "earthaccess"};
     if (std::find(std::begin(allowed), std::end(allowed), source) == std::end(allowed))
         throw BadRequest("unknown live source");
+
+    // The open sources need no account and no Python: they are fetched here, and
+    // the Python helper is kept only for Earthdata granules.
+    if (source == "gistemp" || source == "power" || source == "seaice") {
+        OpenSeries native_series;
+        std::string native_error;
+        if (fetch_open_series(source, value_number(body, "lat", 72.0),
+                              value_number(body, "lon", -40.0),
+                              value_string(body, "start", "2000-01-01"),
+                              value_string(body, "end"), value_string(body, "region", "N"),
+                              &native_series, &native_error)) {
+            std::string csv_path;
+            std::string write_error;
+            if (write_open_series(native_series, "data", &csv_path, &write_error)) {
+                json::Value meta = json::Value::object();
+                meta.set("url", json::Value::from_string(native_series.url));
+                meta.set("variable", json::Value::from_string(native_series.variable));
+                meta.set("units", json::Value::from_string(native_series.units));
+                meta.set("source", json::Value::from_string(native_series.source));
+                meta.set("key", json::Value::from_string(native_series.key));
+                meta.set("label", json::Value::from_string(native_series.label));
+                meta.set("provider", json::Value::from_string(native_series.provider));
+                meta.set("file", json::Value::from_string(csv_path));
+                meta.set("samples", json::Value::from_number(
+                                         static_cast<double>(native_series.time.size())));
+                meta.set("first_time", json::Value::from_number(native_series.time.front()));
+                meta.set("last_time", json::Value::from_number(native_series.time.back()));
+                meta.set("first_value", json::Value::from_number(native_series.value.front()));
+                meta.set("last_value", json::Value::from_number(native_series.value.back()));
+                meta.set("retrieved_at",
+                         json::Value::from_string(native_series.retrieved_at));
+                meta.set("native", json::Value::from_bool(true));
+                json::Value root = json::Value::object();
+                root.set("ok", json::Value::from_bool(true));
+                root.set("series", meta);
+                return json_response(root);
+            }
+            throw BadRequest("the series was fetched but could not be saved: " + write_error);
+        }
+        // Fall through to the Python helper, which can still try.
+        const std::string hint =
+            "native fetch failed (" + native_error +
+            "); the Python helper will be tried next";
+        (void)hint;
+    }
 
     std::ostringstream command;
     command << live_interpreter() << " tools/nasa_live.py pull --source " << source;

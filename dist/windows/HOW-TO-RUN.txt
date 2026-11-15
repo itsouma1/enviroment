@@ -21,6 +21,20 @@ COMMAND LINE
 
   Running climate.exe with no arguments prints this help and stays open.
 
+FETCHING REAL DATA (NO ACCOUNT NEEDED)
+  Open the "Fetch data" tab and press a source:
+
+    GISTEMP        global temperature anomaly, 1880-present
+    POWER          any latitude/longitude, monthly, 1981-present
+    NSIDC sea ice  monthly extent, north or south, 1978-present
+
+  These three are open: no login, no Python, no install. The program asks
+  Windows' built-in curl for the file, writes data/live_*.csv plus a JSON
+  record of the URL and retrieval time, and the analysis runs on it.
+
+  Only Earthdata granule downloads need a NASA Earthdata Login; that is the
+  one path that uses the optional Python helper.
+
 IF SOMETHING GOES WRONG
   The program does not close silently on an error. It prints the message, or
   the exception code and address if it fails outside C++ error handling, and

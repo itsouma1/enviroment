@@ -1,16 +1,16 @@
 {
-  "url": "https://power.larc.nasa.gov/api/temporal/monthly/point?parameters=T2M&community=RE&longitude=25.0&latitude=65.0&start=1990&end=2024&format=CSV",
+  "url": "https://power.larc.nasa.gov/api/temporal/monthly/point?parameters=T2M&community=RE&longitude=25&latitude=65&start=1990&end=2024&format=CSV",
   "variable": "T2M",
   "units": "degC",
-  "latitude": 65.0,
-  "longitude": 25.0,
   "source": "power",
-  "key": "power_t2m_65_25",
+  "key": "live_power_t2m_65_25",
   "file": "data/live_power_t2m_65_25.csv",
   "samples": 420,
   "first_time": 1990.0417,
   "last_time": 2024.9583,
   "first_value": -11.34,
   "last_value": -4.75,
-  "retrieved_at": "2026-11-15T07:56:47+00:00"
+  "retrieved_at": "2026-11-15T18:18:40+00:00",
+  "latitude": 65,
+  "longitude": 25
 }
