@@ -28,11 +28,13 @@
 #include "csv.hpp"
 #include "fetch.hpp"
 #include "formula_lab.hpp"
+#include "formula_plan.hpp"
 #include "infotheory.hpp"
 #include "intent.hpp"
 #include "json.hpp"
 #include "physics.hpp"
 #include "retrieval.hpp"
+#include "series.hpp"
 #include "spatial.hpp"
 #include "sstunc.hpp"
 #include "trend.hpp"
@@ -301,7 +303,166 @@ Response json_response(json::Value value, int status = 200) {
     return response;
 }
 
+// Same JSON shape as the seasonal path, but the trend and the seasonal cycle are
+// the polynomial and harmonic parts of the fitted model (Thoning et al., 1989).
+// The UI consumes one shape, so the report can show either method without a
+// separate page.
+Response analyze_harmonic_request(const json::Value& body) {
+    const SeriesInput input = series_from_body(body);
+    CO2Options options;
+    options.polynomial_order = std::max(1, static_cast<int>(value_number(body, "poly", 2.0)));
+    options.harmonic_count = std::max(1, static_cast<int>(value_number(body, "harmonics", 4.0)));
+    options.alpha = value_number(body, "alpha", 0.05);
+    options.reject_iterations =
+        std::max(0, static_cast<int>(value_number(body, "reject_iterations", 4.0)));
+    options.reject_threshold = value_number(body, "reject_threshold", 3.0);
+    const int seasonal_period = std::max(2, static_cast<int>(value_number(body, "period", 12.0)));
+
+    double spacing = 0.0;
+    if (input.time.size() > 1)
+        spacing = (input.time.back() - input.time.front()) /
+                  static_cast<double>(input.time.size() - 1);
+    if (spacing > 0.0 && spacing < 0.02) options.time_units_per_year = 365.0;
+    else if (spacing > 0.0 && spacing < 0.5) options.time_units_per_year = 12.0;
+
+    CO2Analysis analysis = analyze_co2(input.time, input.values, options);
+
+    std::size_t filled = 0;
+    const std::vector<double> observed = interpolate_missing(input.values, &filled);
+    std::vector<double> trend(observed.size());
+    std::vector<double> seasonal(observed.size());
+    std::vector<double> remainder(observed.size());
+    std::vector<double> deseasonalised(observed.size());
+    for (std::size_t i = 0; i < observed.size(); ++i) {
+        const double season = harmonic_seasonal_value(analysis.model, input.time[i]);
+        const double fitted = harmonic_evaluate(analysis.model, input.time[i]);
+        seasonal[i] = season;
+        trend[i] = fitted - season;
+        remainder[i] = observed[i] - fitted;
+        deseasonalised[i] = observed[i] - season;
+    }
+
+    MKSettings settings;
+    settings.alpha = options.alpha;
+    settings.hamed_rao = true;
+    const MKResult mk = mann_kendall(deseasonalised, settings);
+    const SenResult sen = sens_slope(input.time, deseasonalised, nullptr, options.alpha);
+    const MKResult mk_raw = mann_kendall(observed, settings);
+    const SenResult sen_raw = sens_slope(input.time, observed, nullptr, options.alpha);
+    const MKResult mk_seasonal = seasonal_mann_kendall(observed, seasonal_period, settings);
+    const TrendEnsemble ensemble = trend_ensemble(input.time, deseasonalised, options.alpha);
+
+    const auto variance_of = [](const std::vector<double>& a, const std::vector<double>& b) {
+        std::vector<double> sum(a.size());
+        for (std::size_t i = 0; i < a.size(); ++i) sum[i] = a[i] + b[i];
+        return variance_value(sum);
+    };
+    const double remainder_variance = variance_value(remainder);
+    const double seasonal_variance = variance_of(seasonal, remainder);
+    const double trend_variance = variance_of(trend, remainder);
+
+    json::Value root = json::Value::object();
+    root.set("variable", json::Value::from_string(input.variable));
+    root.set("units", json::Value::from_string(input.units));
+    root.set("label", json::Value::from_string(analysis.label.empty() ? input.variable : analysis.label));
+    root.set("method", json::Value::from_string("harmonic"));
+    root.set("samples", json::Value::from_number(static_cast<double>(observed.size())));
+    root.set("missing_filled", json::Value::from_number(static_cast<double>(filled)));
+    root.set("start_time", json::Value::from_number(input.time.front()));
+    root.set("end_time", json::Value::from_number(input.time.back()));
+    root.set("spacing", json::Value::from_number(spacing));
+    root.set("period", json::Value::from_number(static_cast<double>(seasonal_period)));
+    root.set("alpha", json::Value::from_number(options.alpha));
+    root.set("decomposed", json::Value::from_bool(true));
+
+    const Summary summary = summarize(observed);
+    json::Value summary_json = json::Value::object();
+    summary_json.set("mean", json::Value::from_number(summary.mean));
+    summary_json.set("sd", json::Value::from_number(summary.sd));
+    summary_json.set("median", json::Value::from_number(summary.median));
+    summary_json.set("minimum", json::Value::from_number(summary.minimum));
+    summary_json.set("maximum", json::Value::from_number(summary.maximum));
+    summary_json.set("q25", json::Value::from_number(summary.q25));
+    summary_json.set("q75", json::Value::from_number(summary.q75));
+    root.set("summary", summary_json);
+
+    json::Value decomposition = json::Value::object();
+    decomposition.set("seasonal_amplitude",
+                      json::Value::from_number(analysis.seasonal_amplitude));
+    decomposition.set("seasonal_strength",
+                      json::Value::from_number(seasonal_variance > 0.0
+                                                   ? std::max(0.0, 1.0 - remainder_variance / seasonal_variance)
+                                                   : 0.0));
+    decomposition.set("trend_strength",
+                      json::Value::from_number(trend_variance > 0.0
+                                                   ? std::max(0.0, 1.0 - remainder_variance / trend_variance)
+                                                   : 0.0));
+    decomposition.set("latest_anomaly_sigma", json::Value::from_number(0.0));
+    root.set("decomposition", decomposition);
+
+    json::Value trend_json = json::Value::object();
+    trend_json.set("mann_kendall", mk_json(mk));
+    trend_json.set("sen", sen_json(sen));
+    trend_json.set("sen_per_decade",
+                   json::Value::from_number(sen.computed
+                                                ? sen.slope * 10.0 * options.time_units_per_year
+                                                : 0.0));
+    trend_json.set("ensemble", ensemble_json(ensemble));
+    root.set("trend", trend_json);
+
+    json::Value raw = json::Value::object();
+    raw.set("mann_kendall", mk_json(mk_raw));
+    raw.set("sen", sen_json(sen_raw));
+    raw.set("sen_per_decade",
+            json::Value::from_number(sen_raw.computed
+                                         ? sen_raw.slope * 10.0 * options.time_units_per_year
+                                         : 0.0));
+    root.set("raw_trend", raw);
+    root.set("seasonal_mann_kendall", mk_json(mk_seasonal));
+
+    json::Value series = json::Value::object();
+    series.set("time", number_array(input.time));
+    series.set("observed", number_array(input.values));
+    series.set("fitted", number_array(analysis.fitted));
+    root.set("series", series);
+
+    json::Value components = json::Value::object();
+    components.set("trend", number_array(trend));
+    components.set("seasonal", number_array(seasonal));
+    components.set("remainder", number_array(remainder));
+    root.set("components", components);
+
+    json::Value model = json::Value::object();
+    model.set("polynomial_order", json::Value::from_number(analysis.model.polynomial_order));
+    model.set("harmonic_count", json::Value::from_number(analysis.model.harmonic_count));
+    model.set("r_squared", json::Value::from_number(analysis.model.r_squared));
+    model.set("residual_sd", json::Value::from_number(analysis.model.residual_sd));
+    model.set("rejected_points",
+              json::Value::from_number(static_cast<double>(analysis.model.rejected_points)));
+    root.set("model", model);
+
+    json::Value growth = json::Value::object();
+    growth.set("start_per_year", json::Value::from_number(analysis.growth_rate_start));
+    growth.set("end_per_year", json::Value::from_number(analysis.growth_rate_end));
+    growth.set("mean_per_year", json::Value::from_number(analysis.growth_rate_mean));
+    growth.set("last_five_years_per_year",
+               json::Value::from_number(analysis.growth_rate_last_five_years));
+    growth.set("end_pgc_per_year",
+               json::Value::from_number(analysis.growth_rate_end_pgc_per_year));
+    root.set("growth", growth);
+    root.set("warnings", string_array(analysis.warnings));
+    return json_response(root);
+}
+
 Response analyze_series_request(const json::Value& body) {
+    // The variable decides the method. A well-mixed greenhouse gas is fitted with
+    // the polynomial plus harmonic model the catalog specifies for it; everything
+    // else goes through the seasonal decomposition chain.
+    const std::string variable = value_string(body, "variable");
+    if (!variable.empty() && valid_variable_id(variable) &&
+        catalog_analysis_method(variable) == AnalysisMethod::HarmonicFit)
+        return analyze_harmonic_request(body);
+
     const SeriesInput input = series_from_body(body);
     SeriesOptions options;
     options.period = std::max(2, static_cast<int>(value_number(body, "period", 12.0)));
@@ -334,6 +495,7 @@ Response analyze_series_request(const json::Value& body) {
     root.set("spacing", json::Value::from_number(analysis.spacing));
     root.set("period", json::Value::from_number(static_cast<double>(analysis.period)));
     root.set("alpha", json::Value::from_number(analysis.alpha));
+    root.set("method", json::Value::from_string("stl"));
     root.set("decomposed", json::Value::from_bool(analysis.decomposed));
 
     json::Value summary = json::Value::object();
@@ -1287,6 +1449,265 @@ Response lab_run_request(const json::Value& body) {
     return json_response(root);
 }
 
+namespace {
+
+std::string lowered_parameter_name(std::string name) {
+    for (char& c : name) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return name;
+}
+
+// Everything the plan's scalar parameters can be derived from. A formula is fed
+// the record's own numbers instead of an arbitrary lab default.
+struct PlanContext {
+    double stdev = 0.0;
+    double autocorrelation = 0.0;
+    double years = 0.0;
+    double slope = 0.0;
+    double minimum_detectable = 0.0;
+    double standard_error = 0.0;
+    int period = 12;
+    int samples = 0;
+    double alpha = 0.05;
+};
+
+double plan_parameter(const std::string& raw_name, const PlanContext& context,
+                      double fallback) {
+    const std::string name = lowered_parameter_name(raw_name);
+    if (name == "period" || name == "phase_count" || name == "cycle" ||
+        name == "seasonal_period" || name == "harmonics" || name == "harmonic_count")
+        return static_cast<double>(context.period);
+    if (name == "alpha" || name == "nominal_alpha" || name == "false_discovery_rate" ||
+        name == "alpha_global" || name == "significance" || name == "p_threshold")
+        return context.alpha;
+    if (name == "power") return 0.8;
+    if (name == "lag") return 1.0;
+    if (name == "probability" || name == "quantile") return 0.5;
+    if (name == "autocorrelation" || name == "rho" || name == "phi" || name == "lag1")
+        return context.autocorrelation;
+    if (name == "noise_sd" || name == "innovation_sd" || name == "sd" || name == "sigma" ||
+        name == "standard_deviation" || name == "noise")
+        return context.stdev;
+    if (name == "standard_error" || name == "se") return context.standard_error;
+    if (name == "years" || name == "span" || name == "duration") return context.years;
+    if (name == "trend" || name == "trend_magnitude" || name == "target_trend" ||
+        name == "slope")
+        return context.slope;
+    if (name == "minimum_detectable" || name == "minimum_detectable_trend" || name == "mdt")
+        return context.minimum_detectable;
+    if (name == "hypothesis_count" || name == "grid_points" || name == "count" ||
+        name == "n")
+        return 1.0;
+    if (name == "index") return 0.0;
+    if (name == "threshold") return 0.15;
+    return fallback;
+}
+
+LabInputs plan_inputs(const std::vector<double>& time, const std::vector<double>& values,
+                      PlanInput kind) {
+    LabInputs inputs;
+    switch (kind) {
+        case PlanInput::Series:
+            // The generated call sites take the first vector parameter from the
+            // time axis, so the values are handed over there.
+            inputs.time = values;
+            inputs.series = values;
+            break;
+        case PlanInput::Time:
+        case PlanInput::TimeSeries:
+            inputs.time = time;
+            inputs.series = values;
+            break;
+        case PlanInput::Derived:
+        case PlanInput::Sensor:
+            inputs.time = time;
+            inputs.series = values;
+            break;
+    }
+    const std::size_t columns = 3;
+    for (std::size_t i = 0; i + columns <= values.size(); i += columns)
+        inputs.matrix.emplace_back(values.begin() + static_cast<long>(i),
+                                   values.begin() + static_cast<long>(i + columns));
+    const std::size_t side = std::min<std::size_t>(
+        32, std::max<std::size_t>(2, static_cast<std::size_t>(
+                std::floor(std::sqrt(static_cast<double>(values.size()))))));
+    for (std::size_t r = 0; r < side; ++r) {
+        std::vector<double> row;
+        row.reserve(side);
+        for (std::size_t c = 0; c < side; ++c) {
+            const std::size_t index = r * side + c;
+            row.push_back(index < values.size() ? values[index] : 0.0);
+        }
+        inputs.square.push_back(row);
+    }
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "climate-formula-lab";
+    std::error_code ignored;
+    std::filesystem::create_directories(scratch, ignored);
+    inputs.text = (scratch / "out.csv").string();
+    return inputs;
+}
+
+const LabFormula* find_lab_formula(const std::string& id) {
+    for (const LabFormula& formula : lab_formulas())
+        if (formula.id == id) return &formula;
+    return nullptr;
+}
+
+const char* input_name(PlanInput kind) {
+    switch (kind) {
+        case PlanInput::Series: return "series";
+        case PlanInput::Time: return "time";
+        case PlanInput::TimeSeries: return "time_series";
+        case PlanInput::Derived: return "derived";
+        case PlanInput::Sensor: return "sensor";
+    }
+    return "series";
+}
+
+void append_plan_notes(const FormulaPlan& plan, json::Value& root) {
+    root.set("notes", string_array(plan.notes));
+}
+
+}  // namespace
+
+Response plan_request(const json::Value& body) {
+    const std::string variable = value_string(body, "variable");
+    if (variable.empty()) throw BadRequest("variable is required");
+    if (!valid_variable_id(variable)) throw BadRequest("unknown variable id '" + variable + "'");
+
+    const FormulaPlan plan = plan_for_variable(
+        variable, std::max(2, static_cast<int>(value_number(body, "period", 12.0))));
+
+    json::Value formulas = json::Value::array();
+    for (const PlanStep& step : plan.steps) {
+        const LabFormula* formula = find_lab_formula(step.id);
+        if (formula == nullptr) continue;
+        json::Value item = json::Value::object();
+        item.set("id", json::Value::from_string(formula->id));
+        item.set("name", json::Value::from_string(formula->name));
+        item.set("module", json::Value::from_string(formula->module));
+        item.set("stage", json::Value::from_string(formula->stage));
+        item.set("stage_label", json::Value::from_string(formula->stage_label));
+        item.set("signature", json::Value::from_string(formula->signature));
+        item.set("role", json::Value::from_string(step.role));
+        item.set("input", json::Value::from_string(input_name(step.input)));
+        item.set("executed", json::Value::from_bool(step.executable()));
+        formulas.push(item);
+    }
+
+    json::Value root = json::Value::object();
+    root.set("variable", json::Value::from_string(plan.variable));
+    root.set("method", json::Value::from_string(plan.method));
+    root.set("registry_size",
+             json::Value::from_number(static_cast<double>(lab_formulas().size())));
+    root.set("count", json::Value::from_number(static_cast<double>(plan.steps.size())));
+    root.set("executable", json::Value::from_number(static_cast<double>(plan.executable_count())));
+    root.set("formulas", formulas);
+    append_plan_notes(plan, root);
+    return json_response(root);
+}
+
+// Runs every formula the plan selects for this variable against the supplied
+// series, in one batch. Scalars are derived from the record; formulas that need
+// sensor inputs are listed but not executed. A formula that rejects its inputs
+// reports its own message and never stops the rest of the chain.
+Response plan_run_request(const json::Value& body) {
+    const std::string variable = value_string(body, "variable");
+    if (variable.empty()) throw BadRequest("variable is required");
+    if (!valid_variable_id(variable)) throw BadRequest("unknown variable id '" + variable + "'");
+
+    const int period = std::max(2, static_cast<int>(value_number(body, "period", 12.0)));
+    const FormulaPlan plan = plan_for_variable(variable, period);
+    const SeriesInput input = series_from_body(body);
+
+    std::size_t filled = 0;
+    const std::vector<double> values = interpolate_missing(input.values, &filled);
+    PlanContext context;
+    context.period = period;
+    context.samples = static_cast<int>(values.size());
+    context.alpha = value_number(body, "alpha", 0.05);
+    context.stdev = stdev_value(values);
+    if (values.size() > 1) {
+        const double span = input.time.back() - input.time.front();
+        const double spacing = span / static_cast<double>(values.size() - 1);
+        context.years = spacing > 0.0 && spacing < 0.02 ? span / 365.0
+                        : spacing > 0.0 && spacing < 0.5 ? span / 12.0
+                                                          : span;
+        context.autocorrelation = autocorrelation(values, 1);
+        const SenResult sen = sens_slope(input.time, values, nullptr, context.alpha);
+        context.slope = sen.computed ? sen.slope : 0.0;
+        context.standard_error =
+            context.samples > 0 ? context.stdev / std::sqrt(static_cast<double>(context.samples))
+                                : 0.0;
+        if (context.years > 0.0 && context.samples > 0)
+            context.minimum_detectable =
+                2.802 * context.stdev *
+                std::sqrt(12.0 / static_cast<double>(context.samples)) / context.years;
+    }
+
+    json::Value results = json::Value::array();
+    std::size_t executed = 0;
+    std::size_t rejected = 0;
+    std::size_t skipped = 0;
+    for (const PlanStep& step : plan.steps) {
+        const LabFormula* formula = find_lab_formula(step.id);
+        if (formula == nullptr) continue;
+        json::Value item = json::Value::object();
+        item.set("id", json::Value::from_string(formula->id));
+        item.set("name", json::Value::from_string(formula->name));
+        item.set("module", json::Value::from_string(formula->module));
+        item.set("stage", json::Value::from_string(formula->stage));
+        item.set("stage_label", json::Value::from_string(formula->stage_label));
+        item.set("signature", json::Value::from_string(formula->signature));
+        item.set("role", json::Value::from_string(step.role));
+        item.set("input", json::Value::from_string(input_name(step.input)));
+        if (!step.executable()) {
+            item.set("ok", json::Value::from_bool(false));
+            item.set("skipped", json::Value::from_bool(true));
+            item.set("error", json::Value::from_string(
+                                   "method step: needs sensor inputs or a reference record, so it "
+                                   "is not run on a single series"));
+            ++skipped;
+            results.push(item);
+            continue;
+        }
+        LabInputs inputs = plan_inputs(input.time, values, step.input);
+        for (const LabParam& param : formula->params) {
+            if (param.kind != "number" && param.kind != "complex" && param.kind != "seed" &&
+                param.kind != "enum")
+                continue;
+            inputs.numbers.push_back(
+                plan_parameter(param.name, context, param.default_value));
+        }
+        try {
+            item.set("ok", json::Value::from_bool(true));
+            item.set("result", json::Value::from_string(run_formula(formula->index, inputs)));
+            ++executed;
+        } catch (const std::exception& error) {
+            item.set("ok", json::Value::from_bool(false));
+            item.set("error", json::Value::from_string(error.what()));
+            ++rejected;
+        }
+        results.push(item);
+    }
+
+    json::Value root = json::Value::object();
+    root.set("variable", json::Value::from_string(plan.variable));
+    root.set("method", json::Value::from_string(plan.method));
+    root.set("registry_size",
+             json::Value::from_number(static_cast<double>(lab_formulas().size())));
+    root.set("selected", json::Value::from_number(static_cast<double>(plan.steps.size())));
+    root.set("executable", json::Value::from_number(static_cast<double>(plan.executable_count())));
+    root.set("executed", json::Value::from_number(static_cast<double>(executed)));
+    root.set("rejected", json::Value::from_number(static_cast<double>(rejected)));
+    root.set("skipped", json::Value::from_number(static_cast<double>(skipped)));
+    root.set("missing_filled", json::Value::from_number(static_cast<double>(filled)));
+    root.set("samples", json::Value::from_number(static_cast<double>(values.size())));
+    root.set("results", results);
+    append_plan_notes(plan, root);
+    return json_response(root);
+}
+
 std::string live_interpreter() {
     if (std::filesystem::exists(".venv-test/bin/python")) return ".venv-test/bin/python";
     return "python3";
@@ -2037,6 +2458,8 @@ Response route(const Request& request) {
         if (request.path == "/api/sstunc") return uncertainty_request(body);
         if (request.path == "/api/physics") return physics_request(body);
         if (request.path == "/api/lab/run") return lab_run_request(body);
+        if (request.path == "/api/plan") return plan_request(body);
+        if (request.path == "/api/plan/run") return plan_run_request(body);
         if (request.path == "/api/live/pull") return live_pull_request(body);
         if (request.path == "/api/contrast") return contrast_request(body);
         if (request.path == "/api/earthdata/check") return earthdata_check_request(body);

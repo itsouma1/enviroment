@@ -16,6 +16,12 @@ struct CatalogEntry {
     std::string description;
 };
 
+// How the catalog says a variable is analysed. The engine chooses from this
+// instead of applying one default method to every variable.
+enum class AnalysisMethod { SeasonalStl, HarmonicFit };
+
+AnalysisMethod catalog_analysis_method(const std::string& id);
+
 const std::vector<CatalogEntry>& catalog_entries();
 
 const CatalogEntry* find_catalog_entry(const std::string& id);

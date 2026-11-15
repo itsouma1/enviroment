@@ -459,6 +459,13 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
       </div>
     </div>
 
+    <div class="panel" style="margin-bottom:10px" id="wf-plan-panel">
+      <div class="panelhead"><b>Formulas selected for this variable</b><span class="hint" id="wf-plan-hint">chosen by the engine from the registry</span></div>
+      <div class="panelbody" id="wf-plan">
+        <div class="empty">The engine reads the variable, adds its retrieval formulas and the seasonality / trend / significance / power chain that applies to it, then runs them as one batch.</div>
+      </div>
+    </div>
+
     <div class="panel" style="margin-bottom:10px">
       <div class="panelhead"><b>Regional contrast · one variable, two places</b><span class="hint">live NASA POWER</span></div>
       <div class="panelbody">
@@ -1380,9 +1387,12 @@ const WFMETA={
   sea_ice_extent:{file:'sea_ice_extent_monthly.csv',value:'value',sphere:'CRYOSPHERE',product:'NSIDC sea ice concentration CDR',pid:'NSIDC-0051',provider:'NSIDC DAAC',res:'25 km / monthly extent',grid:false,
     artifacts:['Extent uses a 15% concentration threshold; it is not area.','Passive-microwave retrievals are weather-dependent.','Demo series is synthetic.'],
     retrieval:'NASA Team concentration + 15% extent rule',analysis:'STL decomposition + Mann-Kendall + Sen slope'},
-  sea_ice_concentration:{file:'sea_ice_extent_monthly.csv',value:'value',sphere:'CRYOSPHERE',product:'NSIDC sea ice concentration CDR',pid:'NSIDC-0051',provider:'NSIDC DAAC',res:'25 km monthly',grid:false,
-    artifacts:['Concentration is a fractional coverage, not thickness.','Melt ponds and snow cover affect the brightness temperatures.','The workflow file is an extent series, not a concentration field.'],
-    retrieval:'NASA Team / Bootstrap concentration',analysis:'STL decomposition + Mann-Kendall + Sen slope'},
+  sea_ice_concentration:{file:null,value:'value',sphere:'CRYOSPHERE',product:'NSIDC sea ice concentration CDR',pid:'NSIDC-0051',provider:'NSIDC DAAC',res:'25 km monthly',grid:true,
+    artifacts:['Concentration is a fractional coverage, not thickness.','Melt ponds and snow cover affect the brightness temperatures.','The 15% extent record is a different variable (km2, thresholded) and is never substituted for concentration; this variable needs its own series.'],
+    retrieval:'NASA Team / Bootstrap concentration',analysis:'Area-weighted anomalies + Mann-Kendall + Sen slope'},
+  ch4:{file:null,value:'value',sphere:'ATMOSPHERE',product:'OCO-2 / TROPOMI column methane',pid:'OCO2_L2_Lite_FP',provider:'GES DISC',res:'point retrievals, monthly composite',grid:false,
+    artifacts:['Column methane is not a surface concentration.','Wetland and permafrost sources have a strong seasonal cycle.','No methane series is bundled; this variable needs its own CSV.'],
+    retrieval:'Column-averaged CH4 retrieval',analysis:'Polynomial + harmonics (Thoning et al.); growth rate from the fitted trend'},
   ozone:{file:'ozone_monthly.csv',value:'value',sphere:'ATMOSPHERE',product:'OMI total column ozone',pid:'OMDOAO3e',provider:'GES DISC',res:'1 degree monthly',grid:false,
     artifacts:['Total column ozone is not surface ozone.','Cloud and snow/ice surfaces bias the retrieval.','Demo series is synthetic; it is not an OMI download.'],
     retrieval:'OMI DOAS total column ozone retrieval',analysis:'STL decomposition + Mann-Kendall + Sen slope'},
@@ -1509,7 +1519,12 @@ function applyWorkflowCsv(text,source){
   const table=parseCsv(text);
   const entry=state.workflow.entry,meta=state.workflow.meta;
   const ti=Math.max(0,table.header.findIndex(h=>h.toLowerCase()==='time'));
-  let vi=meta.value?table.header.findIndex(h=>h.toLowerCase()===meta.value.toLowerCase()):-1;
+  const lower=table.header.map(h=>h.toLowerCase());
+  const declared=meta.value?String(meta.value):'';
+  let vi=declared?lower.indexOf(declared.toLowerCase()):-1;
+  if(vi<0)vi=lower.indexOf('value');
+  if(declared&&vi<0)
+    throw new Error('this file has no '+declared+" or 'value' column, so it is not a "+entry.id+' record');
   if(vi<0)vi=table.header.length>1?1:0;
   const start=Number($('#wf-start').value)||0,end=Number($('#wf-end').value)||9999;
   const rows=table.rows.filter(r=>{const t=Number(r[ti]);return isFinite(t)&&t>=start-0.0001&&t<=end+1;});
@@ -1548,9 +1563,15 @@ function applyWorkflowCsv(text,source){
 async function loadWorkflowData(){
   const entry=state.workflow&&state.workflow.entry; if(!entry)return toast('Select a variable first.');
   const meta=wfMeta(entry.id);
-  const file=meta.file||(entry.id+'_monthly.csv');
+  const file=meta.file;
+  if(!file){
+    wfLog(`${entry.id} has no bundled series; no other variable's record is used in its place.`,'warn');
+    toast(`${entry.id} needs its own CSV (columns: time, ${meta.value||'value'}).`);
+    $('#wf-data').innerHTML='<div class="empty">This variable has no bundled series, and no other variable\'s record is used in its place. Load its own CSV.</div>';
+    $('#wf-upload').click(); return;
+  }
   if(!state.overview||!state.overview.files.includes(file)){
-    wfLog(`No bundled demo file for ${entry.id}; requesting upload.`,'warn');
+    wfLog(`The bundled file ${file} is missing; requesting upload.`,'warn');
     toast('No bundled demo for this variable. Choose a CSV file.');
     $('#wf-upload').click(); return;
   }
@@ -1566,7 +1587,8 @@ $('#wf-upload')&&$('#wf-upload').addEventListener('change',e=>{
 });
 function wfChart(d){
   const labels=d.series.time.map(t=>fmt(t,1));
-  return chartCard('Observed and STL trend',[{name:'observed',values:d.series.observed,color:'#f7e8c8'},{name:'trend',values:d.components.trend,color:'#ffab54'}],{xlabels:labels,height:250})+
+  const title=d.method==='harmonic'?'Observed and fitted polynomial trend':'Observed and STL trend';
+  return chartCard(title,[{name:'observed',values:d.series.observed,color:'#f7e8c8'},{name:'trend',values:d.components.trend,color:'#ffab54'}],{xlabels:labels,height:250})+
     `<div class="minicharts">${chartCard('Seasonal',[{name:'seasonal',values:d.components.seasonal,color:'#45d6c9'}],{xlabels:labels,height:210})}${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#ff8f86'}],{xlabels:labels,height:210})}</div>`;
 }
 function wfTrend(d){
@@ -1646,6 +1668,19 @@ function wfFormulaBridge(d){
     ${rows.filter(r=>r.q===q).map(r=>`<tr><td>${esc(r.name)}</td><td class="mut">${esc(r.how)}</td><td>${r.value}</td></tr>`).join('')}
   </tbody></table></div>`).join('')+`<div class="note">Each question is answered by several formulas, not one: the estimators agree or they do not, and the disagreement is printed rather than averaged. The same set is reachable as individual calculations in Calculation modes and runnable with your own inputs in All calculations.</div>`;
 }
+async function loadFormulaPlan(entryId){
+  const box=$('#wf-plan');if(!box)return;
+  box.innerHTML='<div class="empty">Selecting every formula that applies to this variable…</div>';
+  try{
+    const d=await api('/api/plan/run',{variable:entryId,csv:state.workflow.csv,time:state.workflow.timeName,value:state.workflow.valueName,period:12});
+    const rows=(d.results||[]).map(r=>`<tr><td class="mut">${esc(r.stage)}</td><td>${esc(r.id)}</td><td class="mut">${esc(r.role)}</td><td>${r.skipped?`<span class="mut">method step · needs sensor inputs</span>`:(r.ok?`<b>${esc(String(r.result).slice(0,140))}</b>`:`<span class="warn">${esc(r.error||'rejected')}</span>`)}</td></tr>`).join('');
+    const hint=$('#wf-plan-hint');
+    if(hint)hint.textContent=`${d.selected} of ${d.registry_size} registry formulas · ${d.executed} computed · ${d.skipped} method steps need sensor inputs · ${d.rejected} rejected`;
+    box.innerHTML=`<div class="statusline"><span>METHOD <b>${esc(String(d.method).toUpperCase())}</b></span><span>SELECTED <b>${d.selected}</b></span><span>EXECUTED <b>${d.executed}</b></span><span>SAMPLES <b>${d.samples}</b></span></div>
+      <table class="etable"><thead><tr><th>Stage</th><th>Formula</th><th>Why it belongs to this variable</th><th>Value on this record</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="note">${(d.notes||[]).map(n=>esc(n)).join(' · ')}</div>`;
+  }catch(e){box.innerHTML=`<div class="empty">${esc(e.message)}</div>`;}
+}
 function renderWfReport(d){
   wfQuestionBar(d);
   wfFormulaBridge(d);
@@ -1653,7 +1688,7 @@ function renderWfReport(d){
   $('#wf-report').innerHTML=`<div class="statusline"><span>REPORT <b>GENERATED</b></span><span>VARIABLE <b>${esc(e.id)}</b></span><span>REGION <b>${esc($('#wf-region').value)}</b></span></div>
     <div class="verdict">${mk.significant?'The series shows a statistically significant '+esc(mk.direction)+' trend.':'No statistically significant monotonic trend was detected.'}</div>
     <div class="facts"><div class="fact"><div class="k">What</div><div class="v">${esc(e.name)}</div><div class="s">${esc(e.units||'')}</div></div><div class="fact"><div class="k">Where</div><div class="v">${esc($('#wf-region').value)}</div><div class="s">catalog region tag</div></div><div class="fact"><div class="k">How much</div><div class="v">${fmt(d.trend.sen_per_decade,3)} / decade</div><div class="s">Sen slope</div></div><div class="fact"><div class="k">Significance</div><div class="v">p ${pval(mk.p_value)}</div><div class="s">Mann-Kendall</div></div><div class="fact"><div class="k">Coverage</div><div class="v">${state.workflow.coverage.toFixed(1)}%</div><div class="s">requested months</div></div><div class="fact"><div class="k">Gaps</div><div class="v">${state.workflow.runs.length}</div><div class="s">runs of missing data</div></div></div>
-    <div class="note">Formulas applied</div><div class="formula">${esc(meta.retrieval)}<br>STL: Y = T + S + R (Cleveland et al.)<br>Mann-Kendall S with tie correction + Hamed-Rao variance<br>Sen slope + rank-based 95% CI</div>
+    <div class="note">Formulas applied · ${d.method==='harmonic'?'polyharmonic':'STL'} route chosen for ${esc(e.id)}</div><div class="formula">${esc(meta.retrieval)}<br>${d.method==='harmonic'?'Polynomial + harmonics (Thoning et al. 1989) with iterative outlier rejection; growth rate from the fitted trend':'STL: Y = T + S + R (Cleveland et al.)'}<br>Mann-Kendall S with tie correction + Hamed-Rao variance<br>Sen slope + rank-based 95% CI${d.method==='harmonic'?`<br>Growth at end of record: ${fmt(d.growth.end_per_year,3)} ${esc(e.units||'')}/yr`:''}</div>
     <div class="note">Artifacts to disclose</div><ul class="warnlist">${meta.artifacts.map(a=>`<li>${esc(a)}</li>`).join('')}</ul>
     <div class="actions"><button class="btn" data-wfact="copy">Copy JSON</button><button class="btn" data-wfact="csv">Download CSV</button><button class="btn" data-wfact="print">Print report</button></div>`;
 }
@@ -1664,10 +1699,11 @@ async function runWorkflow(){
     wfStep(1,'done');wfStep(2,'active');
     $('#wf-step1-status').textContent='CONFIRMED';
     const e=state.workflow.entry;
-    wfLog('Data gate confirmed. Running STL + trend test.');
-    const d=await api('/api/analyze',{csv:state.workflow.csv,time:state.workflow.timeName,value:state.workflow.valueName,period:12,alpha:0.05,units:e.units||'',hamed_rao:true});
+    wfLog('Data gate confirmed. The engine selects the method from the variable.');
+    const d=await api('/api/analyze',{csv:state.workflow.csv,variable:e.id,time:state.workflow.timeName,value:state.workflow.valueName,period:12,alpha:0.05,units:e.units||'',hamed_rao:true});
     state.analysis=d;
-    $('#wf-method').textContent=d.decomposed?'STL':'CLIMATOLOGY';
+    $('#wf-method').textContent=d.method==='harmonic'?'POLYHARMONIC':(d.decomposed?'STL':'CLIMATOLOGY');
+    wfLog(d.method==='harmonic'?'Polyharmonic fit selected for this greenhouse-gas record.':'STL decomposition selected for this record.');
     $('#wf-period').textContent=d.period;
     $('#wf-decomp').innerHTML=wfChart(d);
     wfStep(2,'done');wfStep(3,'active');
@@ -1678,6 +1714,7 @@ async function runWorkflow(){
     wfStep(4,'done');
     wfStep(5,'active');
     renderWfReport(d);
+    await loadFormulaPlan(e.id);
     wfStep(5,'done');
     $('#wf-io').innerHTML=`<span class="k">SEN</span><span class="v">${fmt(d.trend.sen.slope,5)} / step</span><span class="k">MK p</span><span class="v">${pval(d.trend.mann_kendall.p_value)}</span><span class="k">Z</span><span class="v">${fmt(d.trend.mann_kendall.z,3)}</span><span class="k">N</span><span class="v">${d.samples}</span>`;
     wfLog(`STL ${d.decomposed?'complete':'fallback'} (period ${d.period}); ${d.samples} samples.`);
@@ -1909,7 +1946,7 @@ async function sigRun(){
     const text=await (await fetch('/api/data/file?name='+encodeURIComponent(file))).text();
     const alpha=Math.min(0.2,Math.max(0.001,Number($('#sig-alpha').value)||0.05));
     const entry=state.catalog.find(e=>e.id===id)||{};
-    const d=await api('/api/analyze',{csv:text,alpha,period:12,units:entry.units||''});
+    const d=await api('/api/analyze',{csv:text,variable:id,alpha,period:12,units:entry.units||''});
     const mk=d.trend.mann_kendall,raw=d.raw_trend.mann_kendall,sen=d.trend.sen,smk=d.seasonal_mann_kendall;
     const ens=d.trend.ensemble||{members:[],agreement:0,consensus:''};
     const mdt=mdtPerYear(d);

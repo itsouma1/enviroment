@@ -191,6 +191,15 @@ const std::vector<std::string> kRegions = {"global", "arctic", "antarctic", "tro
 
 }  // namespace
 
+AnalysisMethod catalog_analysis_method(const std::string& id) {
+    const std::string target = lowered(id);
+    // Well-mixed greenhouse gases carry a large seasonal cycle on top of a smooth,
+    // accelerating trend; the NOAA/CMDL polynomial plus harmonic fit is their method,
+    // so the trend is not a by-product of an STL decomposition.
+    if (target == "co2" || target == "ch4") return AnalysisMethod::HarmonicFit;
+    return AnalysisMethod::SeasonalStl;
+}
+
 const std::vector<CatalogEntry>& catalog_entries() { return kEntries; }
 
 const CatalogEntry* find_catalog_entry(const std::string& id) {
