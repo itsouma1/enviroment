@@ -1762,7 +1762,7 @@ async function runContrast(){
           <div><span>Samples</span><b>${r.samples}</b></div>
           <div><span>Mean</span><b>${fmt(r.mean,2)} ${esc(d.units)}</b></div>
         </div>
-        ${cxSpark(curve,rise?'#ff9e4a':'#45d6c9')}
+        ${cxSpark(curve,rise?'#ffab54':'#ff8f86')}
         <div class="note">${esc(r.file)}</div>
       </div>`;
     }).join('');
