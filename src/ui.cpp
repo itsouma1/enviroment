@@ -32,7 +32,9 @@
 #include "json.hpp"
 #include "physics.hpp"
 #include "retrieval.hpp"
+#include "spatial.hpp"
 #include "sstunc.hpp"
+#include "trend.hpp"
 #include "ui_page.hpp"
 
 namespace climate {
@@ -979,6 +981,96 @@ Response formulas_request() {
     return json_response(root);
 }
 
+Response grid_trend_request() {
+    // A small deterministic demonstration field. It exists to exercise the
+    // per-cell Sen slope and Getis-Ord path without pretending to be a NASA
+    // download; the UI labels it as synthetic.
+    constexpr int rows = 12;
+    constexpr int columns = 24;
+    constexpr int months = 120;
+    const std::size_t cells = static_cast<std::size_t>(rows * columns);
+    std::vector<double> time(months);
+    for (int m = 0; m < months; ++m) time[static_cast<std::size_t>(m)] = 2000.0 + m / 12.0;
+
+    std::vector<double> latitudes(rows), longitudes(columns);
+    for (int i = 0; i < rows; ++i) latitudes[static_cast<std::size_t>(i)] = -82.5 + 15.0 * i;
+    for (int j = 0; j < columns; ++j) longitudes[static_cast<std::size_t>(j)] = -172.5 + 15.0 * j;
+
+    std::vector<std::vector<double>> series(cells, std::vector<double>(months));
+    std::vector<double> slopes(cells);
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < columns; ++j) {
+            const std::size_t cell = static_cast<std::size_t>(i * columns + j);
+            const double lat = latitudes[static_cast<std::size_t>(i)];
+            const double lon = longitudes[static_cast<std::size_t>(j)];
+            const double base = 289.0 - 0.52 * std::fabs(lat) + 2.2 * std::sin(deg_to_rad(lon));
+            const double arctic = std::exp(-std::pow((lon - 35.0) / 55.0, 2.0)) *
+                                  std::exp(-std::pow((lat - 72.0) / 24.0, 2.0));
+            const double pacific = std::exp(-std::pow((lon + 150.0) / 60.0, 2.0)) *
+                                   std::exp(-std::pow((lat + 10.0) / 30.0, 2.0));
+            const double trend = 0.0015 + 0.012 * arctic - 0.004 * pacific;
+            for (int m = 0; m < months; ++m) {
+                const double seasonal = 0.9 * std::sin(2.0 * PI * m / 12.0 + deg_to_rad(lon) * 0.5);
+                const double texture = 0.10 * std::sin(0.37 * m + 0.21 * i - 0.17 * j) +
+                                       0.05 * std::cos(0.11 * m + 0.43 * j);
+                series[cell][static_cast<std::size_t>(m)] =
+                    base + trend * m + seasonal + texture;
+            }
+            slopes[cell] = sens_slope(time, series[cell]).slope;
+        }
+    }
+
+    Weights weights(cells, std::vector<double>(cells, 0.0));
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < columns; ++j) {
+            const std::size_t cell = static_cast<std::size_t>(i * columns + j);
+            for (int di = -1; di <= 1; ++di) {
+                for (int dj = -1; dj <= 1; ++dj) {
+                    const int ni = i + di;
+                    const int nj = j + dj;
+                    if (ni < 0 || ni >= rows || nj < 0 || nj >= columns) continue;
+                    weights[cell][static_cast<std::size_t>(ni * columns + nj)] = 1.0;
+                }
+            }
+        }
+    }
+
+    std::vector<double> gi(cells);
+    double gi_mean = 0.0;
+    for (std::size_t c = 0; c < cells; ++c) {
+        gi[c] = getis_ord_gi(slopes, weights, c);
+        gi_mean += gi[c];
+    }
+    gi_mean /= static_cast<double>(cells);
+    double gi_sd = 0.0;
+    for (double value : gi) gi_sd += (value - gi_mean) * (value - gi_mean);
+    gi_sd = std::sqrt(gi_sd / static_cast<double>(cells));
+
+    json::Value root = json::Value::object();
+    root.set("rows", json::Value::from_number(rows));
+    root.set("columns", json::Value::from_number(columns));
+    root.set("months", json::Value::from_number(months));
+    root.set("latitudes", number_array(latitudes));
+    root.set("longitudes", number_array(longitudes));
+    root.set("slopes", number_array(slopes));
+    json::Value z_scores = json::Value::array();
+    json::Value hotspots = json::Value::array();
+    std::size_t hotspot_count = 0;
+    for (double value : gi) {
+        const double z = gi_sd > 0.0 ? (value - gi_mean) / gi_sd : 0.0;
+        z_scores.push(json::Value::from_number(z));
+        const bool hotspot = z >= 1.96;
+        hotspots.push(json::Value::from_bool(hotspot));
+        if (hotspot) ++hotspot_count;
+    }
+    root.set("gi_z", z_scores);
+    root.set("hotspots", hotspots);
+    root.set("hotspot_count", json::Value::from_number(static_cast<double>(hotspot_count)));
+    root.set("note", json::Value::from_string(
+                          "Synthetic 24 x 12 demonstration field; not a NASA product and not the selected series."));
+    return json_response(root);
+}
+
 Response nasa_datasets_request() {
     json::Value datasets = json::Value::array();
     for (const auto& dataset : remote_datasets()) {
@@ -1117,6 +1209,7 @@ Response route(const Request& request) {
         if (request.path == "/api/catalog") return catalog_request();
         if (request.path == "/api/help") return help_request();
         if (request.path == "/api/formulas") return formulas_request();
+        if (request.path == "/api/grid-trend") return grid_trend_request();
         if (request.path == "/api/nasa/datasets") return nasa_datasets_request();
         if (request.path == "/api/data/file") {
             const std::string name = query_parameter(request.query, "name");

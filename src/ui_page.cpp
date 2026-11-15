@@ -15,6 +15,7 @@ const char* climate_ui_html() {
   --line:#4a3524; --line2:#6b4a30; --text:#e8d6b8; --muted:#a68b6c;
   --teal:#d8a657; --sky:#c98b4b; --amber:#e0b15f; --rose:#c96a4a;
   --green:#a9b87a; --violet:#b58a6a; --bezel:#b7a184;
+  --blue:#4f9fd8; --cyan:#58b3b5; --orange:#d98a2b; --yellow:#d9b44a; --red:#b5523a;
   --mono:"Courier New",Courier,"Liberation Mono",Menlo,monospace;
   --sans:"Courier New",Courier,"Liberation Mono",Menlo,monospace;
 }
@@ -255,6 +256,8 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 .fbody{display:none;padding:4px 7px 7px;background:#0e0a07}
 .fitem.open .fbody{display:block}
 .fsig{font-size:9px;color:#b39570;padding:2px 0;border-bottom:1px dotted #2a1e14;word-break:break-word}
+.gridmap{display:grid;gap:1px;background:#2a1e14;border:1px solid #4a3524;padding:1px}
+.gridcell{height:13px;min-width:2px;background:#2a1e14}
 .dsgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .dscard{border:1px solid var(--line);background:#1a120c;padding:10px}
 .dscard h3{font-size:10.5px;margin:0 0 3px;color:#f0dfc2;text-transform:uppercase;letter-spacing:.05em}
@@ -319,7 +322,7 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
           <div class="field"><label>Search catalog</label><input id="wf-search" type="text" placeholder="sst, ozone, soil moisture…"></div>
           <div class="field"><label>Earth sphere</label><select id="wf-sphere"><option value="">All spheres</option><option>ATMOSPHERE</option><option>OCEAN</option><option>CRYOSPHERE</option><option>LAND / BIOSPHERE</option></select></div>
           <div class="varpick" id="wf-vars"><div class="empty">Loading catalog…</div></div>
-          <div class="field" style="margin-top:9px"><label>Region</label><select id="wf-region"></select></div>
+          <div class="field" style="margin-top:9px"><label>Region</label><select id="wf-region"></select><div class="note">For scalar demo series the region is a report tag; it does not subset the CSV. Gridded acquisitions carry their own latitude/longitude mask.</div></div>
           <div class="row"><div class="field"><label>Start year</label><input id="wf-start" type="number" value="2000" step="1"></div><div class="field"><label>End year</label><input id="wf-end" type="number" value="2024" step="1"></div></div>
           <button class="btn primary run" id="wf-load">Load data →</button>
           <input type="file" id="wf-upload" accept=".csv,text/csv" style="display:none">
@@ -803,10 +806,10 @@ function renderAnalysis(d){
       ${metric('Seasonal strength',d.decomposition.seasonal_strength?fmt(d.decomposition.seasonal_strength*100,1)+'%':'—','variance explained')}
       ${metric('Trend strength',d.decomposition.trend_strength?fmt(d.decomposition.trend_strength*100,1)+'%':'—','of variance')}
     </div>
-    ${chartCard('Observed series and STL trend',[{name:'observed',values:d.series.observed,color:'#7f96b2'},{name:'trend',values:d.components.trend,color:'#5eead4'}],{xlabels:labels,height:300})}
+    ${chartCard('Observed series and STL trend',[{name:'observed',values:d.series.observed,color:'#6aa6d8'},{name:'trend',values:d.components.trend,color:'#d9973f'}],{xlabels:labels,height:300})}
     <div class="minicharts">
-      ${chartCard('Seasonal component',[{name:'seasonal',values:d.components.seasonal,color:'#38bdf8'}],{xlabels:labels,height:150})}
-      ${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#fbbf24'}],{xlabels:labels,height:150})}
+      ${chartCard('Seasonal component',[{name:'seasonal',values:d.components.seasonal,color:'#58b3b5'}],{xlabels:labels,height:150})}
+      ${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#b5523a'}],{xlabels:labels,height:150})}
     </div>
     <div class="cards" style="margin-top:12px">${mkBlock(mk)}</div>
     <div class="kv">
@@ -840,7 +843,7 @@ function renderCo2(d){
       ${metric('R²',fmt(d.model.r_squared,5),'residual SD '+fmt(d.model.residual_sd,4))}
       ${metric('Seasonal amplitude',fmt(d.seasonal_amplitude,3),esc(d.units))}
     </div>
-    ${chartCard('Observed and fitted curve',[{name:'observed',values:d.series.observed,color:'#7f96b2'},{name:'fitted',values:d.series.fitted,color:'#5eead4'}],{xlabels:d.series.time.map(t=>fmt(t,1)),height:310})}
+    ${chartCard('Observed and fitted curve',[{name:'observed',values:d.series.observed,color:'#6aa6d8'},{name:'fitted',values:d.series.fitted,color:'#d9973f'}],{xlabels:d.series.time.map(t=>fmt(t,1)),height:310})}
     <div class="kv">
       <span class="k">Model</span><span class="v">degree ${d.model.polynomial_order} + ${d.model.harmonic_count} harmonics</span>
       <span class="k">Growth at start</span><span class="v">${fmt(g.start_per_year,4)} ${esc(d.units)}/yr</span>
@@ -1217,8 +1220,8 @@ $('#wf-upload')&&$('#wf-upload').addEventListener('change',e=>{
 });
 function wfChart(d){
   const labels=d.series.time.map(t=>fmt(t,1));
-  return chartCard('Observed and STL trend',[{name:'observed',values:d.series.observed,color:'#a68b6c'},{name:'trend',values:d.components.trend,color:'#d8a657'}],{xlabels:labels,height:250})+
-    `<div class="minicharts">${chartCard('Seasonal',[{name:'seasonal',values:d.components.seasonal,color:'#a9b87a'}],{xlabels:labels,height:140})}${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#c96a4a'}],{xlabels:labels,height:140})}</div>`;
+  return chartCard('Observed and STL trend',[{name:'observed',values:d.series.observed,color:'#6aa6d8'},{name:'trend',values:d.components.trend,color:'#d9973f'}],{xlabels:labels,height:250})+
+    `<div class="minicharts">${chartCard('Seasonal',[{name:'seasonal',values:d.components.seasonal,color:'#58b3b5'}],{xlabels:labels,height:140})}${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#b5523a'}],{xlabels:labels,height:140})}</div>`;
 }
 function wfTrend(d){
   const mk=d.trend.mann_kendall,sen=d.trend.sen;
@@ -1231,9 +1234,28 @@ function wfTrend(d){
 }
 function wfSpatial(d){
   const meta=state.workflow.meta;
-  if(!meta.grid)return `<div class="mapbox"><div class="grid"></div><div style="position:relative;z-index:1;display:grid;place-items:center;height:170px;text-align:center"><div><div class="bigvalue" style="font-size:22px">SCALAR SERIES</div><div class="unit">gridded field required</div><p class="note" style="max-width:440px">This acquisition is a regional/global index, not a latitude-longitude field. A per-cell Sen slope and Getis-Ord hotspot cannot be computed without a grid. The point trend is still valid; map inference is withheld rather than fabricated.</p></div></div></div>
-    <div class="note">Optional field-significance (Walker) controls the family-wise error rate across grid cells. It is not applicable to this scalar acquisition.</div>`;
-  return `<div class="mapbox"><div class="grid"></div><div style="position:relative;z-index:1;display:grid;place-items:center;height:170px;text-align:center"><div class="bigvalue" style="font-size:22px">GRID REGISTERED</div><div class="unit">${esc(meta.pid)}</div><p class="note">The command console exposes local Moran, Getis-Ord Gi*, Geo-Detector and the Walker field threshold. A gridded acquisition is required to populate this map.</p></div></div>`;
+  return `${meta.grid?'':'<div class="verdict">The selected acquisition is a scalar series, so its own map cannot be drawn. The grid below is a separate synthetic demonstration of the spatial path — it is not the selected data.</div>'}
+    <div class="statusline"><span>GRID <b>24 × 12 DEMO</b></span><span>TREND <b>SEN / CELL</b></span><span>HOTSPOT <b>GETIS-ORD Gi*</b></span></div>
+    <div id="wf-grid"><div class="empty">Computing per-cell slopes…</div></div>
+    <div class="note">Synthetic demonstration field, not a NASA download and not the selected series. It exercises the exact per-cell Sen + Getis-Ord code that a gridded acquisition would use. The Walker threshold is implemented in the spatial module; field-significance is optional, not part of the core verdict.</div>`;
+}
+async function loadGridDemo(){
+  const box=$('#wf-grid');if(!box)return;
+  try{
+    const d=await api('/api/grid-trend');
+    const maxAbs=Math.max(...d.slopes.map(v=>Math.abs(v)),1e-9);
+    const cells=d.slopes.map((s,i)=>{
+      const lat=d.latitudes[Math.floor(i/d.columns)],lon=d.longitudes[i%d.columns];
+      const t=Math.min(1,Math.abs(s)/maxAbs);
+      const hue=s>=0?38:210;
+      const light=18+38*t;
+      const sat=s>=0?62:55;
+      const hot=d.hotspots[i];
+      return `<div class="gridcell" title="lat ${fmt(lat,1)} · lon ${fmt(lon,1)} · Sen ${fmt(s,5)} / month${hot?' · Gi* hotspot':''}" style="background:hsl(${hue} ${sat}% ${light}%);${hot?'outline:1px solid #f3dfb5;outline-offset:-1px':''}"></div>`;
+    }).join('');
+    box.innerHTML=`<div class="gridmap" style="grid-template-columns:repeat(${d.columns},1fr)">${cells}</div>
+      <div class="tagrow" style="margin-top:6px"><span class="tag">COOLING / BLUE</span><span class="tag amber">WARMING / ORANGE</span><span class="tag">${d.hotspot_count} Gi* HOTSPOTS</span></div>`;
+  }catch(e){box.innerHTML=`<div class="empty">${esc(e.message)}</div>`;}
 }
 function renderWfReport(d){
   const e=state.workflow.entry,meta=state.workflow.meta,mk=d.trend.mann_kendall,sen=d.trend.sen;
@@ -1261,7 +1283,8 @@ async function runWorkflow(){
     $('#wf-trend').innerHTML=wfTrend(d);
     wfStep(3,'done');wfStep(4,'active');
     $('#wf-spatial').innerHTML=wfSpatial(d);
-    wfStep(4,d.decomposed?'done':'active');
+    loadGridDemo();
+    wfStep(4,'done');
     wfStep(5,'active');
     renderWfReport(d);
     wfStep(5,'done');
@@ -1288,7 +1311,7 @@ function drawHeroChart(text){
   try{
     const t=parseCsv(text);const vi=t.header.length>1?1:0;
     const values=t.rows.map(r=>Number(r[vi])).filter(v=>isFinite(v)).slice(-160);
-    $('#hero-chart').innerHTML=chart([{name:'sst',values,color:'#d8a657'}],{height:210,xlabels:['start','','now']});
+    $('#hero-chart').innerHTML=chart([{name:'sst',values,color:'#6aa6d8'}],{height:210,xlabels:['start','','now']});
   }catch(e){}
 }
 
