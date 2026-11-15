@@ -137,6 +137,11 @@ double sign_difference_statistic(std::size_t positive, std::size_t negative) {
            static_cast<double>(total);
 }
 
+double sign_test_percentage(std::size_t positive, std::size_t total) {
+    require(total > 0, "sign_test_percentage: no trends");
+    return (static_cast<double>(positive) / static_cast<double>(total) - 1.0) * 100.0;
+}
+
 double sign_test_binomial_p_value(std::size_t observed, std::size_t trials) {
     require(observed <= trials && trials > 0, "sign_test_binomial_p_value: counts");
     const double n = static_cast<double>(trials);
@@ -272,6 +277,12 @@ double pooled_posterior_variance(double at_site_variance, double between_site_va
     require(at_site_variance > 0.0 && between_site_variance > 0.0,
             "pooled_posterior_variance: variances");
     return 1.0 / (1.0 / at_site_variance + 1.0 / between_site_variance);
+}
+
+double pooling_standard_error_ratio(double between_site_variance, double data_precision) {
+    require(between_site_variance >= 0.0 && data_precision > 0.0,
+            "pooling_standard_error_ratio: inputs");
+    return 1.0 / std::sqrt(1.0 + between_site_variance * data_precision);
 }
 
 double pooled_cluster_mean(const std::vector<double>& site_trends,
@@ -505,6 +516,91 @@ double coherence_height(const std::vector<double>& pressures,
 
 double segmented_trend_difference(double second_period, double first_period) {
     return second_period - first_period;
+}
+
+double bayesian_posterior(double likelihood_inside, double likelihood_outside,
+                          double prior_probability) {
+    require(likelihood_inside >= 0.0 && likelihood_outside >= 0.0 &&
+                prior_probability >= 0.0 && prior_probability <= 1.0,
+            "bayesian_posterior: inputs");
+    const double numerator = likelihood_inside * prior_probability;
+    const double marginal = numerator + likelihood_outside * (1.0 - prior_probability);
+    require(marginal > 0.0, "bayesian_posterior: zero marginal");
+    return numerator / marginal;
+}
+
+double bayesian_log_odds(double likelihood_inside, double likelihood_outside,
+                         double prior_probability) {
+    require(likelihood_inside > 0.0 && likelihood_outside > 0.0 &&
+                prior_probability > 0.0 && prior_probability < 1.0,
+            "bayesian_log_odds: inputs");
+    return std::log(prior_probability / (1.0 - prior_probability)) +
+           std::log(likelihood_inside / likelihood_outside);
+}
+
+double posterior_prior_derivative(double likelihood_inside, double likelihood_outside,
+                                  double prior_probability) {
+    require(likelihood_inside >= 0.0 && likelihood_outside >= 0.0,
+            "posterior_prior_derivative: likelihoods");
+    const double marginal = likelihood_inside * prior_probability +
+                            likelihood_outside * (1.0 - prior_probability);
+    require(marginal > 0.0, "posterior_prior_derivative: zero marginal");
+    const double posterior = likelihood_inside * prior_probability / marginal;
+    return likelihood_inside / marginal -
+           posterior * (likelihood_inside - likelihood_outside) / marginal;
+}
+
+double probability_weighted_centroid(const std::vector<double>& coordinates,
+                                     const std::vector<double>& probabilities) {
+    require(!coordinates.empty() && coordinates.size() == probabilities.size(),
+            "probability_weighted_centroid: size");
+    double weighted = 0.0, total = 0.0;
+    for (std::size_t i = 0; i < coordinates.size(); ++i) {
+        weighted += coordinates[i] * probabilities[i];
+        total += probabilities[i];
+    }
+    require(total > 0.0, "probability_weighted_centroid: zero probability");
+    return weighted / total;
+}
+
+double centroid_probability_sensitivity(double coordinate, double centroid,
+                                        double total_probability) {
+    require(total_probability > 0.0, "centroid_probability_sensitivity: probability");
+    return (coordinate - centroid) / total_probability;
+}
+
+double kolmogorov_smirnov_d_plus(const std::vector<double>& observed,
+                                 const std::vector<double>& null_sample) {
+    require(!observed.empty() && !null_sample.empty(), "kolmogorov_smirnov_d_plus: samples");
+    std::vector<double> values = observed;
+    values.insert(values.end(), null_sample.begin(), null_sample.end());
+    std::sort(values.begin(), values.end());
+    values.erase(std::unique(values.begin(), values.end()), values.end());
+    double maximum = 0.0;
+    for (double value : values) {
+        std::size_t observed_below = 0, null_below = 0;
+        for (double sample : observed)
+            if (sample <= value) ++observed_below;
+        for (double sample : null_sample)
+            if (sample <= value) ++null_below;
+        const double null_cdf = static_cast<double>(null_below) /
+                                static_cast<double>(null_sample.size());
+        const double observed_cdf = static_cast<double>(observed_below) /
+                                    static_cast<double>(observed.size());
+        maximum = std::max(maximum, null_cdf - observed_cdf);
+    }
+    return maximum;
+}
+
+double optical_trend_precision(double prior_precision, const std::vector<double>& covariate,
+                               double measurement_variance, double process_variance) {
+    require(prior_precision >= 0.0 && measurement_variance > 0.0 &&
+                process_variance >= 0.0,
+            "optical_trend_precision: inputs");
+    double precision = prior_precision;
+    for (double value : covariate)
+        precision += value * value / (measurement_variance + process_variance);
+    return precision;
 }
 
 double elevation_trend_slope(const std::vector<double>& elevations,

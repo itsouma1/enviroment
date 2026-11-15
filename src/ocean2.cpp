@@ -32,6 +32,20 @@ Inverse2D inverse_2d(const Gaussian2D& distribution) {
 
 }  // namespace
 
+double dynamic_class_mean(double class_effect, double covariate, double trend,
+                          double process_effect) {
+    return class_effect + covariate * trend + process_effect;
+}
+
+double static_region_mixture(double positive_weight, double positive_trend,
+                             double negative_weight, double negative_trend) {
+    return positive_weight * positive_trend + negative_weight * negative_trend;
+}
+
+double class_switch_level_shift(double new_class_effect, double old_class_effect) {
+    return new_class_effect - old_class_effect;
+}
+
 double depth_warming_gradient(double bottom_trend, double surface_trend, double depth_span) {
     require(depth_span > 0.0, "depth_warming_gradient: depth span");
     return (bottom_trend - surface_trend) / depth_span;

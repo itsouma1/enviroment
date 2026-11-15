@@ -12,6 +12,9 @@ namespace climate {
 
 double sign_difference_statistic(std::size_t positive, std::size_t negative);
 
+// Huth-Dubrovsky percentage form: S = (n_+/N - 1) * 100.
+double sign_test_percentage(std::size_t positive, std::size_t total);
+
 // Exact one-sided binomial tail P(M >= observed) with p = 0.5.
 double sign_test_binomial_p_value(std::size_t observed, std::size_t trials);
 
@@ -55,6 +58,9 @@ double shrinkage_derivative(double site_trend, double cluster_mean,
                             double between_site_variance);
 
 double pooled_posterior_variance(double at_site_variance, double between_site_variance);
+
+// SE_pooled / SE_no-pool = (1 + tau^2 * data precision)^(-1/2).
+double pooling_standard_error_ratio(double between_site_variance, double data_precision);
 
 double pooled_cluster_mean(const std::vector<double>& site_trends,
                            const std::vector<double>& precisions);
@@ -120,6 +126,30 @@ double coherence_height(const std::vector<double>& pressures,
                         const std::vector<double>& correlations, double critical_value);
 
 double segmented_trend_difference(double second_period, double first_period);
+
+// Point-wise Bayesian membership inference.
+double bayesian_posterior(double likelihood_inside, double likelihood_outside,
+                          double prior_probability);
+
+double bayesian_log_odds(double likelihood_inside, double likelihood_outside,
+                         double prior_probability);
+
+double posterior_prior_derivative(double likelihood_inside, double likelihood_outside,
+                                  double prior_probability);
+
+double probability_weighted_centroid(const std::vector<double>& coordinates,
+                                     const std::vector<double>& probabilities);
+
+double centroid_probability_sensitivity(double coordinate, double centroid,
+                                        double total_probability);
+
+// One-sided Kolmogorov-Smirnov statistic sup(F_null - F_observed).
+double kolmogorov_smirnov_d_plus(const std::vector<double>& observed,
+                                 const std::vector<double>& null_sample);
+
+// Chi-square optical-class trend precision.
+double optical_trend_precision(double prior_precision, const std::vector<double>& covariate,
+                               double measurement_variance, double process_variance);
 
 // ---- Elevation-dependent warming ---------------------------------------
 

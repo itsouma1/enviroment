@@ -207,4 +207,110 @@ double jet_trend_correction(double dynamical_trend, double latitude_sensitivity,
     return dynamical_trend + latitude_sensitivity * isentrope_trend;
 }
 
+Matrix sobel_gradient(const Matrix& field, int axis) {
+    require(!field.empty() && !field[0].empty() && axis >= 0 && axis <= 1,
+            "sobel_gradient: inputs");
+    const std::size_t rows = field.size(), columns = field[0].size();
+    Matrix gradient(rows, std::vector<double>(columns, 0.0));
+    if (rows < 3 || columns < 3) return gradient;
+    const double kernel_x[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
+    const double kernel_y[3][3] = {{-1, -2, -1}, {0, 0, 0}, {1, 2, 1}};
+    for (std::size_t r = 1; r + 1 < rows; ++r)
+        for (std::size_t c = 1; c + 1 < columns; ++c) {
+            double sum = 0.0;
+            for (int i = -1; i <= 1; ++i)
+                for (int j = -1; j <= 1; ++j) {
+                    const double weight =
+                        axis == 0 ? kernel_x[i + 1][j + 1] : kernel_y[i + 1][j + 1];
+                    sum += weight * field[static_cast<std::size_t>(static_cast<long>(r) + i)]
+                                          [static_cast<std::size_t>(static_cast<long>(c) + j)];
+                }
+            gradient[r][c] = 0.125 * sum;
+        }
+    return gradient;
+}
+
+double total_sobel_signal(double spatial_x, double spatial_y, double temporal,
+                          double calibration) {
+    const double spatial = calibration * (spatial_x + spatial_y);
+    return std::sqrt(spatial * spatial + temporal * temporal);
+}
+
+double calibration_factor(double spatial_quantile, double temporal_quantile) {
+    require(spatial_quantile > 0.0 && temporal_quantile > 0.0,
+            "calibration_factor: quantiles");
+    return spatial_quantile / temporal_quantile;
+}
+
+std::vector<double> non_maximum_suppression_1d(const std::vector<double>& values) {
+    std::vector<double> suppressed(values.size(), 0.0);
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        const bool left = i == 0 || values[i] > values[i - 1];
+        const bool right = i + 1 == values.size() || values[i] > values[i + 1];
+        if (left && right) suppressed[i] = values[i];
+    }
+    return suppressed;
+}
+
+std::vector<int> hysteresis_threshold_1d(const std::vector<double>& values, double high,
+                                         double low) {
+    require(high >= low, "hysteresis_threshold_1d: thresholds");
+    std::vector<int> result(values.size(), 0);
+    for (std::size_t i = 0; i < values.size(); ++i)
+        if (values[i] >= high) result[i] = 1;
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        if (result[i] == 1) continue;
+        if (values[i] < low) continue;
+        const bool touches_strong =
+            (i > 0 && result[i - 1] == 1) || (i + 1 < values.size() && result[i + 1] == 1);
+        if (touches_strong) result[i] = 2;
+    }
+    return result;
+}
+
+double cohens_d(double before_mean, double after_mean, double pooled_sd) {
+    require(pooled_sd > 0.0, "cohens_d: pooled sd");
+    return (after_mean - before_mean) / pooled_sd;
+}
+
+std::size_t connected_component_count(const std::vector<int>& mask, std::size_t nx,
+                                      std::size_t ny, std::size_t nz) {
+    require(mask.size() == nx * ny * nz, "connected_component_count: size");
+    std::vector<int> visited(mask.size(), 0);
+    std::size_t components = 0;
+    std::vector<std::size_t> stack;
+    for (std::size_t start = 0; start < mask.size(); ++start) {
+        if (mask[start] == 0 || visited[start]) continue;
+        ++components;
+        stack.push_back(start);
+        visited[start] = 1;
+        while (!stack.empty()) {
+            const std::size_t index = stack.back();
+            stack.pop_back();
+            const std::size_t x = index % nx;
+            const std::size_t y = (index / nx) % ny;
+            const std::size_t z = index / (nx * ny);
+            const int dx[6] = {-1, 1, 0, 0, 0, 0};
+            const int dy[6] = {0, 0, -1, 1, 0, 0};
+            const int dz[6] = {0, 0, 0, 0, -1, 1};
+            for (int k = 0; k < 6; ++k) {
+                const long nxx = static_cast<long>(x) + dx[k];
+                const long nyy = static_cast<long>(y) + dy[k];
+                const long nzz = static_cast<long>(z) + dz[k];
+                if (nxx < 0 || nyy < 0 || nzz < 0 || nxx >= static_cast<long>(nx) ||
+                    nyy >= static_cast<long>(ny) || nzz >= static_cast<long>(nz))
+                    continue;
+                const std::size_t neighbour = static_cast<std::size_t>(nzz) * nx * ny +
+                                              static_cast<std::size_t>(nyy) * nx +
+                                              static_cast<std::size_t>(nxx);
+                if (mask[neighbour] != 0 && !visited[neighbour]) {
+                    visited[neighbour] = 1;
+                    stack.push_back(neighbour);
+                }
+            }
+        }
+    }
+    return components;
+}
+
 }  // namespace climate

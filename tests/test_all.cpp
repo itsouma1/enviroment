@@ -1836,6 +1836,9 @@ void test_variable_validation() {
 
 void test_regional_sign_and_clustering() {
     CHECK_NEAR(sign_difference_statistic(7, 3), 0.4, 1e-12);
+    CHECK_NEAR(sign_test_percentage(0, 10), -100.0, 1e-12);
+    CHECK_NEAR(sign_test_percentage(10, 10), 0.0, 1e-12);
+    CHECK_NEAR(pooling_standard_error_ratio(1.0, 3.0), 0.5, 1e-12);
     CHECK_NEAR(sign_test_binomial_p_value(7, 10), 0.171875, 1e-12);
     CHECK_NEAR(effective_sample_size(100.0, 0.5), 100.0 / 3.0, 1e-12);
     CHECK_NEAR(sign_test_empirical_p_value(7, {5, 7, 8, 9}), 0.75, 1e-12);
@@ -1895,6 +1898,13 @@ void test_regional_sign_and_clustering() {
     CHECK_NEAR(correlation_t_statistic(0.5, 100.0 / 3.0), 3.23179, 1e-4);
     CHECK_NEAR(coherence_height({100.0, 70.0, 50.0}, {0.8, 0.2, 0.1}, 0.3), 70.0, 1e-12);
     CHECK_NEAR(segmented_trend_difference(0.2, -0.75), 0.95, 1e-12);
+    CHECK_NEAR(bayesian_posterior(0.2, 0.1, 0.3), 0.06 / 0.13, 1e-12);
+    CHECK_NEAR(bayesian_log_odds(0.2, 0.1, 0.3), std::log(3.0 / 7.0) + std::log(2.0), 1e-12);
+    CHECK_NEAR(posterior_prior_derivative(0.2, 0.1, 0.3), 1.18343, 1e-5);
+    CHECK_NEAR(probability_weighted_centroid({0.0, 10.0}, {1.0, 1.0}), 5.0, 1e-12);
+    CHECK_NEAR(centroid_probability_sensitivity(10.0, 5.0, 2.0), 2.5, 1e-12);
+    CHECK_NEAR(kolmogorov_smirnov_d_plus({1.0, 2.0}, {0.0, 1.0}), 0.5, 1e-12);
+    CHECK_NEAR(optical_trend_precision(0.5, {1.0, 1.0}, 1.0, 0.0), 2.5, 1e-12);
     CHECK_NEAR(elevation_trend_slope({1.0, 2.0, 3.0}, {2.0, 3.0, 4.0}), 1.0, 1e-12);
     CHECK_NEAR(elevation_leverage(3.0, {1.0, 2.0, 3.0}), 0.5, 1e-12);
     CHECK_NEAR(latitude_corrected_edw(1.0, 0.4, 0.5), 0.8, 1e-12);
@@ -1997,9 +2007,25 @@ void test_null_ensembles_and_flow() {
     CHECK(tracks.size() == 2);
     CHECK(tracks[0].size() == 2);
     CHECK_NEAR(jet_trend_correction(1.0, 0.5, 2.0), 2.0, 1e-12);
+    const Matrix constant(3, std::vector<double>(3, 5.0));
+    CHECK_NEAR(sobel_gradient(constant, 0)[1][1], 0.0, 1e-12);
+    CHECK_NEAR(total_sobel_signal(0.0, 3.0, 4.0, 1.0), 5.0, 1e-12);
+    CHECK_NEAR(total_sobel_signal(3.0, 4.0, 0.0, 1.0), 7.0, 1e-12);
+    CHECK_NEAR(calibration_factor(2.0, 4.0), 0.5, 1e-12);
+    const std::vector<double> suppressed = non_maximum_suppression_1d({1.0, 3.0, 2.0});
+    CHECK_NEAR(suppressed[0], 0.0, 1e-12);
+    CHECK_NEAR(suppressed[1], 3.0, 1e-12);
+    const std::vector<int> hysteresis = hysteresis_threshold_1d({0.9, 0.6, 0.2}, 0.8, 0.5);
+    CHECK(hysteresis[0] == 1 && hysteresis[1] == 2 && hysteresis[2] == 0);
+    CHECK_NEAR(cohens_d(2.0, 10.0, 2.0), 4.0, 1e-12);
+    CHECK(connected_component_count({1, 1, 0, 0}, 2, 1, 2) == 1);
+    CHECK(connected_component_count({1, 0, 0, 1}, 2, 1, 2) == 2);
 }
 
 void test_ocean_profiles() {
+    CHECK_NEAR(dynamic_class_mean(2.0, 1.0, 3.0, 0.5), 5.5, 1e-12);
+    CHECK_NEAR(static_region_mixture(0.5, 2.0, 0.5, -2.0), 0.0, 1e-12);
+    CHECK_NEAR(class_switch_level_shift(3.0, 1.0), 2.0, 1e-12);
     CHECK_NEAR(depth_warming_gradient(0.88, 0.64, 35.0), 0.00685714, 1e-8);
     const auto events = marine_heatwave_events({1.0, 2.0, 2.0, 0.1, 2.0, 2.0},
                                                {0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, 2);

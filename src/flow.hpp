@@ -49,6 +49,26 @@ std::vector<std::vector<std::pair<std::size_t, std::size_t>>> stitch_tracks(
 double jet_trend_correction(double dynamical_trend, double latitude_sensitivity,
                             double isentrope_trend);
 
+// ---- Canny edge detection -------------------------------------------------
+
+Matrix sobel_gradient(const Matrix& field, int axis);
+
+double total_sobel_signal(double spatial_x, double spatial_y, double temporal,
+                          double calibration);
+
+double calibration_factor(double spatial_quantile, double temporal_quantile);
+
+std::vector<double> non_maximum_suppression_1d(const std::vector<double>& values);
+
+// 1 = strong edge, 2 = weak edge connected to strong, 0 = suppressed.
+std::vector<int> hysteresis_threshold_1d(const std::vector<double>& values, double high,
+                                         double low);
+
+double cohens_d(double before_mean, double after_mean, double pooled_sd);
+
+std::size_t connected_component_count(const std::vector<int>& mask, std::size_t nx,
+                                      std::size_t ny, std::size_t nz);
+
 }  // namespace climate
 
 #endif

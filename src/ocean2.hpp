@@ -9,6 +9,14 @@
 
 namespace climate {
 
+double dynamic_class_mean(double class_effect, double covariate, double trend,
+                          double process_effect);
+
+double static_region_mixture(double positive_weight, double positive_trend,
+                             double negative_weight, double negative_trend);
+
+double class_switch_level_shift(double new_class_effect, double old_class_effect);
+
 double depth_warming_gradient(double bottom_trend, double surface_trend, double depth_span);
 
 // Events as inclusive [start, end] index pairs.

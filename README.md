@@ -293,6 +293,15 @@ reference-state term, the eight-term surface-temperature linearisation
 (six-term core plus ground heat and residual), and the CMIP6 SWV validation
 targets (0.25 +/- 0.06 and 0.020 +/- 0.007 W m^-2 K^-1).
 
+**Selectivity, Bayesian structure mapping and edge detection.** The regional
+module adds the percentage sign statistic, pooling standard-error ratio,
+point-wise Bayesian posterior/log-odds/prior sensitivity, probability-weighted
+structure centroids and their sensitivity, the one-sided KS selectivity
+statistic and optical-class trend precision. The flow module adds Sobel
+gradients, calibrated total edge signal, non-maximum suppression, hysteresis
+thresholding, Cohen's d and 3-D connected components. The ocean module adds the
+dynamic optical-class mean, static-region mixture and class-switch shift.
+
 **Detectability, quantile clustering and flow geometry.** `power.hpp` gives the
 AR(1) variance inflation, MDT at explicit power, detection time, power function,
 SNR, sensitivity derivatives and the field-significance inflation. `quantile.hpp`
