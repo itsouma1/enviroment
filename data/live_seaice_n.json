@@ -1,0 +1,14 @@
+{
+  "url": "https://noaadata.apps.nsidc.org/NOAA/G02135/north/monthly/data/<N|S>_<month>_extent_v4.0.csv",
+  "variable": "extent_N",
+  "units": "million km^2",
+  "source": "seaice",
+  "key": "seaice_n",
+  "file": "data/live_seaice_n.csv",
+  "samples": 576,
+  "first_time": 1978.875,
+  "last_time": 2026.7917,
+  "first_value": 11.65,
+  "last_value": 6.69,
+  "retrieved_at": "2026-11-15T07:54:08+00:00"
+}

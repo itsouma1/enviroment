@@ -41,6 +41,12 @@ struct CommandResult {
 
 CommandResult run_command(const std::string& command);
 
+// Same as run_command, but the child process starts with the given environment
+// variables. Used for per-request credentials: they reach the child through its
+// environment and never appear on a command line.
+CommandResult run_command_with_env(const std::string& command,
+                                   const std::vector<std::pair<std::string, std::string>>& env);
+
 // Builds a shell command from an argv-like vector, quoting every argument.
 std::string build_command(const std::vector<std::string>& arguments);
 

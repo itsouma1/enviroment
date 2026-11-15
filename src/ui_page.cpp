@@ -3,6 +3,8 @@
 #include <string>
 
 #include "lab_page.hpp"
+#include "live_page.hpp"
+#include "visual_page.hpp"
 
 namespace climate {
 
@@ -17,16 +19,23 @@ const char* climate_ui_html() {
 <style>
 :root{
   --bg:#0b0806; --bg2:#140e09; --panel:#1b130d; --panel2:#241a12;
-  --line:#4a3524; --line2:#6b4a30; --text:#e8d6b8; --muted:#a68b6c;
-  --teal:#d8a657; --sky:#c98b4b; --amber:#e0b15f; --rose:#c96a4a;
-  --green:#a9b87a; --violet:#b58a6a; --bezel:#b7a184;
-  --series-obs:#f0d9b5; --series-trend:#ff9a4d; --series-season:#5fc2c2; --series-rem:#d98a8a;
-  --series-alt:#b8c97a; --series-violet:#c3a6e0;
+  --line:#4a3524; --line2:#6b4a30; --text:#f4e8d2; --muted:#cdb795;
+  /* Hue plan: warm pole 28 deg (orange) against its complement 174 deg (teal);
+     a triad of 28 / 140 / 258 keeps series separable; 347 deg rose is the
+     accent complement of 167 deg. Neutrals stay warm so the shell reads as one
+     material and every hue above carries the data. */
+  --teal:#45d6c9; --sky:#82b8ff; --amber:#ffc35e; --rose:#ff7d92;
+  --green:#7fe0a0; --violet:#b49cff; --bezel:#c8b294;
+  --series-obs:#f7e8c8; --series-trend:#ff9e4a; --series-season:#3fd0c0; --series-rem:#ff7d92;
+  --series-alt:#7fe0a0; --series-violet:#b49cff;
   --mono:"Courier New",Courier,"Liberation Mono",Menlo,monospace;
   --sans:"Courier New",Courier,"Liberation Mono",Menlo,monospace;
 }
 *{box-sizing:border-box;border-radius:0!important}
 html,body{margin:0;padding:0}
+html{overflow-y:scroll}
+body{min-height:100%}
+.wrap{overflow-x:clip}
 body{background:#080605;color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.5;
   padding:18px;text-shadow:0 0 7px rgba(216,166,87,.10);-webkit-font-smoothing:antialiased}
 body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:9998;
@@ -40,7 +49,7 @@ a{color:var(--teal)}
 .app{display:grid;grid-template-columns:228px minmax(0,1fr);min-height:calc(100vh - 36px);
   border:10px solid var(--bezel);outline:2px solid #54402e;
   box-shadow:inset 0 0 90px rgba(0,0,0,.78),0 0 0 1px #000;background:var(--bg)}
-.sidebar{position:sticky;top:0;height:calc(100vh - 56px);display:flex;flex-direction:column;
+.sidebar{position:sticky;top:0;height:calc(100vh - 56px);max-height:calc(100vh - 36px);overflow-y:auto;align-self:start;display:flex;flex-direction:column;
   background:#1a120c;border-right:2px solid var(--line);padding:16px 12px 10px;gap:3px;z-index:5}
 .brand{display:flex;align-items:center;gap:9px;padding:0 5px 16px;border-bottom:1px dashed var(--line2);margin-bottom:8px}
 .mark{width:34px;height:34px;border:1px solid var(--bezel);background:#2b1e14;position:relative;flex:none;
@@ -49,24 +58,24 @@ a{color:var(--teal)}
 .mark:after{content:"▚";position:absolute;font-size:20px;color:#d8c3a0}
 .brand b{display:block;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#f0dfc2}
 .brand span{display:block;font-size:9.5px;color:var(--muted);letter-spacing:.12em;margin-top:1px}
-.navlabel{font-size:9px;letter-spacing:.2em;color:#8a6c4f;text-transform:uppercase;padding:14px 6px 5px}
+.navlabel{font-size:9px;letter-spacing:.2em;color:#d3bd98;text-transform:uppercase;padding:14px 6px 5px}
 .nav{display:flex;align-items:center;gap:8px;width:100%;border:1px solid transparent;
-  background:transparent;color:#c7ab87;padding:7px 8px;text-align:left;font-size:11.5px;
+  background:transparent;color:#e9d6b6;padding:7px 8px;text-align:left;font-size:11.5px;
   letter-spacing:.04em;transition:background .1s,color .1s}
 .nav:hover{background:#2a1e14;color:#f3e3c6;border-color:#3c2b1d}
 .nav.active{background:#2b1e14;border-color:var(--line2);border-left:3px solid var(--teal);color:#ffe9c2}
 .nav .ico{width:22px;height:22px;display:grid;place-items:center;flex:none;
   font-size:9px;font-weight:700;color:#c9ad86;background:#241a12;border:1px solid #4a3524}
 .nav.active .ico{color:#120d09;background:var(--teal);border-color:var(--teal)}
-.nav[data-nav="timeseries"] .ico{color:#5fc2c2;border-color:#3d6e6e}
-.nav[data-nav="co2"] .ico{color:#ff9a4d;border-color:#7a4a25}
-.nav[data-nav="retrieval"] .ico{color:#c3a6e0;border-color:#5a4670}
-.nav[data-nav="physics"] .ico{color:#d98a8a;border-color:#6e4242}
-.nav[data-nav="info"] .ico{color:#b8c97a;border-color:#59632f}
+.nav[data-nav="timeseries"] .ico{color:#45d6c9;border-color:#3d6e6e}
+.nav[data-nav="co2"] .ico{color:#ffab54;border-color:#7a4a25}
+.nav[data-nav="retrieval"] .ico{color:#c6a8ff;border-color:#5a4670}
+.nav[data-nav="physics"] .ico{color:#ff8f86;border-color:#6e4242}
+.nav[data-nav="info"] .ico{color:#b4e35f;border-color:#59632f}
 .nav[data-nav="uncertainty"] .ico{color:#e8c46a;border-color:#6e5a2a}
 .nav[data-nav="catalog"] .ico{color:#8fd0a8;border-color:#3f6b50}
 .nav[data-nav="formulas"] .ico{color:#d5b3ff;border-color:#57436f}
-.sidefoot{margin-top:auto;padding:12px 5px 2px;border-top:1px dashed var(--line);font-size:9.5px;color:#8a6c4f;line-height:1.7}
+.sidefoot{margin-top:auto;padding:12px 5px 2px;border-top:1px dashed var(--line);font-size:9.5px;color:#d3bd98;line-height:1.7}
 .sidefoot .dot{display:inline-block;width:6px;height:6px;background:var(--green);
   box-shadow:0 0 6px var(--green);margin-right:5px}
 .main{min-width:0;padding:0 22px 44px;background:#100b07}
@@ -90,22 +99,22 @@ a{color:var(--teal)}
 h1{font-size:clamp(24px,3vw,38px);line-height:1.1;letter-spacing:-.02em;margin:8px 0 10px;max-width:760px;font-weight:700;
   text-transform:uppercase}
 h1 em{font-style:normal;color:var(--teal)}
-.lede{color:#bfa582;max-width:650px;font-size:12.5px;margin:0 0 18px}
+.lede{color:#e4d0ae;max-width:650px;font-size:12.5px;margin:0 0 18px}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
 .btn{border:1px solid var(--line2);background:#241a12;color:var(--text);padding:8px 13px;
   font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;transition:.1s;
   display:inline-flex;align-items:center;gap:7px}
 .btn:hover{border-color:var(--bezel);background:#332419;color:#fff0d4}
 .btn.primary{background:var(--teal);border-color:var(--teal);color:#160f0a}
-.btn.primary:hover{background:#f0c078;border-color:#f0c078}
+.btn.primary:hover{background:#ffcf8a;border-color:#ffcf8a}
 .btn.ghost{background:transparent}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin:14px 0 24px;
   border:1px solid var(--line);background:var(--line)}
 .stat{background:#1a120c;padding:12px 14px}
-.stat .k{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#9c7c59}
+.stat .k{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#cdb794}
 .stat .v{font-size:23px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums;color:var(--teal)}
-.stat .s{font-size:10px;color:#8e7153;margin-top:1px}
+.stat .s{font-size:10px;color:#c2ac8b;margin-top:1px}
 .sectionhead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:22px 0 10px}
 .sectionhead h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;margin:0;font-weight:700;color:#f0dfc2}
 .sectionhead h2:before{content:"■ ";color:var(--teal)}
@@ -121,16 +130,16 @@ h1 em{font-style:normal;color:var(--teal)}
 .module:hover{border-color:var(--line2);background:#241a12}
 .module .tag{width:27px;height:27px;display:grid;place-items:center;font-size:9px;font-weight:700;
   color:var(--teal);background:#241a12;border:1px solid var(--line2);margin-bottom:9px}
-.module .arrow{position:absolute;right:12px;top:12px;color:#7a5c40;font-size:14px}
+.module .arrow{position:absolute;right:12px;top:12px;color:#bda57e;font-size:14px}
 .tool{display:grid;grid-template-columns:350px minmax(0,1fr);gap:10px;align-items:start}
 .panel{border:1px solid var(--line);background:#18110c;overflow:hidden}
 .panelhead{padding:9px 12px;border-bottom:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between;gap:10px;background:#22180f}
 .panelhead b{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#f0dfc2}
-.panelhead .hint{font-size:9px;color:#947554;letter-spacing:.06em;text-transform:uppercase}
+.panelhead .hint{font-size:9px;color:#c9b493;letter-spacing:.06em;text-transform:uppercase}
 .panelbody{padding:12px}
 .field{margin-bottom:9px}
 .field:last-child{margin-bottom:0}
-.field label,.label{display:block;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#a38562;margin-bottom:4px;font-weight:700}
+.field label,.label{display:block;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#d8c2a1;margin-bottom:4px;font-weight:700}
 input[type=text],input[type=number],select,textarea{width:100%;background:#0e0a07;border:1px solid #4a3524;
   padding:7px 8px;font-size:11.5px;outline:none;color:#ead8ba}
 input:focus,select:focus,textarea:focus{border-color:var(--teal);box-shadow:0 0 0 1px rgba(216,166,87,.25)}
@@ -139,30 +148,30 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
   background-position:calc(100% - 10px) center;background-repeat:no-repeat;padding-right:24px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.check{display:flex;align-items:center;gap:7px;font-size:10.5px;color:#bfa582;margin:6px 0;cursor:pointer}
+.check{display:flex;align-items:center;gap:7px;font-size:10.5px;color:#e4d0ae;margin:6px 0;cursor:pointer}
 .check input{accent-color:var(--teal);width:13px;height:13px}
 .run{width:100%;justify-content:center;margin-top:5px}
 .result{min-height:180px}
-.placeholder{min-height:160px;display:grid;place-items:center;text-align:center;color:#8e7153;padding:24px}
+.placeholder{min-height:160px;display:grid;place-items:center;text-align:center;color:#c2ac8b;padding:24px}
 .placeholder .big{font-size:26px;color:#5a4330;margin-bottom:6px}
 .placeholder p{max-width:340px;font-size:10.5px;margin:0}
 .cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin-bottom:10px;border:1px solid var(--line);background:var(--line)}
 .metric{background:#1a120c;padding:8px 9px}
-.metric .k{font-size:8.5px;text-transform:uppercase;letter-spacing:.12em;color:#9c7c59}
+.metric .k{font-size:8.5px;text-transform:uppercase;letter-spacing:.12em;color:#cdb794}
 .metric .v{font-size:17px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums;color:#eedcbe}
 .metric .v.good{color:var(--green)} .metric .v.warn{color:var(--amber)} .metric .v.bad{color:var(--rose)}
-.metric .s{font-size:9.5px;color:#8e7153;margin-top:1px}
+.metric .s{font-size:9.5px;color:#c2ac8b;margin-top:1px}
 .verdict{border:1px solid var(--line2);border-left:3px solid var(--teal);background:#22180f;
-  padding:8px 10px;font-size:11px;margin-bottom:10px;color:#d8c3a2}
+  padding:8px 10px;font-size:11px;margin-bottom:10px;color:#f2e2c4}
 .verdict b{color:var(--teal)}
 .chartwrap{border:1px solid var(--line);background:#0d0906;padding:5px 4px 2px;margin-bottom:8px}
 .chart{width:100%;height:auto;display:block;overflow:visible}
-.chart text{fill:#947554;font-family:var(--mono);font-size:9px}
+.chart text{fill:#c9b493;font-family:var(--mono);font-size:9px}
 .chart .gridline{stroke:#3a2a1d;stroke-width:1;stroke-dasharray:2 5}
 .chart .axis{stroke:#4a3524;stroke-width:1}
 .chart .line{fill:none;stroke-width:1.15;stroke-linejoin:round;stroke-linecap:round;stroke-opacity:.92}
 .chart .area{stroke:none;fill:rgba(255,154,77,.06)}
-.chart .legend{font-family:var(--mono);font-size:9px;fill:#b39570}
+.chart .legend{font-family:var(--mono);font-size:9px;fill:#dcc6a4}
 .ph-picks{display:grid;grid-template-columns:1fr 1fr;gap:4px;border:1px solid #3c2b1d;background:#0d0906;padding:5px;max-height:190px;overflow:auto}
 .ph-picks label{display:flex;gap:5px;align-items:flex-start;font-size:9px;color:#cbb18d;padding:3px;cursor:pointer}
 .ph-picks label:hover{background:#1d140d}
@@ -171,40 +180,99 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .ph-card .ph-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
 .lab-group{border:1px solid #33241a;background:#0d0906;margin-bottom:6px}
 .lab-grouphead{display:flex;gap:6px;align-items:center;padding:4px 6px;background:#171009;border-bottom:1px solid #33241a;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#ffe2b0;cursor:pointer}
-.lab-grouphead .hint{margin-left:auto;color:#a38562;letter-spacing:.04em}
+.lab-grouphead .hint{margin-left:auto;color:#d8c2a1;letter-spacing:.04em}
 .lab-row{display:flex;gap:6px;align-items:baseline;padding:2px 6px;font-size:9px;color:#cbb18d;cursor:pointer;border-bottom:1px solid #1a1209}
 .lab-row:hover{background:#1d140d}
-.lab-row .lab-name{color:#f0d9b5;min-width:170px}
-.lab-row .lab-meta{color:#8a6c4f;margin-left:auto;text-align:right}
+.lab-row .lab-name{color:#f7e8c8;min-width:170px}
+.lab-row .lab-meta{color:#d3bd98;margin-left:auto;text-align:right}
+.filebtn{display:inline-block;margin-top:7px;border:1px solid var(--line2);background:#22180f;color:#f0dfc0;padding:5px 9px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.filebtn:hover{background:#2b1e14;color:#fff3dc}
+.mission{border:1px solid var(--line2);background:#1a120c;padding:16px 18px;margin-bottom:10px;
+  box-shadow:inset 0 0 40px rgba(0,0,0,.5);position:relative}
+.mission:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--teal)}
+.mission .mtag{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);font-weight:700}
+.mission p{margin:6px 0 10px;color:#e8d6b6;font-size:12px;max-width:1000px}
+.mission .qs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.mq{border:1px solid var(--line);background:#120c08;padding:8px 10px}
+.mq b{display:block;font-size:10.5px;letter-spacing:.14em;color:var(--amber)}
+.mq span{font-size:9.5px;color:#cbb493}
+.crow{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr auto;gap:8px;align-items:end}
+.cxgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.cxcard{border:1px solid var(--line);background:#120c08;padding:10px}
+.cxcard.rise{border-left:3px solid var(--amber)}
+.cxcard.fall{border-left:3px solid var(--teal)}
+.cxhead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px}
+.cxhead b{font-size:11px;letter-spacing:.06em;color:#f4e8d2}
+.cxsig{font-size:8.5px;letter-spacing:.12em;padding:2px 6px;border:1px solid}
+.cxsig.yes{color:#0b0806;background:var(--amber);border-color:var(--amber);font-weight:700}
+.cxsig.no{color:#d8c2a1;border-color:var(--line2)}
+.cxarrow{font-size:12px;font-weight:700;color:#ffd79a;margin-bottom:6px}
+.cxarrow span{color:#cbb493;font-weight:400;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase}
+.cxstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:8px}
+.cxstats span{display:block;font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:#c2ac8b}
+.cxstats b{font-size:11.5px;color:#f7e8c8}
+.cxverdict{border:1px solid var(--line2);background:#22180f;padding:9px 12px;font-size:11px;color:#f2dfbe;margin-top:10px}
+.cxverdict.opposed{border-color:var(--amber);color:#ffe0a6}
+summary.fhead{cursor:pointer;list-style:none}
+summary.fhead::-webkit-details-marker{display:none}
+.qbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.qcell{border:1px solid var(--line2);background:#1a120c;padding:8px 10px}
+.qcell span{display:block;font-size:8.5px;letter-spacing:.14em;color:var(--teal);font-weight:700}
+.qcell b{display:block;font-size:11px;color:#f4e8d2;margin-top:3px;line-height:1.35;font-weight:400}
+.qcell.set b{color:#ffe0a6}
+.varcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;padding:10px}
+.varcard{border:1px solid var(--line);background:#140e09;padding:11px 12px;display:flex;flex-direction:column;gap:7px}
+.varcard .vtop{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.varcard .vid{font-size:11.5px;font-weight:700;color:#f7e8c8;letter-spacing:.04em}
+.varcard .vname{font-size:9.5px;color:#c2ac8b}
+.varcard .vchange{font-size:11px;color:#ffd79a;border-left:3px solid var(--amber);padding-left:8px;line-height:1.4}
+.varcard .vmeta{font-size:9px;color:#bda98c;letter-spacing:.04em;text-transform:uppercase}
+.varcard .vregions{font-size:9px;color:#a9917a}
+.varcard .acts{display:flex;gap:6px;margin-top:2px}
+.fetch-extra{margin-top:14px}
+.fetch-extra .sectionhead{margin-top:10px}
+@media(max-width:1100px){.qbar{grid-template-columns:1fr 1fr}}
+@media(max-width:1100px){.crow{grid-template-columns:1fr 1fr}.cxgrid{grid-template-columns:1fr}
+  .mission .qs{grid-template-columns:repeat(2,1fr)}}
 .lab-results{display:flex;flex-direction:column;gap:5px}
 .lab-results .lab-hit{border:1px solid #33241a;background:#120d08;padding:6px}
 .lab-results .lab-hit.bad{border-color:#6e4242}
 .lab-results .lab-hit .ph-title{display:flex;gap:8px;align-items:baseline}
 .lab-results pre{margin:3px 0 0;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;color:#f3dfbd;white-space:pre-wrap;word-break:break-word}
-.lab-results .err{color:#e08b8b}
-.fgroup{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#ffb168;border-bottom:1px solid #4a3524;margin:10px 0 4px;padding:3px 2px}
+.lab-results .err{color:#ff9b7d}
+.vis-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.live-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.livecard .panelbody{padding:8px}
+.visbar{display:grid;grid-template-columns:250px 1fr 54px;align-items:center;gap:9px;font-size:10px;color:#e9d6b6;margin:4px 0}
+.visbar .bar{display:block;height:10px;background:#0d0906;border:1px solid #3c2b1d}
+.visbar .bar i{display:block;height:100%}
+.visbar b{text-align:right;color:#f7e8c8}
+.viscard .chart{height:auto}
+#vis-map .gridmap{grid-template-columns:repeat(24,1fr)}
+@media(max-width:1100px){.vis-grid{grid-template-columns:1fr}.visbar{grid-template-columns:140px 1fr 44px}}
+.fgroup{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#ffc07a;border-bottom:1px solid #4a3524;margin:10px 0 4px;padding:3px 2px}
 .etable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:9px}
-.etable th{text-align:left;color:#8f7052;font-weight:400;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid #3c2b1d;padding:4px 5px}
+.etable th{text-align:left;color:#cbb390;font-weight:400;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid #3c2b1d;padding:4px 5px}
 .etable td{padding:5px;border-bottom:1px dashed #2f2218;color:#cbb18d}
 .etable tr.primary td{color:#ffe2b0;background:#24180e}
-.etable .pick{color:#ffb168;font-weight:700}
-.etable .fallback{color:#8f7052}
+.etable .pick{color:#ffc07a;font-weight:700}
+.etable .fallback{color:#cbb390}
 .minicharts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .minicharts .chartwrap{margin:0}
 .tagrow{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
-.tag{display:inline-flex;align-items:center;border:1px solid var(--line2);background:#22180f;color:#c7ab87;
+.tag{display:inline-flex;align-items:center;border:1px solid var(--line2);background:#22180f;color:#e9d6b6;
   padding:2px 6px;font-size:9px;letter-spacing:.04em;text-transform:uppercase}
-.tag.teal{border-color:#7b5b32;color:#f0c078;background:#2a1d10}
-.tag.amber{border-color:#6e4a2c;color:#e0b15f;background:#2a1d10}
+.tag.teal{border-color:#7b5b32;color:#ffcf8a;background:#2a1d10}
+.tag.amber{border-color:#6e4a2c;color:#ffc861;background:#2a1d10}
 .warnlist{margin:8px 0 0;padding:0;list-style:none}
 .warnlist li{font-size:10.5px;color:#d8b77e;background:#241a12;border-left:2px solid var(--amber);
   padding:5px 8px;margin-top:4px}
 details{margin-top:8px;border-top:1px dashed #3c2b1d;padding-top:7px}
-summary{cursor:pointer;color:#a38562;font-size:10px;letter-spacing:.06em}
+summary{cursor:pointer;color:#d8c2a1;font-size:10px;letter-spacing:.06em}
 pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;border:1px solid #3c2b1d;
-  padding:9px;overflow:auto;max-height:300px;color:#cdb18a;white-space:pre-wrap;overflow-wrap:anywhere}
+  padding:9px;overflow:auto;max-height:300px;color:#f0dfc0;white-space:pre-wrap;overflow-wrap:anywhere}
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line2);padding:0 2px;margin-bottom:12px;flex-wrap:wrap}
-.tab{background:transparent;border:1px solid transparent;border-bottom:0;color:#a38562;padding:7px 10px;
+.tab{background:transparent;border:1px solid transparent;border-bottom:0;color:#d8c2a1;padding:7px 10px;
   font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .tab:hover{color:var(--text);background:#22180f}
 .tab.active{color:var(--teal);border-color:var(--line2);background:#22180f}
@@ -214,34 +282,34 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
   font-variant-numeric:tabular-nums;margin:2px 0 4px}
 .unit{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .kv{display:grid;grid-template-columns:1fr auto;gap:5px 12px;font-size:10.5px;margin-top:9px}
-.kv .k{color:#9c7c59}.kv .v{color:#d8c3a2;text-align:right}
+.kv .k{color:#cdb794}.kv .v{color:#f2e2c4;text-align:right}
 .coeffs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px}
 .coeff{border:1px solid var(--line);padding:5px 6px;background:#140e09}
-.coeff b{display:block;font-size:8.5px;color:#947554;font-weight:400}
-.coeff span{font-size:10px;color:#d8c3a2}
+.coeff b{display:block;font-size:8.5px;color:#c9b493;font-weight:400}
+.coeff span{font-size:10px;color:#f2e2c4}
 .table{width:100%;border-collapse:collapse;font-size:10.5px}
-.table th{text-align:left;font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:#9c7c59;
+.table th{text-align:left;font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:#cdb794;
   border-bottom:1px solid var(--line2);padding:6px;font-weight:700}
-.table td{border-bottom:1px solid #2e2116;padding:6px;color:#c7ab87;vertical-align:top}
+.table td{border-bottom:1px solid #2e2116;padding:6px;color:#e9d6b6;vertical-align:top}
 .table tr:hover td{background:#22180f}
 .table td.id{color:var(--teal);white-space:nowrap}
-.table td.mut{color:#a38562}
+.table td.mut{color:#d8c2a1}
 .searchrow{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .searchrow input{flex:1;min-width:160px}.searchrow select{width:auto;min-width:140px}
-.empty{padding:28px;text-align:center;color:#8e7153;font-size:10.5px}
+.empty{padding:28px;text-align:center;color:#c2ac8b;font-size:10.5px}
 .spinner{display:inline-block;width:10px;height:10px;border:2px solid rgba(0,0,0,.3);
   border-top-color:#160f0a;animation:spin .7s linear infinite;vertical-align:-1px;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .toast{position:fixed;right:22px;bottom:22px;z-index:10000;max-width:380px;border:1px solid #8a4a32;
   background:#2d150f;color:#ffd8c8;padding:9px 12px;font-size:10.5px;box-shadow:0 0 24px rgba(0,0,0,.7);display:none}
 .toast.show{display:block}
-.formula{font-size:9.5px;color:#b39570;background:#0d0906;border:1px dashed #3c2b1d;padding:6px 8px;margin-top:8px;line-height:1.6}
-.note{font-size:9.5px;color:#8e7153;margin-top:7px;line-height:1.6}
+.formula{font-size:9.5px;color:#dcc6a4;background:#0d0906;border:1px dashed #3c2b1d;padding:6px 8px;margin-top:8px;line-height:1.6}
+.note{font-size:9.5px;color:#c2ac8b;margin-top:7px;line-height:1.6}
 .hero .scope{border:1px solid var(--line2);background:#0a0705;padding:7px;min-height:230px;display:flex;flex-direction:column}
-.scopehead{display:flex;justify-content:space-between;font-size:8.5px;letter-spacing:.12em;color:#947554;
+.scopehead{display:flex;justify-content:space-between;font-size:8.5px;letter-spacing:.12em;color:#c9b493;
   border-bottom:1px dashed #3c2b1d;padding-bottom:5px;text-transform:uppercase}
 .scope svg{width:100%;height:auto;flex:1}
-.scopefoot{font-size:8.5px;color:#7a5c40;border-top:1px dashed #3c2b1d;padding-top:4px;letter-spacing:.08em}
+.scopefoot{font-size:8.5px;color:#bda57e;border-top:1px dashed #3c2b1d;padding-top:4px;letter-spacing:.08em}
 .workflow{display:grid;grid-template-columns:272px minmax(0,1fr) 290px;gap:10px;align-items:start}
 .wleft,.wright{display:flex;flex-direction:column;gap:10px;position:sticky;top:56px}
 .wcenter{display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -250,7 +318,7 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 .step-no{width:24px;height:24px;display:grid;place-items:center;border:1px solid var(--line2);font-size:10px;
   font-weight:700;color:var(--teal);flex:none}
 .step-title{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:#f0dfc2}
-.step-status{margin-left:auto;font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:#947554}
+.step-status{margin-left:auto;font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:#c9b493}
 .step-body{padding:11px}
 .step:not(.open) .step-body{display:none}
 .step.locked{opacity:.55}
@@ -258,55 +326,55 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 .step.done .step-status{color:var(--green)}
 .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
 .fact{background:#140e09;padding:7px 8px}
-.fact .k{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:#947554}
+.fact .k{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:#c9b493}
 .fact .v{font-size:11px;color:#e0c9a6;margin-top:2px}
-.fact .s{font-size:9px;color:#8e7153}
+.fact .s{font-size:9px;color:#c2ac8b}
 .bar{height:6px;background:#2a1e14;border:1px solid #3c2b1d;margin:3px 0 7px}
 .bar i{display:block;height:100%;background:var(--teal)}
 .bar.warn i{background:var(--rose)}
 .log{max-height:250px;overflow:auto;font-size:9.5px;line-height:1.55}
-.logline{border-bottom:1px dotted #3c2b1d;padding:3px 0;color:#b39570}
+.logline{border-bottom:1px dotted #3c2b1d;padding:3px 0;color:#dcc6a4}
 .logline b{color:var(--teal);font-weight:400}
-.logline.warn{color:#e0b15f}
-.logline.err{color:#e08a6a}
-.artlist{margin:0;padding:0;list-style:none;font-size:9.5px;color:#c7ab87}
+.logline.warn{color:#ffc861}
+.logline.err{color:#ff9b7d}
+.artlist{margin:0;padding:0;list-style:none;font-size:9.5px;color:#e9d6b6}
 .artlist li{border-left:2px solid var(--rose);padding:3px 7px;margin-bottom:4px;background:#22130e}
 .varpick{max-height:300px;overflow:auto;border:1px solid var(--line);background:#0e0a07}
 .varitem{display:flex;gap:7px;align-items:flex-start;padding:6px 7px;border-bottom:1px solid #2a1e14;cursor:pointer}
 .varitem:hover{background:#22180f}
 .varitem.active{background:#2b1e14;border-left:2px solid var(--teal)}
 .varitem .code{font-size:8.5px;color:var(--teal);border:1px solid var(--line2);padding:1px 3px;flex:none;margin-top:1px}
-.varitem .nm{display:block;font-size:10px;color:#d8c3a2}
-.varitem .meta{display:block;font-size:8.5px;color:#8e7153;text-transform:uppercase;letter-spacing:.04em;margin-top:1px}
-.sphere{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:#947554;background:#22180f;
+.varitem .nm{display:block;font-size:10px;color:#f2e2c4}
+.varitem .meta{display:block;font-size:8.5px;color:#c2ac8b;text-transform:uppercase;letter-spacing:.04em;margin-top:1px}
+.sphere{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:#c9b493;background:#22180f;
   border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:4px 7px;margin-top:2px}
 .cmdbar{display:flex;gap:6px}
 .cmdbar input{flex:1}
 .console{font-size:10px;line-height:1.55;background:#0a0705;border:1px solid #3c2b1d;padding:9px;
-  min-height:260px;max-height:480px;overflow:auto;white-space:pre-wrap;color:#cdb18a}
-.console .ok{color:var(--green)} .console .bad{color:#e08a6a} .console .cmd{color:var(--teal)}
+  min-height:260px;max-height:480px;overflow:auto;white-space:pre-wrap;color:#f0dfc0}
+.console .ok{color:var(--green)} .console .bad{color:#ff9b7d} .console .cmd{color:var(--teal)}
 .quick{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
-.quick button{font-size:9px;padding:3px 6px;background:#22180f;border:1px solid var(--line2);color:#c7ab87;text-transform:uppercase}
-.quick button:hover{color:#f0c078;border-color:var(--teal)}
-.flist{max-height:520px;overflow:auto}
+.quick button{font-size:9px;padding:3px 6px;background:#22180f;border:1px solid var(--line2);color:#e9d6b6;text-transform:uppercase}
+.quick button:hover{color:#ffcf8a;border-color:var(--teal)}
+.flist{max-height:none;overflow:visible}
 .fitem{border-bottom:1px solid #2a1e14}
-.fhead{display:flex;align-items:center;gap:7px;padding:5px 7px;cursor:pointer;font-size:10px;color:#d8c3a2}
+.fhead{display:flex;align-items:center;gap:7px;padding:5px 7px;cursor:pointer;font-size:10px;color:#f2e2c4}
 .fhead:hover{background:#22180f}
-.fhead .cnt{margin-left:auto;font-size:8.5px;color:#947554}
+.fhead .cnt{margin-left:auto;font-size:8.5px;color:#c9b493}
 .fbody{display:none;padding:4px 7px 7px;background:#0e0a07}
 .fitem.open .fbody{display:block}
-.fsig{font-size:9px;color:#b39570;padding:2px 0;border-bottom:1px dotted #2a1e14;word-break:break-word}
+.fsig{font-size:9px;color:#dcc6a4;padding:2px 0;border-bottom:1px dotted #2a1e14;word-break:break-word}
 .gridmap{display:grid;gap:1px;background:#2a1e14;border:1px solid #4a3524;padding:1px}
 .gridcell{height:13px;min-width:2px;background:#2a1e14}
 .dsgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .dscard{border:1px solid var(--line);background:#1a120c;padding:10px}
 .dscard h3{font-size:10.5px;margin:0 0 3px;color:#f0dfc2;text-transform:uppercase;letter-spacing:.05em}
 .dscard .id{font-size:8.5px;color:var(--teal);word-break:break-all}
-.dscard p{font-size:9.5px;color:#a38562;margin:5px 0}
-.dscard .meta{font-size:8.5px;color:#947554;text-transform:uppercase;letter-spacing:.05em}
-.telemetry{font-size:8.5px;color:#8e7153;letter-spacing:.08em;text-transform:uppercase}
+.dscard p{font-size:9.5px;color:#d8c2a1;margin:5px 0}
+.dscard .meta{font-size:8.5px;color:#c9b493;text-transform:uppercase;letter-spacing:.05em}
+.telemetry{font-size:8.5px;color:#c2ac8b;letter-spacing:.08em;text-transform:uppercase}
 .statusline{display:flex;gap:12px;flex-wrap:wrap;border:1px solid var(--line);background:#0d0906;
-  padding:5px 8px;font-size:8.5px;color:#947554;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+  padding:5px 8px;font-size:8.5px;color:#c9b493;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
 .statusline b{color:var(--green);font-weight:400}
 .mapbox{border:1px solid var(--line2);background:#0a0705;padding:8px;min-height:190px;position:relative}
 .mapbox .grid{position:absolute;inset:8px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M24 0H0v24' fill='none' stroke='%232a1e14'/%3E%3C/svg%3E")}
@@ -331,21 +399,23 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 <div class="app">
 <aside class="sidebar">
   <div class="brand"><div class="mark"></div><div><b>Trend Detective</b><span>NASA climate workbench</span></div></div>
-  <div class="navlabel">Mission</div>
-  <button class="nav active" data-nav="workflow"><span class="ico">TD</span>Trend detective</button>
-  <button class="nav" data-nav="nasa"><span class="ico">ND</span>NASA data</button>
-  <div class="navlabel">Engine</div>
-  <button class="nav" data-nav="formulas"><span class="ico">FX</span>Formula registry</button>
-  <button class="nav" data-nav="console"><span class="ico">&gt;_</span>Command console</button>
-  <button class="nav" data-nav="catalog"><span class="ico">CA</span>Variable catalog</button>
-  <div class="navlabel">Laboratories</div>
-  <button class="nav" data-nav="timeseries"><span class="ico">TS</span>Time series</button>
+  <div class="navlabel">The challenge</div>
+  <button class="nav" data-nav="live"><span class="ico">1</span>Fetch data</button>
+  <button class="nav" data-nav="catalog"><span class="ico">2</span>Select variables</button>
+  <button class="nav" data-nav="visual"><span class="ico">3</span>Visualize over time</button>
+  <button class="nav active" data-nav="workflow"><span class="ico">4</span>What / where / how much</button>
+  <button class="nav" data-nav="significance"><span class="ico">5</span>Significance</button>
+  <div class="navlabel">Deep dives</div>
+  <button class="nav" data-nav="timeseries"><span class="ico">TS</span>Time series lab</button>
   <button class="nav" data-nav="co2"><span class="ico">CO</span>CO₂ curve fit</button>
   <button class="nav" data-nav="retrieval"><span class="ico">RS</span>Retrievals</button>
-  <button class="nav" data-nav="physics"><span class="ico">PH</span>Formula lab</button>
-  <button class="nav" data-nav="alllab"><span class="ico">Σ</span>Complete formula lab</button>
+  <button class="nav" data-nav="physics"><span class="ico">PH</span>Formula calculator</button>
   <button class="nav" data-nav="info"><span class="ico">MI</span>Information theory</button>
   <button class="nav" data-nav="uncertainty"><span class="ico">σ</span>Uncertainty</button>
+  <div class="navlabel">Engine</div>
+  <button class="nav" data-nav="console"><span class="ico">&gt;_</span>Command console</button>
+  <button class="nav" data-nav="formulas"><span class="ico">FX</span>Calculation modes</button>
+  <button class="nav" data-nav="alllab"><span class="ico">Σ</span>All calculations</button>
   <button class="nav" data-nav="overview"><span class="ico">SY</span>System</button>
   <div class="sidefoot"><span class="dot"></span>LOCAL C++17 ENGINE<br><span id="foot-catalog">—</span> catalog variables<br><span id="foot-formulas">—</span> public functions</div>
 </aside>
@@ -357,7 +427,49 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
 
   <!-- TREND DETECTIVE WORKFLOW -->
   <section class="page active" id="page-workflow">
-    <div class="sectionhead" style="margin-top:0"><div><h2>Trend detective</h2><p>Change is always occurring in Earth's interconnected system, and a measured variable can trend one way in one region and the opposite way in another. Select a mission or model variable, see its time evolution, then read what is changing, where, how much, and whether it is significant. Nothing is tested until you confirm the data.</p></div><div class="telemetry">NASA / EARTH OBSERVATION / LOCAL</div></div>
+    <div class="sectionhead" style="margin-top:0"><div><h2>What, where, how much, significant</h2><p>Change is always occurring in Earth's interconnected system, and a measured variable can trend one way in one region and the opposite way in another. Select a mission or model variable, see its time evolution, then read what is changing, where, how much, and whether it is significant. Nothing is tested until you confirm the data.</p></div><div class="telemetry">NASA / EARTH OBSERVATION / LOCAL</div></div>
+    <div class="qbar" id="wf-qbar">
+      <div class="qcell"><span>WHAT IS CHANGING</span><b id="wf-q-what">run an analysis</b></div>
+      <div class="qcell"><span>WHERE IS IT CHANGING</span><b id="wf-q-where">run an analysis</b></div>
+      <div class="qcell"><span>HOW MUCH</span><b id="wf-q-howmuch">run an analysis</b></div>
+      <div class="qcell"><span>IS IT SIGNIFICANT</span><b id="wf-q-sig">run an analysis</b></div>
+    </div>
+
+    <div class="mission">
+      <div class="mtag">Challenge · change is always occurring</div>
+      <p>Change is always occurring in the Earth's interconnected environmental system. When it runs in a consistent direction — rising or falling, increasing or decreasing, thickening or thinning — measured variables reflect it. But a measured variable can trend one way in one region and the opposite way in another, even when the same process drives both. Pick variables from Earth science missions or models, watch them change over time, and read the four answers below.</p>
+      <div class="qs">
+        <div class="mq"><b>WHAT</b><span>is changing · which variable and which component</span></div>
+        <div class="mq"><b>WHERE</b><span>is it changing · which region or grid cell</span></div>
+        <div class="mq"><b>HOW MUCH</b><span>is it changing · per year and over the record</span></div>
+        <div class="mq"><b>SIGNIFICANT</b><span>is it changing · is it beyond noise</span></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:10px">
+      <div class="panelhead"><b>Regional contrast · one variable, two places</b><span class="hint">live NASA POWER</span></div>
+      <div class="panelbody">
+        <div class="crow">
+          <div class="field"><label>Variable (POWER parameter)</label><select id="cx-param">
+            <option value="T2M">T2M · air temperature at 2 m</option>
+            <option value="T2M_MAX">T2M_MAX · daily maximum temperature</option>
+            <option value="T2M_MIN">T2M_MIN · daily minimum temperature</option>
+            <option value="TS">TS · skin temperature</option>
+            <option value="PRECTOTCORR">PRECTOTCORR · precipitation</option>
+            <option value="WS2M">WS2M · wind speed at 2 m</option>
+            <option value="RH2M">RH2M · relative humidity at 2 m</option>
+            <option value="ALLSKY_SFC_SW_DWN">ALLSKY_SFC_SW_DWN · downward shortwave</option>
+          </select></div>
+          <div class="field"><label>Region A · lat / lon</label><div class="row"><input id="cx-lat1" type="number" value="72" step="0.5"><input id="cx-lon1" type="number" value="-40" step="0.5"></div></div>
+          <div class="field"><label>Region B · lat / lon</label><div class="row"><input id="cx-lat2" type="number" value="-70" step="0.5"><input id="cx-lon2" type="number" value="0" step="0.5"></div></div>
+          <div class="field"><label>Years</label><div class="row"><input id="cx-start" type="number" value="1990"><input id="cx-end" type="number" value="2024"></div></div>
+          <button class="btn primary run" id="cx-run">Compare regions →</button>
+        </div>
+        <div class="note">Each region is a real NASA POWER monthly request (no credentials needed). Sen's slope and the seasonal Mann–Kendall test give each region its own answer, so an opposition between regions becomes measurable instead of hidden inside one global average.</div>
+        <div id="cx-out"><div class="empty">Run the comparison to see whether the same variable rises in one region and falls in another.</div></div>
+      </div>
+    </div>
+
     <div class="workflow">
       <aside class="wleft">
         <div class="panel"><div class="panelhead"><b>Variable selection</b><span class="hint">Step 0</span></div><div class="panelbody">
@@ -421,29 +533,23 @@ pre{font-family:var(--mono);font-size:10px;line-height:1.55;background:#0a0705;b
     </div>
   </section>
 
-  <!-- NASA DATA -->
-  <section class="page" id="page-nasa">
-    <div class="sectionhead" style="margin-top:0"><div><h2>NASA Earthdata uplink</h2><p>Product registry, live CMR metadata, and API-backed acquisition routes for every variable class.</p></div><div class="telemetry">EARTHDATA / CMR / DAAC</div></div>
-    <div class="statusline"><span>CMR API <b>LIVE / NO DOWNLOAD</b></span><span>DATA ACCESS <b>EARTHDATA LOGIN</b></span></div>
-    <div class="dsgrid" id="nasa-ds"><div class="empty">Loading NASA product registry…</div></div>
-    <div class="sectionhead"><div><h2>Fetch planner</h2><p>Dry run: validates the request without downloading or requiring credentials.</p></div></div>
-    <div class="tool">
-      <div class="panel"><div class="panelhead"><b>Request</b><span class="hint">CMR</span></div><div class="panelbody">
-        <div class="field"><label>Dataset key</label><select id="nasa-key"></select></div>
-        <div class="row"><div class="field"><label>Start</label><input id="nasa-start" type="text" value="2024-01-01"></div><div class="field"><label>End</label><input id="nasa-end" type="text" value="2024-12-31"></div></div>
-        <div class="field"><label>Maximum granules</label><input id="nasa-max" type="number" value="4" min="1" max="100"></div>
-        <div class="row"><button class="btn primary run" id="nasa-plan">Generate fetch plan →</button><button class="btn" id="nasa-search">Query CMR API →</button></div>
-        <div class="note">CMR search is a live API call and downloads no data. Live arrays need a free NASA Earthdata Login, <span class="telemetry">earthaccess</span>, <span class="telemetry">xarray</span> and <span class="telemetry">netCDF4</span>. No credentials are stored by this application.</div>
-      </div></div>
-      <div class="panel"><div class="panelhead"><b>Plan / command output</b><span class="hint">JSON</span></div><div class="panelbody"><pre id="nasa-output">Generate a plan to see the exact fetch command and dry-run manifest.</pre></div></div>
-    </div>
-    <div class="sectionhead"><div><h2>Bundled NASA-pattern fixtures</h2><p>Small local files used by the readers and tests. Not freshly downloaded products.</p></div></div>
-    <div class="panel"><div class="panelbody"><div id="nasa-files" class="tagrow"></div></div></div>
-  </section>
 
+  <!-- SIGNIFICANCE -->
+  <section class="page" id="page-significance">
+    <div class="sectionhead" style="margin-top:0"><div><h2>Is it significant?</h2><p>Step 5. A change is only reported when it survives the tests that could explain it away: serial correlation, the seasonal cycle, estimator disagreement, and the finite length of the record. Every test below is labelled with the question it answers, and its statistic and p-value are computed by the C++ engine from the actual series.</p></div><div class="telemetry">ALPHA / POWER / AUTOCORRELATION</div></div>
+    <div class="tool">
+      <div class="panel"><div class="panelhead"><b>Test setup</b><span class="hint">one variable at a time</span></div><div class="panelbody">
+        <div class="field"><label>Variable</label><select id="sig-var"></select></div>
+        <div class="field"><label>Significance level (alpha)</label><input id="sig-alpha" type="number" value="0.05" step="0.01" min="0.001" max="0.2"></div>
+        <button class="btn primary run" id="sig-run">Run the significance suite →</button>
+        <div class="note">The suite runs Mann–Kendall on the deseasonalised series, the seasonal Mann–Kendall test, the Sen slope with its rank-based confidence interval, the estimator ensemble, and the minimum detectable trend for a record of this length. Nothing is hard-coded: each number comes from the series you selected.</div>
+      </div></div>
+      <div id="sig-out"><div class="panel"><div class="placeholder"><div><div class="big">α</div><p>Choose a variable and run the suite to see which changes survive.</p></div></div></div></div>
+    </div>
+  </section>
   <!-- FORMULA REGISTRY -->
   <section class="page" id="page-formulas">
-    <div class="sectionhead" style="margin-top:0"><div><h2>Formula registry</h2><p>All public C++ functions, grouped in scientific workflow order: observation → time series → space/attribution → uncertainty → physics → data/numerics. Every one of them is executable in the Complete formula lab, where any number can be selected and run in a single batch; the console handles CLI batches.</p></div><div class="telemetry" id="formula-count">—</div></div>
+    <div class="sectionhead" style="margin-top:0"><div><h2>Calculation modes</h2><p>The same calculations the analysis tabs use, grouped by the question they answer: what is changing, how much, where, whether it is significant, and why. Every mode here is executable — pick one in <b>All calculations</b> to run it with your own inputs, or let the analysis tabs call it on a real series.</p></div><div class="telemetry" id="formula-count">—</div></div>
     <div class="searchrow"><input id="formula-search" type="text" placeholder="Search functions, modules, symbols…"><button class="btn" id="formula-refresh">Rescan headers</button></div>
     <div class="panel"><div class="flist" id="formula-list"><div class="empty">Loading registry…</div></div></div>
     <div class="note">The registry is generated from <span class="telemetry">src/*.hpp</span> at runtime. Use the Command Console to execute any command-line implementation; the Laboratories expose the retrieval and analysis paths interactively.</div>
@@ -528,7 +634,8 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
           <div class="field"><label>Demo dataset</label><select id="ts-dataset"></select></div>
           <div class="field"><label>Or paste / upload CSV</label>
             <textarea id="ts-csv" rows="7" spellcheck="false"></textarea>
-            <input type="file" id="ts-file" accept=".csv,text/csv" style="margin-top:7px;font-size:11px;color:#8ba0ba">
+            <label class="filebtn" for="ts-file">Choose CSV file</label>
+            <input type="file" id="ts-file" accept=".csv,text/csv" style="display:none">
           </div>
           <div class="row">
             <div class="field"><label>Time column</label><select id="ts-time"></select></div>
@@ -559,7 +666,8 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
           <div class="field"><label>Demo dataset</label><select id="co2-dataset"></select></div>
           <div class="field"><label>Or paste / upload CSV</label>
             <textarea id="co2-csv" rows="7" spellcheck="false"></textarea>
-            <input type="file" id="co2-file" accept=".csv,text/csv" style="margin-top:7px;font-size:11px;color:#8ba0ba">
+            <label class="filebtn" for="co2-file">Choose CSV file</label>
+            <input type="file" id="co2-file" accept=".csv,text/csv" style="display:none">
           </div>
           <div class="row">
             <div class="field"><label>Time column</label><select id="co2-time"></select></div>
@@ -678,6 +786,52 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
     </div>
   </section>
 
+  <!-- LIVE NASA DATA -->
+  <section class="page" id="page-live">
+    <div class="sectionhead" style="margin-top:0"><div><h2>Fetch data</h2><p>Step 1. Every series here is pulled from a live NASA endpoint at the moment you press the button: GISTEMP, NASA POWER, the NSIDC Sea Ice Index, and any Earthdata dataset you can log in for. Each pull records its source URL and retrieval time in <code>data/live_*.json</code>, and the pulled series then behaves like any other variable in the workbench. The NASA product planner below returns a dry-run manifest and the exact fetch command before anything is downloaded.</p></div><div class="telemetry" id="live-creds">checking…</div></div>
+    <div class="panel"><div class="panelhead"><b>Pull parameters</b><span class="hint">applies to POWER and Earthdata</span></div><div class="panelbody">
+      <div class="row3">
+        <div class="field"><label>Latitude</label><input id="live-lat" type="number" step="0.5" value="72"></div>
+        <div class="field"><label>Longitude</label><input id="live-lon" type="number" step="0.5" value="-40"></div>
+        <div class="field"><label>POWER parameter</label><input id="live-param" type="text" value="T2M"></div>
+      </div>
+      <div class="row3">
+        <div class="field"><label>Start</label><input id="live-start" type="text" value="2000-01-01"></div>
+        <div class="field"><label>End</label><input id="live-end" type="text" value="2024-12-31"></div>
+        <div class="field"><label>Sea-ice region</label><select id="live-region"><option value="N">North</option><option value="S">South</option></select></div>
+      </div>
+      <div class="row"><div class="field"><label>Earthdata short name</label><input id="live-short" type="text" value="MODISA_L3m_SST"></div><button class="btn" id="live-reload">Refresh status</button></div>
+    </div></div>
+    <div class="panel"><div class="panelhead"><b>Earthdata Login</b><span class="hint">optional · used once · never stored</span></div><div class="panelbody">
+      <div class="row3">
+        <div class="field"><label>Earthdata username</label><input id="ea-user" type="text" autocomplete="off" placeholder="your Earthdata login"></div>
+        <div class="field"><label>Password</label><input id="ea-pass" type="password" autocomplete="off" placeholder="password"></div>
+        <div class="field"><label>Or bearer token</label><input id="ea-token" type="password" autocomplete="off" placeholder="token instead of a password"></div>
+      </div>
+      <div class="note">Used only for the Earthdata pull you press: the browser keeps them in this tab's memory, the server passes them to the fetch helper as environment variables for that one child process, and nothing is written to disk, logs or the page. Leave blank to fall back to credentials already exported in your shell or a <span class="telemetry">~/.netrc</span> file. Open endpoints (GISTEMP, POWER, NSIDC sea ice) never need a login.</div>
+    </div></div>
+    <div id="live-list" class="live-grid"><div class="hint">Loading sources…</div></div>
+    <div id="live-output"></div>
+  <div class="fetch-extra">
+    <div class="sectionhead" style="margin-top:0"><div><h2>NASA Earthdata uplink</h2><p>Product registry, live CMR metadata, and API-backed acquisition routes for every variable class.</p></div><div class="telemetry">EARTHDATA / CMR / DAAC</div></div>
+    <div class="statusline"><span>CMR API <b>LIVE / NO DOWNLOAD</b></span><span>DATA ACCESS <b>EARTHDATA LOGIN</b></span></div>
+    <div class="dsgrid" id="nasa-ds"><div class="empty">Loading NASA product registry…</div></div>
+    <div class="sectionhead"><div><h2>Fetch planner</h2><p>Dry run: validates the request without downloading or requiring credentials.</p></div></div>
+    <div class="tool">
+      <div class="panel"><div class="panelhead"><b>Request</b><span class="hint">CMR</span></div><div class="panelbody">
+        <div class="field"><label>Dataset key</label><select id="nasa-key"></select></div>
+        <div class="row"><div class="field"><label>Start</label><input id="nasa-start" type="text" value="2024-01-01"></div><div class="field"><label>End</label><input id="nasa-end" type="text" value="2024-12-31"></div></div>
+        <div class="field"><label>Maximum granules</label><input id="nasa-max" type="number" value="4" min="1" max="100"></div>
+        <div class="row"><button class="btn primary run" id="nasa-plan">Generate fetch plan →</button><button class="btn" id="nasa-search">Query CMR API →</button></div>
+        <div class="note">CMR search is a live API call and downloads no data. Live arrays need a free NASA Earthdata Login, <span class="telemetry">earthaccess</span>, <span class="telemetry">xarray</span> and <span class="telemetry">netCDF4</span>. No credentials are stored by this application.</div>
+      </div></div>
+      <div class="panel"><div class="panelhead"><b>Plan / command output</b><span class="hint">JSON</span></div><div class="panelbody"><pre id="nasa-output">Generate a plan to see the exact fetch command and dry-run manifest.</pre></div></div>
+    </div>
+    <div class="sectionhead"><div><h2>Bundled NASA-pattern fixtures</h2><p>Small local files used by the readers and tests. Not freshly downloaded products.</p></div></div>
+    <div class="panel"><div class="panelbody"><div id="nasa-files" class="tagrow"></div></div></div>
+  </div>
+  </section>
+
   <!-- PHYSICS -->
   <section class="page" id="page-physics">
     <div class="sectionhead" style="margin-top:0"><div><h2>Formula laboratory</h2><p>Every public physics formula, selectable in any combination. Energy balance, radiative forcing, Mie scattering, wind-driven transport, geostrophy, vegetation indices.</p></div></div>
@@ -702,7 +856,7 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
         <div class="row"><div class="field"><label>Matrix columns</label><input id="lab-cols" type="number" value="3" min="1" step="1"></div><div class="field"><label>Text argument</label><input id="lab-text" type="text" value="keyword"></div></div>
         <div class="field"><label>Filter</label><input id="lab-search" type="text" placeholder="name, module, return type…"></div>
         <div class="row"><button class="btn" id="lab-select-visible">Select visible</button><button class="btn" id="lab-clear">Clear</button></div>
-        <div id="lab-list" style="max-height:420px;overflow:auto;margin-top:7px"><div class="hint">Loading formula bindings…</div></div>
+        <div id="lab-list" style="margin-top:7px"><div class="hint">Loading formula bindings…</div></div>
       </div></div>
       <div>
         <div class="panel"><div class="panelhead"><b>Inputs</b><span class="hint">one card per selected formula</span></div><div class="panelbody" id="lab-inputs"><div class="hint">Nothing selected yet.</div></div></div>
@@ -712,9 +866,16 @@ physics wind-stress --u10 10 --v10 0</textarea></div>
     </div>
   </section>
 
+  <!-- VISUALIZE EVERYTHING -->
+  <section class="page" id="page-visual">
+    <div class="sectionhead" style="margin-top:0"><div><h2>Visualize change over time</h2><p>Every series the workbench can reach, drawn from its real values: the raw record, the fitted trend and the sign of the change. Regional opposition shows up as two curves with different slopes, never as one averaged line.</p></div><div class="row"><span class="telemetry" id="vis-count">—</span><button class="btn" id="vis-reload">Reload</button></div></div>
+    <div class="panel" style="margin-top:10px"><div class="panelhead"><b>Spatial trend field</b><span class="hint">synthetic 12 × 24 demonstration of per-cell Sen slope and Gi* hotspots — not a downloaded product</span></div><div class="panelbody" id="vis-map"><div class="hint">Loading field…</div></div></div>
+    <div class="vis-grid" id="vis-grid"><div class="hint">Loading series…</div></div>
+  </section>
+
   <!-- CATALOG -->
   <section class="page" id="page-catalog">
-    <div class="sectionhead" style="margin-top:0"><div><h2>Variable catalog</h2><p>Process and region tags drive the deterministic intent compiler</p></div></div>
+    <div class="sectionhead" style="margin-top:0"><div><h2>Select variables</h2><p>Step 2. A measured variable is only worth analysing if its record can resolve the change you are looking for, so every card states <b>what kind of change it measures</b>. Pick one and it is carried straight into the analysis and significance tabs.</p></div><div class="telemetry">WHAT KIND OF CHANGE</div></div>
     <div class="searchrow">
       <input id="cat-search" type="text" placeholder="Search name, retrieval, description…">
       <select id="cat-process"><option value="">All processes</option></select>
@@ -733,7 +894,7 @@ const state = {overview:null, catalog:[], physics:null, workflow:null, nasa:null
 function esc(s){return String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmt(v,d=3){if(v===null||v===undefined||!isFinite(v))return '—';
   const a=Math.abs(v); if(a!==0&&(a<1e-3||a>=1e6))return v.toExponential(2);
-  return Number(v).toFixed(d).replace(/\.?0+$/,'');}
+  return Number(v).toFixed(d).replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,'');}
 function pval(v){if(!isFinite(v))return '—'; return v<0.0001?'< 0.0001':v.toFixed(4);}
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),6000);}
 async function api(path,body){
@@ -746,7 +907,7 @@ async function api(path,body){
 function nav(name){
   $$('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+name));
   $$('.nav').forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
-  const label={workflow:'Trend detective',nasa:'NASA data',formulas:'Formula registry',console:'Command console',overview:'System',timeseries:'Time series',co2:'CO₂ curve fit',retrieval:'Retrievals',info:'Information theory',uncertainty:'Uncertainty',physics:'Formula lab',alllab:'Complete formula lab',catalog:'Catalog'}[name]||name;
+  const label={workflow:'What / where / how much',significance:'Significance',formulas:'Calculation modes',console:'Command console',overview:'System',timeseries:'Time series lab',co2:'CO₂ curve fit',retrieval:'Retrievals',info:'Information theory',uncertainty:'Uncertainty',physics:'Formula calculator',alllab:'All calculations',visual:'Visualize over time',live:'Fetch data',catalog:'Select variables'}[name]||name;
   $('#crumb').textContent=label; window.scrollTo({top:0,behavior:'smooth'});
 }
 document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){nav(b.dataset.nav);}});
@@ -796,13 +957,13 @@ function chart(series,opts={}){
         d+=`C${(seg[i].x+dx).toFixed(1)} ${(seg[i].y+dx*m1).toFixed(1)} ${(seg[i+1].x-dx).toFixed(1)} ${(seg[i+1].y-dx*m2).toFixed(1)} ${seg[i+1].x.toFixed(1)} ${seg[i+1].y.toFixed(1)} `;
       }
     });
-    g+=`<path class="line" d="${d}" stroke="${s.color||'#f0d9b5'}"/>`;
+    g+=`<path class="line" d="${d}" stroke="${s.color||'#f7e8c8'}"/>`;
   });
   let legend='';let lx=L;
-  series.forEach(s=>{legend+=`<line x1="${lx}" y1="8" x2="${lx+10}" y2="8" stroke="${s.color||'#f0d9b5'}" stroke-width="2"/><text class="legend" x="${lx+14}" y="11" fill="${s.color||'#f0d9b5'}">${esc(s.name)}</text>`;lx+=s.name.length*6+34;});
+  series.forEach(s=>{legend+=`<line x1="${lx}" y1="8" x2="${lx+10}" y2="8" stroke="${s.color||'#f7e8c8'}" stroke-width="2"/><text class="legend" x="${lx+14}" y="11" fill="${s.color||'#f7e8c8'}">${esc(s.name)}</text>`;lx+=s.name.length*6+34;});
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img"><g>${g}</g><g>${legend}</g></svg>`;
 }
-function chartCard(title,series,opts={}){return `<div class="chartwrap"><div style="font-size:9.5px;color:#a38562;padding:2px 8px 0;text-transform:uppercase;letter-spacing:.08em">${esc(title)}</div>${chart(series,opts)}</div>`;}
+function chartCard(title,series,opts={}){return `<div class="chartwrap"><div style="font-size:9.5px;color:#d8c2a1;padding:2px 8px 0;text-transform:uppercase;letter-spacing:.08em">${esc(title)}</div>${chart(series,opts)}</div>`;}
 
 function loadOverview(){
   api('/api/overview').then(d=>{
@@ -886,10 +1047,10 @@ function renderAnalysis(d){
       ${metric('Seasonal strength',d.decomposition.seasonal_strength?fmt(d.decomposition.seasonal_strength*100,1)+'%':'—','variance explained')}
       ${metric('Trend strength',d.decomposition.trend_strength?fmt(d.decomposition.trend_strength*100,1)+'%':'—','of variance')}
     </div>
-    ${chartCard('Observed series and STL trend',[{name:'observed',values:d.series.observed,color:'#f0d9b5'},{name:'trend',values:d.components.trend,color:'#ff9a4d'}],{xlabels:labels,height:300})}
+    ${chartCard('Observed series and STL trend',[{name:'observed',values:d.series.observed,color:'#f7e8c8'},{name:'trend',values:d.components.trend,color:'#ffab54'}],{xlabels:labels,height:300})}
     <div class="minicharts">
-      ${chartCard('Seasonal component',[{name:'seasonal',values:d.components.seasonal,color:'#5fc2c2'}],{xlabels:labels,height:210})}
-      ${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#d98a8a'}],{xlabels:labels,height:210})}
+      ${chartCard('Seasonal component',[{name:'seasonal',values:d.components.seasonal,color:'#45d6c9'}],{xlabels:labels,height:210})}
+      ${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#ff8f86'}],{xlabels:labels,height:210})}
     </div>
     <div class="cards" style="margin-top:12px">${mkBlock(mk)}</div>
     <div class="kv">
@@ -923,7 +1084,7 @@ function renderCo2(d){
       ${metric('R²',fmt(d.model.r_squared,5),'residual SD '+fmt(d.model.residual_sd,4))}
       ${metric('Seasonal amplitude',fmt(d.seasonal_amplitude,3),esc(d.units))}
     </div>
-    ${chartCard('Observed and fitted curve',[{name:'observed',values:d.series.observed,color:'#f0d9b5'},{name:'fitted',values:d.series.fitted,color:'#ff9a4d'}],{xlabels:d.series.time.map(t=>fmt(t,1)),height:310})}
+    ${chartCard('Observed and fitted curve',[{name:'observed',values:d.series.observed,color:'#f7e8c8'},{name:'fitted',values:d.series.fitted,color:'#ffab54'}],{xlabels:d.series.time.map(t=>fmt(t,1)),height:310})}
     <div class="kv">
       <span class="k">Model</span><span class="v">degree ${d.model.polynomial_order} + ${d.model.harmonic_count} harmonics</span>
       <span class="k">Growth at start</span><span class="v">${fmt(g.start_per_year,4)} ${esc(d.units)}/yr</span>
@@ -1018,7 +1179,7 @@ $('#mi-run').addEventListener('click',async()=>{
     const bar=(n,v,c)=>`<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:11px;color:#9db1c8"><span>${n}</span><b style="font-family:var(--mono)">${fmt(v,4)} bits</b></div>
       <div style="height:5px;background:#122036;border-radius:3px;margin-top:5px"><div style="height:5px;width:${Math.max(2,v/max*100)}%;background:${c};border-radius:3px"></div></div></div>`;
     $('#mi-output').innerHTML=`<div class="panel"><div class="panelhead"><b>Mutual information</b><span class="hint">${d.samples} paired samples</span></div><div class="panelbody">
-      <div class="bigvalue">${fmt(d.ksg,4)} <span style="font-size:13px;color:#8ba0ba">bits · KSG</span></div>
+      <div class="bigvalue">${fmt(d.ksg,4)} <span style="font-size:13px;color:#9fc4ef">bits · KSG</span></div>
       ${bar('Histogram (plugin)',d.plugin,'#7f96b2')}
       ${bar('Miller–Madow corrected',d.adjusted,'#38bdf8')}
       ${bar('KSG k-NN',d.ksg,'#5eead4')}
@@ -1109,17 +1270,27 @@ function renderCatalog(){
   const list=state.catalog.filter(e=>(!p||e.processes.includes(p))&&(!r||e.regions.includes(r))&&
     (!q||(e.id+' '+e.name+' '+e.description+' '+e.retrieval).toLowerCase().includes(q)));
   if(!list.length){$('#cat-list').innerHTML='<div class="empty">No catalog variables match those filters.</div>';return;}
-  $('#cat-list').innerHTML=`<table class="table"><thead><tr><th>Variable</th><th>Processes</th><th>Regions</th><th>Retrieval / analysis</th></tr></thead><tbody>
-    ${list.map(e=>`<tr><td class="id">${esc(e.id)}<br><span style="font-family:var(--sans);color:#a9b9cf">${esc(e.name)}</span><br><span style="color:#6f829d">${esc(e.units)}</span></td>
-    <td>${e.processes.map(x=>`<span class="tag">${esc(x)}</span>`).join(' ')}</td>
-    <td class="mut">${e.regions.map(esc).join(', ')}</td>
-    <td class="mut">${esc(e.retrieval)}<br><span style="color:#6f829d">${esc(e.analysis)}</span></td></tr>`).join('')}
-  </tbody></table>`;
+  $('#cat-list').innerHTML=`<div class="varcards">${list.map(e=>`
+    <div class="varcard" data-pick="${esc(e.id)}">
+      <div class="vtop"><span class="vid">${esc(e.id)}</span><span class="vname">${esc(e.name)} · ${esc(e.units||'—')}</span></div>
+      <div class="vchange">${esc(e.change||'Trend in the measured variable')}</div>
+      <div class="vmeta">${e.processes.map(x=>esc(x)).join(' · ')}</div>
+      <div class="vregions">regions · ${e.regions.map(esc).join(', ')}</div>
+      <div class="acts"><button class="btn primary" data-analyze="${esc(e.id)}">Analyse this variable →</button><button class="btn" data-plot="${esc(e.id)}">Plot over time</button></div>
+    </div>`).join('')}</div>`;
 }
 function loadCatalog(){
-  api('/api/catalog').then(d=>{state.catalog=d;renderCatalog();renderWfVars();})
+  api('/api/catalog').then(d=>{state.catalog=d;renderCatalog();renderWfVars();sigOptions();})
     .catch(e=>{$('#cat-list').innerHTML=`<div class="empty">${esc(e.message)}</div>`;});
 }
+$('#cat-list').addEventListener('click',e=>{
+  const a=e.target.closest('[data-analyze]');
+  if(a){analyseVariable(a.dataset.analyze);return;}
+  const pl=e.target.closest('[data-plot]');
+  if(pl){nav('visual');toast('Series for '+pl.dataset.plot+' are in the grid below.');return;}
+  const card=e.target.closest('[data-pick]');
+  if(card){analyseVariable(card.dataset.pick);}
+});
 $('#cat-search').addEventListener('input',renderCatalog);
 $('#cat-process').addEventListener('change',renderCatalog);
 $('#cat-region').addEventListener('change',renderCatalog);
@@ -1260,7 +1431,18 @@ function renderWfVars(){
 }
 $('#wf-search')&&$('#wf-search').addEventListener('input',renderWfVars);
 $('#wf-sphere')&&$('#wf-sphere').addEventListener('change',renderWfVars);
-$('#wf-vars')&&$('#wf-vars').addEventListener('click',e=>{const item=e.target.closest('.varitem');if(item)selectWfVar(item.dataset.id);});
+$('#wf-vars')&&$('#wf-vars').addEventListener('click',e=>{const item=e.target.closest('.varitem');if(item)analyseVariable(item.dataset.id);});
+async function analyseVariable(id){
+  if(!id)return;
+  if(!state.catalog.length){try{state.catalog=await api('/api/catalog');}catch(e){toast(e.message);return;}}
+  nav('workflow');
+  selectWfVar(id);
+  try{
+    await loadWorkflowData();
+    const confirm=$('#wf-confirm');
+    if(confirm&&!confirm.disabled)confirm.click();
+  }catch(e){toast(e.message);}
+}
 function parseCsv(text){
   const lines=text.split(/\r?\n/).filter(l=>l.trim());
   if(lines.length<2)throw new Error('CSV needs a header and at least one row');
@@ -1336,8 +1518,8 @@ $('#wf-upload')&&$('#wf-upload').addEventListener('change',e=>{
 });
 function wfChart(d){
   const labels=d.series.time.map(t=>fmt(t,1));
-  return chartCard('Observed and STL trend',[{name:'observed',values:d.series.observed,color:'#f0d9b5'},{name:'trend',values:d.components.trend,color:'#ff9a4d'}],{xlabels:labels,height:250})+
-    `<div class="minicharts">${chartCard('Seasonal',[{name:'seasonal',values:d.components.seasonal,color:'#5fc2c2'}],{xlabels:labels,height:210})}${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#d98a8a'}],{xlabels:labels,height:210})}</div>`;
+  return chartCard('Observed and STL trend',[{name:'observed',values:d.series.observed,color:'#f7e8c8'},{name:'trend',values:d.components.trend,color:'#ffab54'}],{xlabels:labels,height:250})+
+    `<div class="minicharts">${chartCard('Seasonal',[{name:'seasonal',values:d.components.seasonal,color:'#45d6c9'}],{xlabels:labels,height:210})}${chartCard('Remainder',[{name:'remainder',values:d.components.remainder,color:'#ff8f86'}],{xlabels:labels,height:210})}</div>`;
 }
 function wfTrend(d){
   const mk=d.trend.mann_kendall,sen=d.trend.sen;
@@ -1380,7 +1562,18 @@ async function loadGridDemo(){
       <div class="tagrow" style="margin-top:6px"><span class="tag">COOLING / TEAL</span><span class="tag amber">WARMING / ORANGE</span><span class="tag">${d.hotspot_count} Gi* HOTSPOTS</span></div>`;
   }catch(e){box.innerHTML=`<div class="empty">${esc(e.message)}</div>`;}
 }
+function wfQuestionBar(d){
+  const e=state.workflow.entry,meta=state.workflow.meta,mk=d.trend.mann_kendall,sen=d.trend.sen;
+  const region=$('#wf-region')?$('#wf-region').value:'global';
+  const unit=esc(e.units||'');
+  const set=(id,text)=>{const el=$(id);if(!el)return;el.textContent=text;el.parentElement.classList.add('set');};
+  set('#wf-q-what',`${e.id} · ${mk.direction}`);
+  set('#wf-q-where',`${meta.grid?'grid field · '+region:'series region tag: '+region}`);
+  set('#wf-q-howmuch',`${fmt(sen.slope,4)} ${unit}/step · ${fmt(d.trend.sen_per_decade,2)} ${unit}/decade`);
+  set('#wf-q-sig',mk.significant?`yes · p = ${pval(mk.p_value)}`:`no · p = ${pval(mk.p_value)}`);
+}
 function renderWfReport(d){
+  wfQuestionBar(d);
   const e=state.workflow.entry,meta=state.workflow.meta,mk=d.trend.mann_kendall,sen=d.trend.sen;
   $('#wf-report').innerHTML=`<div class="statusline"><span>REPORT <b>GENERATED</b></span><span>VARIABLE <b>${esc(e.id)}</b></span><span>REGION <b>${esc($('#wf-region').value)}</b></span></div>
     <div class="verdict">${mk.significant?'The series shows a statistically significant '+esc(mk.direction)+' trend.':'No statistically significant monotonic trend was detected.'}</div>
@@ -1454,7 +1647,8 @@ async function planNasa(){
   try{
     const d=await api('/api/nasa/plan',{key:$('#nasa-key').value,start:$('#nasa-start').value,end:$('#nasa-end').value,max:+$('#nasa-max').value});
     out.textContent=`$ ${d.command}\n\n[exit ${d.exit_code}]\n${d.output}`;
-  }catch(e){out.textContent='ERROR: '+e.message;}
+    out.scrollIntoView({block:'nearest'});
+  }catch(e){out.textContent='ERROR: '+e.message;out.scrollIntoView({block:'nearest'});}
 }
 $('#nasa-plan')&&$('#nasa-plan').addEventListener('click',planNasa);
 async function searchNasa(){
@@ -1477,33 +1671,34 @@ async function loadFormulas(){
   }catch(e){$('#formula-list').innerHTML=`<div class="empty">${esc(e.message)}</div>`;}
 }
 const FORMULA_GROUPS=[
-  ['01 · Observation, retrieval & Earth system',['retrieval.hpp','aerosol.hpp','ozone.hpp','precip.hpp','cryo.hpp','ocean.hpp','ocean2.hpp','land.hpp','atmos.hpp','earth.hpp']],
-  ['02 · Time series, cycles & change detection',['series.hpp','stl.hpp','trend.hpp','multitrend.hpp','change.hpp','detect.hpp','harmonic.hpp','fft.hpp','ssa.hpp','loess.hpp','regime.hpp','hmm.hpp']],
-  ['03 · Space, region & attribution',['spatial.hpp','geostat.hpp','regional.hpp','attrib.hpp','attrib2.hpp','causal.hpp','causal2.hpp','clustering.hpp','coherence.hpp','flow.hpp','landuse.hpp']],
-  ['04 · Uncertainty, validation & ensembles',['uncertainty.hpp','sstunc.hpp','validation.hpp','metrology.hpp','homogen.hpp','intercal.hpp','ensemble.hpp','quantile.hpp','relevance.hpp','power.hpp']],
-  ['05 · Physics, dynamics & transport',['physics.hpp','pde.hpp','assim.hpp','tempac.hpp','magnitude.hpp','maturity.hpp','copula.hpp','restrand.hpp']],
-  ['06 · Data, statistics & numerics',['json.hpp','csv.hpp','netcdf.hpp','readers.hpp','stats.hpp','linalg.hpp','ml.hpp','kernel.hpp']]
+  ['01 · What is changing — observation, retrieval and Earth-system variables',['retrieval.hpp','aerosol.hpp','ozone.hpp','precip.hpp','cryo.hpp','ocean.hpp','ocean2.hpp','land.hpp','atmos.hpp','earth.hpp']],
+  ['02 · How much is it changing — trend estimators, change detection and cycles',['series.hpp','stl.hpp','trend.hpp','multitrend.hpp','change.hpp','detect.hpp','harmonic.hpp','fft.hpp','ssa.hpp','loess.hpp','regime.hpp','hmm.hpp']],
+  ['03 · Where is it changing — space, region, coherence and attribution',['spatial.hpp','geostat.hpp','regional.hpp','attrib.hpp','attrib2.hpp','causal.hpp','causal2.hpp','clustering.hpp','coherence.hpp','flow.hpp','landuse.hpp']],
+  ['04 · Is it significant — uncertainty, power, validation and ensembles',['uncertainty.hpp','sstunc.hpp','validation.hpp','metrology.hpp','homogen.hpp','intercal.hpp','ensemble.hpp','quantile.hpp','relevance.hpp','power.hpp']],
+  ['05 · Why it changes — physics, dynamics and transport',['physics.hpp','pde.hpp','assim.hpp','tempac.hpp','magnitude.hpp','maturity.hpp','copula.hpp','restrand.hpp']],
+  ['06 · Numerics behind the answers — data, statistics and linear algebra',['json.hpp','csv.hpp','netcdf.hpp','readers.hpp','stats.hpp','linalg.hpp','ml.hpp','kernel.hpp']]
 ];
 function renderFormulas(){
-  const q=($('#formula-search').value||'').toLowerCase();
   if(!state.formulas)return;
+  const q=($('#formula-search').value||'').toLowerCase();
   const byFile={};
-  state.formulas.modules.forEach(m=>{byFile[m.file]={...m,functions:m.functions.filter(f=>!q||f.toLowerCase().includes(q))};});
+  state.formulas.modules.forEach(m=>{byFile[m.file]=(m.functions||[]).filter(f=>!q||f.toLowerCase().includes(q));});
   const used=new Set();
   let html='';
-  FORMULA_GROUPS.forEach(([label,files])=>{
-    const mods=files.map(f=>byFile[f]).filter(m=>m&&m.functions.length&&!used.has(m.file));
-    mods.forEach(m=>used.add(m.file));
-    if(!mods.length)return;
-    html+=`<div class="fgroup">${esc(label)}</div>`+mods.map(m=>`<div class="fitem"><div class="fhead" data-fopen><span>${esc(m.file)}</span><span class="cnt">${m.functions.length}</span></div><div class="fbody">${m.functions.map(f=>`<div class="fsig">${esc(f)}</div>`).join('')}</div></div>`).join('');
-  });
-  const rest=state.formulas.modules.filter(m=>!used.has(m.file)&&m.functions.some(f=>!q||f.toLowerCase().includes(q)));
-  if(rest.length)html+=`<div class="fgroup">07 · Supporting modules</div>`+rest.map(m=>`<div class="fitem"><div class="fhead" data-fopen><span>${esc(m.file)}</span><span class="cnt">${m.functions.filter(f=>!q||f.toLowerCase().includes(q)).length}</span></div><div class="fbody">${m.functions.filter(f=>!q||f.toLowerCase().includes(q)).map(f=>`<div class="fsig">${esc(f)}</div>`).join('')}</div></div>`).join('');
-  $('#formula-list').innerHTML=html||'<div class="empty">No function signature matches that filter.</div>';
+  const block=(label,files)=>{
+    const names=[];
+    files.forEach(f=>{if(byFile[f]&&byFile[f].length){names.push(...byFile[f]);used.add(f);}});
+    if(!names.length)return '';
+    return `<details class="fitem"><summary class="fhead"><span>${esc(label)}</span><span class="cnt">${names.length} calculations</span></summary><div class="fbody">${names.map(f=>`<div class="fsig">${esc(f)}</div>`).join('')}</div></details>`;
+  };
+  FORMULA_GROUPS.forEach(([label,files])=>{html+=block(label,files);});
+  const leftovers=[];
+  state.formulas.modules.forEach(m=>{if(!used.has(m.file)&&byFile[m.file]&&byFile[m.file].length)leftovers.push(...byFile[m.file]);});
+  if(leftovers.length)html+=`<details class="fitem"><summary class="fhead"><span>07 · Supporting helpers</span><span class="cnt">${leftovers.length} calculations</span></summary><div class="fbody">${leftovers.map(f=>`<div class="fsig">${esc(f)}</div>`).join('')}</div></details>`;
+  $('#formula-list').innerHTML=html||'<div class="empty">No calculation matches that filter.</div>';
 }
 $('#formula-search')&&$('#formula-search').addEventListener('input',renderFormulas);
 $('#formula-refresh')&&$('#formula-refresh').addEventListener('click',loadFormulas);
-$('#formula-list')&&$('#formula-list').addEventListener('click',e=>{const h=e.target.closest('[data-fopen]');if(h)h.parentElement.classList.toggle('open');});
 
 /* ---------------- COMMAND CONSOLE ---------------- */
 async function loadHelp(){
@@ -1542,7 +1737,101 @@ $('#cmd-batch-run')&&$('#cmd-batch-run').addEventListener('click',runBatch);
 $('#cmd-input')&&$('#cmd-input').addEventListener('keydown',e=>{if(e.key==='Enter')runConsole();});
 $$('.quick button').forEach(b=>b.addEventListener('click',()=>{$('#cmd-input').value=b.dataset.cmd;runConsole();}));
 
+/* ---------------- REGIONAL CONTRAST ---------------- */
+function cxSpark(values,color){
+  if(!values||values.length<2)return '';
+  const w=260,h=54,pad=3;
+  const min=Math.min(...values),max=Math.max(...values),span=(max-min)||1;
+  const pts=values.map((v,i)=>[pad+(w-2*pad)*i/(values.length-1||1),h-pad-(h-2*pad)*(v-min)/span]);
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:54px;display:block;background:#120c08;border:1px solid var(--line)"><polyline fill="none" stroke="${color}" stroke-width="1.4" points="${pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}"/></svg>`;
+}
+async function runContrast(){
+  const out=$('#cx-out');if(!out)return;
+  out.innerHTML='<div class="empty">Calling the NASA POWER API for both regions…</div>';
+  const body={parameter:$('#cx-param').value,start:+$('#cx-start').value,end:+$('#cx-end').value,
+    points:[{lat:+$('#cx-lat1').value,lon:+$('#cx-lon1').value,label:'Region A · lat '+$('#cx-lat1').value+', lon '+$('#cx-lon1').value},
+            {lat:+$('#cx-lat2').value,lon:+$('#cx-lon2').value,label:'Region B · lat '+$('#cx-lat2').value+', lon '+$('#cx-lon2').value}]};
+  try{
+    const d=await api('/api/contrast',body);
+    const cards=d.regions.map(r=>{
+      const rise=r.slope_per_year>0;
+      const curve=(d.curves&&d.curves[r.label]||[]).map(p=>p[1]);
+      const sig=r.significant?'<span class="cxsig yes">SIGNIFICANT</span>':'<span class="cxsig no">NOT SIGNIFICANT</span>';
+      return `<div class="cxcard ${rise?'rise':'fall'}">
+        <div class="cxhead"><b>${esc(r.label)}</b>${sig}</div>
+        <div class="cxarrow">${rise?'▲ RISING':'▼ FALLING'} <span>${esc(r.direction)}</span></div>
+        <div class="cxstats">
+          <div><span>Sen slope</span><b>${fmt(r.slope_per_year,4)} ${esc(d.units)}/yr</b></div>
+          <div><span>Change ${fmt(r.start,0)}–${fmt(r.end,0)}</span><b>${r.change>=0?'+':''}${fmt(r.change,2)} ${esc(d.units)}</b></div>
+          <div><span>Relative</span><b>${r.percent>=0?'+':''}${fmt(r.percent,1)}%</b></div>
+          <div><span>Seasonal MK p</span><b>${pval(r.p_value)}</b></div>
+          <div><span>Samples</span><b>${r.samples}</b></div>
+          <div><span>Mean</span><b>${fmt(r.mean,2)} ${esc(d.units)}</b></div>
+        </div>
+        ${cxSpark(curve,rise?'#ff9e4a':'#45d6c9')}
+        <div class="note">${esc(r.file)}</div>
+      </div>`;
+    }).join('');
+    out.innerHTML=`<div class="cxverdict ${d.opposed?'opposed':''}">${esc(d.verdict)}</div>
+      <div class="cxgrid">${cards}</div>
+      <div class="note">Both regions were pulled live from the NASA POWER API for ${esc(d.parameter)}. Each verdict comes from its own seasonal Mann–Kendall test at alpha = ${d.alpha}; "significant" means a monotonic change this large is unlikely when there is no trend.</div>`;
+  }catch(e){out.innerHTML=`<div class="empty">Contrast failed: ${esc(e.message)}</div>`;}
+}
+$('#cx-run')&&$('#cx-run').addEventListener('click',runContrast);
+
+/* ---------------- SIGNIFICANCE ---------------- */
+function sigOptions(){
+  const box=$('#sig-var');if(!box)return;
+  const list=state.catalog.length?state.catalog:[];
+  box.innerHTML=list.map(e=>`<option value="${esc(e.id)}">${esc(e.id)} · ${esc(e.name)}</option>`).join('');
+}
+function mdtPerYear(d){
+  const conv=d.spacing>0&&d.spacing<0.5?12:1;               // steps per year
+  const sd=d.summary&&isFinite(d.summary.sd)?d.summary.sd:NaN;
+  const n=d.samples;
+  const spanYears=(d.end_time-d.start_time)/conv;
+  if(!isFinite(sd)||!n||spanYears<=0)return null;
+  return 2.802*sd*Math.sqrt(12/n)/spanYears;                // 80% power, alpha 0.05
+}
+async function sigRun(){
+  const out=$('#sig-out');if(!out)return;
+  const id=$('#sig-var').value;if(!id)return toast('Pick a variable first.');
+  const meta=wfMeta(id),file=meta.file||(id+'_monthly.csv');
+  out.innerHTML='<div class="panel"><div class="panelbody"><div class="hint">Loading the series and running the tests…</div></div></div>';
+  try{
+    const text=await (await fetch('/api/data/file?name='+encodeURIComponent(file))).text();
+    const alpha=Math.min(0.2,Math.max(0.001,Number($('#sig-alpha').value)||0.05));
+    const entry=state.catalog.find(e=>e.id===id)||{};
+    const d=await api('/api/analyze',{csv:text,alpha,period:12,units:entry.units||''});
+    const mk=d.trend.mann_kendall,raw=d.raw_trend.mann_kendall,sen=d.trend.sen,smk=d.seasonal_mann_kendall;
+    const ens=d.trend.ensemble||{members:[],agreement:0,consensus:''};
+    const mdt=mdtPerYear(d);
+    const rows=[
+      ['Is there a monotonic trend at all?','Mann–Kendall on the deseasonalised series',`S = ${fmt(mk.s,0)}, z = ${fmt(mk.z,3)}`,pval(mk.p_value),mk.significant?'yes':'no'],
+      ['Does the raw record already show it?','Mann–Kendall without removing the trend first',`tau = ${fmt(raw.tau,3)}`,pval(raw.p_value),raw.significant?'yes':'no'],
+      ['Is the seasonal cycle hiding it?','Seasonal Mann–Kendall, month by month',smk?`z = ${fmt(smk.z,3)}`:'not available',smk?pval(smk.p_value):'—',smk?(smk.significant?'yes':'no'):'—'],
+      ['Is autocorrelation inflating the test?','Hamed–Rao variance correction',`${fmt(mk.correction_factor,3)}x variance`,pval(mk.p_value),mk.correction_factor>1.2?'penalised':'no inflation'],
+      ['How large is the change, with uncertainty?','Sen slope and its rank-based 95% interval',`${fmt(sen.slope,4)} [${fmt(sen.lower,4)}, ${fmt(sen.upper,4)}]`,'—',sen.lower>0?'firmly rising':sen.upper<0?'firmly falling':'straddles zero'],
+      ['Do the estimators agree on the sign?','Accuracy-weighted ensemble',`${Math.round((ens.agreement||0)*100)}% agreement`,pval(mk.p_value),ens.consensus||'—'],
+      ['Could a trend this size be detected at all?','Minimum detectable trend, 80% power',mdt===null?'—':`${fmt(mdt,4)} ${esc(d.units||'')}/yr`,'—',mdt!==null&&Math.abs(sen.slope*12)>mdt?'record resolves it':'record is short'],
+    ];
+    out.innerHTML=`<div class="panel"><div class="panelhead"><b>${esc(id)} · significance suite</b><span class="hint">alpha = ${fmt(alpha,3)} · ${d.samples} samples</span></div><div class="panelbody">
+      <div class="verdict">${mk.significant?`<b>SIGNIFICANT ${esc(mk.direction).toUpperCase()}</b>`:'<b>NO SIGNIFICANT MONOTONIC TREND</b>'} at alpha = ${fmt(alpha,3)}. ${mk.significant?'The change survives autocorrelation, the seasonal cycle and estimator disagreement.':'The change cannot be separated from noise at this alpha, so it is not reported as a trend.'}</div>
+      <table class="etable"><thead><tr><th>Question</th><th>Test</th><th>Statistic</th><th>p</th><th>Verdict</th></tr></thead><tbody>
+        ${rows.map(r=>`<tr><td>${esc(r[0])}</td><td class="mut">${esc(r[1])}</td><td>${r[2]}</td><td>${r[3]}</td><td class="${/yes|firmly|resolves|penalised|no inflation/.test(r[4])?'good':'warn'}">${esc(r[4])}</td></tr>`).join('')}
+      </tbody></table>
+      <div class="kv"><span class="k">RANGE</span><span class="v">${fmt(d.start_time,2)} → ${fmt(d.end_time,2)}</span><span class="k">MISSING FILLED</span><span class="v">${d.missing_filled}</span><span class="k">ALPHA</span><span class="v">${fmt(d.alpha,3)}</span></div>
+      <div class="note">Every row is computed by the C++ engine from the same series. The last row is the smallest trend this record could have detected, so a "no" above can be read as "no detectable trend" instead of "no change".</div>
+    </div></div>`;
+  }catch(e){
+    out.innerHTML=`<div class="panel"><div class="panelbody"><div class="err">${esc(e.message)}</div></div></div>`;
+  }
+}
+$('#sig-run')&&$('#sig-run').addEventListener('click',sigRun);
+
 /*__LAB_JS__*/
+/*__VIS_JS__*/
+/*__LIVE_JS__*/
 
 /* ---------------- BOOT ---------------- */
 renderPhysics();
@@ -1551,12 +1840,22 @@ loadNasa();
 loadFormulas();
 loadHelp();
 loadLab();
+loadVisual();
+loadLive();
 </script>
 </body>
 </html>)CLIMATE_UI";
         const std::string marker = "/*__LAB_JS__*/";
         const std::size_t at = html.find(marker);
         if (at != std::string::npos) html.replace(at, marker.size(), climate_lab_js());
+        const std::string vis_marker = "/*__VIS_JS__*/";
+        const std::size_t vis_at = html.find(vis_marker);
+        if (vis_at != std::string::npos)
+            html.replace(vis_at, vis_marker.size(), climate_visual_js());
+        const std::string live_marker = "/*__LIVE_JS__*/";
+        const std::size_t live_at = html.find(live_marker);
+        if (live_at != std::string::npos)
+            html.replace(live_at, live_marker.size(), climate_live_js());
         return html;
     }();
     return page.c_str();

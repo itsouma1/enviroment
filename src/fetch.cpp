@@ -195,6 +195,50 @@ std::string build_command(const std::vector<std::string>& arguments) {
     return command.str();
 }
 
+CommandResult run_command_with_env(const std::string& command,
+                                   const std::vector<std::pair<std::string, std::string>>& env) {
+    CommandResult result;
+#if defined(_WIN32)
+    std::string prefixed;
+    for (const auto& item : env) prefixed += "set " + item.first + "=" + item.second + "&& ";
+    return run_command(prefixed + command);
+#else
+    int fds[2];
+    if (pipe(fds) != 0) {
+        result.exit_code = -1;
+        result.output = "failed to create a pipe";
+        return result;
+    }
+    const pid_t pid = fork();
+    if (pid == 0) {
+        close(fds[0]);
+        dup2(fds[1], STDOUT_FILENO);
+        dup2(fds[1], STDERR_FILENO);
+        close(fds[1]);
+        for (const auto& item : env) setenv(item.first.c_str(), item.second.c_str(), 1);
+        execl("/bin/sh", "sh", "-c", command.c_str(), static_cast<char*>(nullptr));
+        _exit(127);
+    }
+    if (pid < 0) {
+        close(fds[0]);
+        close(fds[1]);
+        result.exit_code = -1;
+        result.output = "failed to start command: " + command;
+        return result;
+    }
+    close(fds[1]);
+    char buffer[4096];
+    ssize_t got = 0;
+    while ((got = read(fds[0], buffer, sizeof(buffer))) > 0)
+        result.output.append(buffer, static_cast<std::size_t>(got));
+    close(fds[0]);
+    int status = 0;
+    waitpid(pid, &status, 0);
+    result.exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : status;
+    return result;
+#endif
+}
+
 CommandResult run_command(const std::string& command) {
     CommandResult result;
     const std::string full = command + " 2>&1";

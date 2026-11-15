@@ -858,6 +858,32 @@ Response physics_request(const json::Value& body) {
     return json_response(root);
 }
 
+// What kind of change does this variable measure? The label is what the
+// challenge asks a judge to compare, so it is stated per variable instead of
+// hiding behind a retrieval formula.
+std::string change_label(const std::string& id) {
+    static const std::map<std::string, std::string> labels = {
+        {"sst", "Trend in mean ocean skin temperature (warming / cooling)"},
+        {"air_temperature", "Trend in mean surface air temperature"},
+        {"co2", "Trend and growth-rate change in atmospheric CO2"},
+        {"ch4", "Trend in atmospheric methane concentration"},
+        {"ndvi", "Trend in vegetation greenness and growing season"},
+        {"sea_ice_extent", "Trend in sea-ice extent (shrinking / expanding)"},
+        {"sea_ice_concentration", "Trend in ice concentration (thickening / thinning)"},
+        {"precipitation", "Trend in precipitation totals and extremes"},
+        {"ocean_heat_content", "Trend in ocean heat uptake"},
+        {"toa_energy_imbalance", "Trend in the top-of-atmosphere energy imbalance"},
+        {"snow_cover", "Trend in snow-cover extent and duration"},
+        {"ozone", "Trend in column ozone (recovery / depletion)"},
+        {"aerosol_optical_depth", "Trend in aerosol loading"},
+        {"soil_moisture", "Trend in soil moisture (wetting / drying)"},
+        {"ocean_color", "Trend in ocean chlorophyll and productivity"},
+        {"sea_level", "Trend in sea level (rise / fall)"},
+    };
+    const auto found = labels.find(id);
+    return found == labels.end() ? "Trend in the measured variable" : found->second;
+}
+
 Response catalog_request() {
     json::Value list = json::Value::array();
     for (const auto& entry : catalog_entries()) {
@@ -870,6 +896,7 @@ Response catalog_request() {
         item.set("retrieval", json::Value::from_string(entry.retrieval));
         item.set("analysis", json::Value::from_string(entry.analysis_method));
         item.set("description", json::Value::from_string(entry.description));
+        item.set("change", json::Value::from_string(change_label(entry.id)));
         list.push(item);
     }
     return json_response(list);
@@ -1260,6 +1287,416 @@ Response lab_run_request(const json::Value& body) {
     return json_response(root);
 }
 
+std::string live_interpreter() {
+    if (std::filesystem::exists(".venv-test/bin/python")) return ".venv-test/bin/python";
+    return "python3";
+}
+
+bool safe_token(const std::string& text, const std::string& extra) {
+    if (text.empty() || text.size() > 40) return false;
+    for (char c : text) {
+        const bool ok = std::isalnum(static_cast<unsigned char>(c)) ||
+                        extra.find(c) != std::string::npos;
+        if (!ok) return false;
+    }
+    return true;
+}
+
+Response live_status_request() {
+    const CommandResult result = run_command(live_interpreter() + " tools/nasa_live.py status < /dev/null");
+    if (result.exit_code != 0) throw BadRequest("the live-data helper failed: " + result.output);
+    return json_response(json::parse(result.output));
+}
+
+Response live_pull_request(const json::Value& body) {
+    const std::string source = value_string(body, "source");
+    static const char* allowed[] = {"gistemp", "power", "seaice", "earthaccess"};
+    if (std::find(std::begin(allowed), std::end(allowed), source) == std::end(allowed))
+        throw BadRequest("unknown live source");
+
+    std::ostringstream command;
+    command << live_interpreter() << " tools/nasa_live.py pull --source " << source;
+    const std::string start = value_string(body, "start", "2000-01-01");
+    const std::string end = value_string(body, "end");
+    if (!safe_token(start, "-") || (!end.empty() && !safe_token(end, "-")))
+        throw BadRequest("start and end must be ISO dates");
+    if (source == "power" || source == "earthaccess") {
+        command << " --start " << start;
+        if (!end.empty()) command << " --end " << end;
+    }
+    if (source == "power") {
+        const double lat = value_number(body, "lat", 72.0);
+        const double lon = value_number(body, "lon", -40.0);
+        if (lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0)
+            throw BadRequest("latitude or longitude is out of range");
+        const std::string parameter = value_string(body, "parameter", "T2M");
+        if (!safe_token(parameter, "_:")) throw BadRequest("invalid POWER parameter");
+        command << " --lat " << lat << " --lon " << lon << " --parameter " << parameter;
+    }
+    if (source == "seaice") {
+        const std::string region = value_string(body, "region", "N");
+        if (region != "N" && region != "S") throw BadRequest("region must be N or S");
+        command << " --region " << region;
+    }
+    if (source == "earthaccess") {
+        const std::string short_name = value_string(body, "short_name");
+        if (!safe_token(short_name, "_-.")) throw BadRequest("invalid CMR short name");
+        command << " --short-name " << short_name;
+    }
+
+    // Per-request Earthdata credentials: they are handed to the helper through
+    // its environment only, never written to disk, logged or echoed back.
+    std::vector<std::pair<std::string, std::string>> env;
+    auto credential = [&](const char* key, const char* name) {
+        const std::string value = value_string(body, key);
+        if (value.empty()) return;
+        if (value.size() > 400) throw BadRequest(std::string(name) + " is implausibly long");
+        env.emplace_back(name, value);
+    };
+    credential("earthdata_username", "EARTHDATA_USERNAME");
+    credential("earthdata_password", "EARTHDATA_PASSWORD");
+    credential("earthdata_token", "EARTHDATA_TOKEN");
+
+    const CommandResult result = env.empty()
+        ? run_command(command.str() + " < /dev/null")
+        : run_command_with_env(command.str() + " < /dev/null", env);
+    // A library can print warnings on stderr before its JSON verdict, so the
+    // payload is taken from the last line that actually is JSON.
+    std::string payload = result.output;
+    const std::size_t marker = payload.rfind("{\n  \"ok\"");
+    const std::size_t inline_marker = payload.rfind("{\"ok\"");
+    if (inline_marker != std::string::npos) payload = payload.substr(inline_marker);
+    else if (marker != std::string::npos) payload = payload.substr(marker);
+    try {
+        return json_response(json::parse(payload));
+    } catch (const std::exception&) {
+        throw BadRequest("the live-data helper returned something unreadable: " +
+                         result.output.substr(result.output.size() > 400 ? result.output.size() - 400 : 0));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Regional contrast: the same variable, two places, two independent verdicts.
+// A measured variable can rise in one region and fall in another even when one
+// process drives both; this endpoint makes that opposition measurable.
+// ---------------------------------------------------------------------------
+struct ContrastRegion {
+    std::string label;
+    double lat = 0.0;
+    double lon = 0.0;
+    std::string parameter;
+    std::string units;
+    std::string file;
+    std::size_t samples = 0;
+    double start = 0.0;
+    double end = 0.0;
+    double first_value = 0.0;
+    double last_value = 0.0;
+    double mean = 0.0;
+    double slope_per_year = 0.0;
+    double change = 0.0;         // reported as +rise / -fall
+    double percent = 0.0;
+    double p_value = 1.0;
+    std::string direction = "no trend";
+    bool significant = false;
+};
+
+json::Value contrast_point_json(const ContrastRegion& point) {
+    json::Value value = json::Value::object();
+    value.set("label", json::Value::from_string(point.label));
+    value.set("lat", json::Value::from_number(point.lat));
+    value.set("lon", json::Value::from_number(point.lon));
+    value.set("parameter", json::Value::from_string(point.parameter));
+    value.set("units", json::Value::from_string(point.units));
+    value.set("file", json::Value::from_string(point.file));
+    value.set("samples", json::Value::from_number(static_cast<double>(point.samples)));
+    value.set("start", json::Value::from_number(point.start));
+    value.set("end", json::Value::from_number(point.end));
+    value.set("first_value", json::Value::from_number(point.first_value));
+    value.set("last_value", json::Value::from_number(point.last_value));
+    value.set("mean", json::Value::from_number(point.mean));
+    value.set("slope_per_year", json::Value::from_number(point.slope_per_year));
+    value.set("change", json::Value::from_number(point.change));
+    value.set("percent", json::Value::from_number(point.percent));
+    value.set("p_value", json::Value::from_number(point.p_value));
+    value.set("direction", json::Value::from_string(point.direction));
+    value.set("significant", json::Value::from_bool(point.significant));
+    return value;
+}
+
+ContrastRegion contrast_region(const std::string& label, double lat, double lon,
+                               const std::string& parameter, const std::string& start,
+                               const std::string& end) {
+    std::ostringstream command;
+    command << live_interpreter() << " tools/nasa_live.py pull --source power"
+            << " --lat " << lat << " --lon " << lon << " --parameter " << parameter
+            << " --start " << start << " --end " << end << " < /dev/null";
+    const CommandResult result = run_command(command.str());
+    json::Value payload;
+    try {
+        payload = json::parse(result.output);
+    } catch (const std::exception&) {
+        throw BadRequest("the NASA POWER pull for " + label +
+                         " returned something unreadable: " + result.output.substr(0, 300));
+    }
+    const json::Value* ok = payload.find("ok");
+    if (ok == nullptr || !ok->as_bool(false)) {
+        const json::Value* error = payload.find("error");
+        throw BadRequest("the NASA POWER pull for " + label + " failed: " +
+                         (error == nullptr ? std::string("no detail") : error->as_string("")));
+    }
+    const json::Value* series = payload.find("series");
+    if (series == nullptr) throw BadRequest("the NASA POWER pull returned no series for " + label);
+
+    const json::Value* file = series->find("file");
+    if (file == nullptr) throw BadRequest("the NASA POWER pull returned no file for " + label);
+    const std::string path = file->as_string("");
+    if (path.size() < 4 || path.substr(path.size() - 4) != ".csv")
+        throw BadRequest("unexpected series path from the live helper");
+    if (path.find("..") != std::string::npos) throw BadRequest("unsafe series path");
+
+    const Table table = parse_csv_text(read_text_file(path));
+    std::vector<double> times;
+    std::vector<double> values;
+    for (std::size_t i = 0; i < table.rows.size(); ++i) {
+        double time = 0.0;
+        double value = 0.0;
+        if (!parse_number(table.cell(i, 0), time)) continue;
+        if (!parse_number(table.cell(i, 1), value)) continue;
+        times.push_back(time);
+        values.push_back(value);
+    }
+    if (values.size() < 12)
+        throw BadRequest("only " + std::to_string(values.size()) +
+                         " usable samples were returned for " + label);
+
+    ContrastRegion region;
+    region.label = label;
+    region.lat = lat;
+    region.lon = lon;
+    region.parameter = parameter;
+    region.file = path;
+    region.samples = values.size();
+    region.start = times.front();
+    region.end = times.back();
+    region.first_value = values.front();
+    region.last_value = values.back();
+
+    double total = 0.0;
+    for (double value : values) total += value;
+    region.mean = total / static_cast<double>(values.size());
+
+    const SenResult sen = sens_slope(times, values);
+    // Monthly series carry a seasonal cycle, so the seasonal Mann-Kendall test
+    // compares months against the same month in other years instead of pooling
+    // winter against summer.
+    const double spacing = (times.back() - times.front()) /
+                           static_cast<double>(values.size() - 1);
+    const MKResult mk = (values.size() >= 36 && spacing > 0.06 && spacing < 0.10)
+                            ? seasonal_mann_kendall(values, 12)
+                            : mann_kendall(values);
+    region.slope_per_year = sen.slope;
+    region.p_value = mk.p_value;
+    region.direction = mk.direction;
+    region.significant = mk.significant;
+    const double span = region.end - region.start;
+    region.change = sen.slope * span;
+    region.percent = std::fabs(region.mean) > 1e-9
+                         ? 100.0 * region.change / std::fabs(region.mean)
+                         : 0.0;
+
+    const json::Value* units = series->find("units");
+    region.units = units == nullptr ? std::string() : units->as_string("");
+    return region;
+}
+
+Response contrast_request(const json::Value& body) {
+    const std::string parameter = value_string(body, "parameter", "T2M");
+    static const char* allowed[] = {"T2M",   "T2M_MAX", "T2M_MIN", "TS", "PRECTOTCORR",
+                                    "WS2M", "RH2M",    "ALLSKY_SFC_SW_DWN"};
+    if (std::find(std::begin(allowed), std::end(allowed), parameter) == std::end(allowed))
+        throw BadRequest("unsupported POWER parameter for the contrast");
+
+    const int start_year = static_cast<int>(value_number(body, "start", 1990.0));
+    const int end_year = static_cast<int>(value_number(body, "end", 2024.0));
+    if (start_year < 1981 || end_year > 2030 || end_year - start_year < 10)
+        throw BadRequest("the contrast needs at least 10 years inside 1981-2030");
+    const std::string start = std::to_string(start_year) + "-01-01";
+    const std::string end = std::to_string(end_year) + "-12-31";
+
+    struct PointSpec {
+        double lat;
+        double lon;
+        const char* fallback_label;
+    };
+    const PointSpec defaults[2] = {{72.0, -40.0, "Arctic (72N, 40W)"},
+                                   {-70.0, 0.0, "Antarctic (-70S, 0E)"}};
+    std::vector<PointSpec> points;
+    const json::Value* list = body.find("points");
+    if (list != nullptr && list->is_array() && list->items.size() >= 2) {
+        for (std::size_t i = 0; i < 2; ++i) {
+            const json::Value& item = list->items[i];
+            const json::Value* lat = item.find("lat");
+            const json::Value* lon = item.find("lon");
+            if (lat == nullptr || lon == nullptr) throw BadRequest("each point needs lat and lon");
+            points.push_back({lat->as_number(0.0), lon->as_number(0.0), defaults[i].fallback_label});
+        }
+    } else {
+        points.push_back(defaults[0]);
+        points.push_back(defaults[1]);
+    }
+
+    std::vector<ContrastRegion> regions;
+    for (std::size_t i = 0; i < points.size(); ++i) {
+        const PointSpec& point = points[i];
+        if (point.lat < -90.0 || point.lat > 90.0 || point.lon < -180.0 || point.lon > 180.0)
+            throw BadRequest("a contrast latitude or longitude is out of range");
+        std::string label = point.fallback_label;
+        if (list != nullptr && list->is_array() && list->items.size() >= 2) {
+            const json::Value* name = list->items[i].find("label");
+            if (name != nullptr && !name->as_string("").empty()) label = name->as_string("");
+        }
+        regions.push_back(contrast_region(label, point.lat, point.lon, parameter, start, end));
+    }
+
+    const ContrastRegion& first = regions[0];
+    const ContrastRegion& second = regions[1];
+    const bool opposed = (first.slope_per_year > 0.0) != (second.slope_per_year > 0.0) &&
+                         std::fabs(first.slope_per_year) > 1e-12 &&
+                         std::fabs(second.slope_per_year) > 1e-12;
+    const bool both_significant = first.significant && second.significant;
+
+    std::string verdict;
+    if (opposed && both_significant)
+        verdict = "OPPOSITE SIGNIFICANT TRENDS: the same variable moves in opposite directions "
+                  "in these two regions, so a single global sign would hide one of them.";
+    else if (opposed)
+        verdict = "OPPOSITE TRENDS, ONE NOT SIGNIFICANT: the signs disagree but at least one "
+                  "region cannot be separated from no trend at this alpha.";
+    else if (first.significant && second.significant)
+        verdict = "SAME DIRECTION, BOTH SIGNIFICANT: both regions change the same way; the "
+                  "difference is in magnitude, not sign.";
+    else if (first.significant || second.significant)
+        verdict = "ONE SIGNIFICANT REGION: only one of the two regions clears the significance "
+                  "test at this alpha.";
+    else
+        verdict = "NO SIGNIFICANT TREND IN EITHER REGION: neither region can be distinguished "
+                  "from a flat series at this alpha.";
+
+    json::Value root = json::Value::object();
+    root.set("parameter", json::Value::from_string(parameter));
+    root.set("units", json::Value::from_string(first.units));
+    root.set("start", json::Value::from_number(static_cast<double>(start_year)));
+    root.set("end", json::Value::from_number(static_cast<double>(end_year)));
+    root.set("alpha", json::Value::from_number(0.05));
+    root.set("opposed", json::Value::from_bool(opposed));
+    root.set("both_significant", json::Value::from_bool(both_significant));
+    root.set("verdict", json::Value::from_string(verdict));
+    json::Value out = json::Value::array();
+    for (const auto& region : regions) out.push(contrast_point_json(region));
+    root.set("regions", out);
+
+    // The two short series are returned too, so the page can draw both curves.
+    json::Value curves = json::Value::object();
+    for (const auto& region : regions) {
+        const Table table = parse_csv_text(read_text_file(region.file));
+        json::Value series = json::Value::array();
+        for (std::size_t i = 0; i < table.rows.size(); ++i) {
+            double time = 0.0;
+            double value = 0.0;
+            if (!parse_number(table.cell(i, 0), time)) continue;
+            if (!parse_number(table.cell(i, 1), value)) continue;
+            json::Value sample = json::Value::array();
+            sample.push(json::Value::from_number(time));
+            sample.push(json::Value::from_number(value));
+            series.push(sample);
+        }
+        curves.set(region.label, series);
+    }
+    root.set("curves", curves);
+    return json_response(root);
+}
+
+Response visualize_request() {
+    std::vector<std::string> files;
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator("data")) {
+            if (!entry.is_regular_file()) continue;
+            const std::string name = entry.path().filename().string();
+            if (name.size() > 4 && name.substr(name.size() - 4) == ".csv") files.push_back(name);
+        }
+    } catch (const std::exception&) {
+    }
+    std::sort(files.begin(), files.end());
+
+    json::Value datasets = json::Value::array();
+    for (const std::string& name : files) {
+        Table table;
+        try {
+            table = parse_csv_text(read_text_file("data/" + name));
+        } catch (const std::exception&) {
+            continue;
+        }
+        if (table.rows.size() < 4 || table.header.size() < 2) continue;
+        int value_column = table.column("value");
+        if (value_column < 0) value_column = 1;
+        std::vector<double> time, values;
+        for (std::size_t i = 0; i < table.rows.size(); ++i) {
+            double t = static_cast<double>(i), v = 0.0;
+            parse_number(table.cell(i, 0), t);
+            if (!parse_number(table.cell(i, value_column), v)) continue;
+            time.push_back(t);
+            values.push_back(v);
+        }
+        if (values.size() < 4) continue;
+
+        const std::size_t step = std::max<std::size_t>(1, values.size() / 120);
+        std::vector<double> thin, thin_time;
+        for (std::size_t i = 0; i < values.size(); i += step) {
+            thin.push_back(values[i]);
+            thin_time.push_back(time[i]);
+        }
+        if (thin.size() < 2 || thin.back() != values.back()) {
+            thin.push_back(values.back());
+            thin_time.push_back(time.back());
+        }
+
+        const SenResult sen = sens_slope(time, values);
+        double mean = 0.0, low = values[0], high = values[0];
+        for (double v : values) {
+            mean += v;
+            low = std::min(low, v);
+            high = std::max(high, v);
+        }
+        mean /= static_cast<double>(values.size());
+        const double first = values.front();
+
+        json::Value item = json::Value::object();
+        item.set("file", json::Value::from_string(name));
+        item.set("name", json::Value::from_string(name));
+        item.set("variable", json::Value::from_string(
+                                table.header.size() > 1 ? table.header[value_column] : "value"));
+        item.set("samples", json::Value::from_number(static_cast<double>(values.size())));
+        item.set("mean", json::Value::from_number(mean));
+        item.set("minimum", json::Value::from_number(low));
+        item.set("maximum", json::Value::from_number(high));
+        item.set("slope", json::Value::from_number(sen.slope));
+        item.set("percent", json::Value::from_number(
+                               std::fabs(first) > 1e-12 ? 100.0 * (values.back() - first) / first
+                                                        : 0.0));
+        json::Value series = json::Value::array();
+        for (double v : thin) series.push(json::Value::from_number(v));
+        item.set("values", series);
+        datasets.push(item);
+    }
+
+    json::Value root = json::Value::object();
+    root.set("count", json::Value::from_number(
+                           static_cast<double>(datasets.items.size())));
+    root.set("datasets", datasets);
+    return json_response(root);
+}
+
 Response grid_trend_request() {
     // A small deterministic demonstration field. It exists to exercise the
     // per-cell Sen slope and Getis-Ord path without pretending to be a NASA
@@ -1523,6 +1960,8 @@ Response route(const Request& request) {
         if (request.path == "/api/help") return help_request();
         if (request.path == "/api/formulas") return formulas_request();
         if (request.path == "/api/lab") return lab_catalog_request();
+        if (request.path == "/api/visualize") return visualize_request();
+        if (request.path == "/api/live/status") return live_status_request();
         if (request.path == "/api/grid-trend") return grid_trend_request();
         if (request.path == "/api/nasa/datasets") return nasa_datasets_request();
         if (request.path == "/api/data/file") {
@@ -1557,6 +1996,8 @@ Response route(const Request& request) {
         if (request.path == "/api/sstunc") return uncertainty_request(body);
         if (request.path == "/api/physics") return physics_request(body);
         if (request.path == "/api/lab/run") return lab_run_request(body);
+        if (request.path == "/api/live/pull") return live_pull_request(body);
+        if (request.path == "/api/contrast") return contrast_request(body);
         if (request.path == "/api/query") return query_request(body);
         if (request.path == "/api/run") return run_request(body);
         if (request.path == "/api/nasa/plan") return nasa_plan_request(body);

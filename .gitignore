@@ -11,3 +11,9 @@ tools/generate_demo
 data/nlsst_model.csv
 data/nasa_team_model.csv
 data/ndvi_output.csv
+
+# Local test environment and build trees
+.venv-test/
+.build/
+.tools/
+artifacts/

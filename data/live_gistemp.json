@@ -1,0 +1,14 @@
+{
+  "url": "https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.csv",
+  "variable": "anomaly",
+  "units": "degC vs 1951-1980",
+  "source": "gistemp",
+  "key": "gistemp",
+  "file": "data/live_gistemp.csv",
+  "samples": 1762,
+  "first_time": 1880.0417,
+  "last_time": 2026.7917,
+  "first_value": -0.19,
+  "last_value": 1.55,
+  "retrieved_at": "2026-11-15T07:54:00+00:00"
+}
